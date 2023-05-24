@@ -1,10 +1,10 @@
 name: napari-nxf
-display_name: napari-nxf
+display_name: AI On Demand
 contributions:
   commands:
     - id: napari-nxf.make_qwidget
-      python_name: napari_nxf._widget:ExampleQWidget
-      title: Make example QWidget
+      python_name: napari_nxf._widget:AIOnDemand
+      title: Run AI On Demand for segmentation
   widgets:
     - command: napari-nxf.make_qwidget
-      display_name: Example QWidget
+      display_name: AI On Demand

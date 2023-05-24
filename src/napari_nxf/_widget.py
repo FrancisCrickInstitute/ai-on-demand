@@ -1,13 +1,14 @@
 from pathlib import Path
-from typing import TYPE_CHECKING
-from qtpy.QtWidgets import QVBoxLayout, QPushButton, QWidget
+from typing import Union
+from qtpy.QtWidgets import QVBoxLayout, QPushButton, QWidget, QFileDialog, QLabel, QLineEdit, QRadioButton, QGroupBox
+from qtpy.QtGui import QPixmap
+import qtpy.QtCore
 
-if TYPE_CHECKING:
-    import napari
+import napari
 
 
-class ExampleQWidget(QWidget):
-    def __init__(self, napari_viewer):
+class AIOnDemand(QWidget):
+    def __init__(self, napari_viewer: napari.Viewer):
         super().__init__()
         self.viewer = napari_viewer
         self.setLayout(QVBoxLayout())

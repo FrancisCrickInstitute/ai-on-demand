@@ -1,7 +1,7 @@
 __version__ = "0.0.1"
 
-from ._widget import ExampleQWidget
+from ._widget import AIOnDemand
 
 __all__ = (
-    "ExampleQWidget"
+    "AIOnDemand"
 )
