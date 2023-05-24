@@ -42,6 +42,8 @@ If issues still occur, then use PyQt6 (which has wheels for Apple silicon):
 
     pip install napari pyqt6
 
+**Note: This is a last resort, and as the support for PyQt6 varies within napari this may cause issues!**
+
 ### Nextflow
 Install nextflow
 
