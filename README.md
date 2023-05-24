@@ -25,32 +25,44 @@ https://napari.org/stable/plugins/index.html
 Create conda environment:
     
     conda create -n nxf_env python=3.9
+    
+Then ensure that this environment is active for the following steps.
 
-Install napari Windows, Linux, Mac (intel)
+### Napari on Windows/Linux/Mac (Intel)
 
     pip install "napari[all]"
 
-Install napari Mac (M1)
-    
+### Napari on Mac (Apple Silicon, M1/M2 etc.)
+`napari` uses PyQt5 by default, but you'll need to install it using `conda` (or `mamba` if `conda` is being slow)
+
     conda install pyqt
     pip install napari
 
+If issues still occur, then use PyQt6 (which has wheels for Apple silicon):
+
+    pip install napari pyqt6
+
+### Nextflow
 Install nextflow
 
     conda install -c bioconda nextflow
+    
+Install Python nextflow wrapper
 
-Clone plugin
+    pip install nextflowpy
 
-    git clone https://github.com/MatousE/napari-nxf.git
+### This Plugin
+Clone this plugin
 
-Move to napari-nxf directory
+    git clone https://github.com/FrancisCrickInstitute/ai-on-demand.git
 
-    cd napari-nxf
+Move to `napari-ai-od/` directory
+
+    cd napari-ai-od
 
 Install plugin
 
     pip install -e .
-
 
 ## Contributing
 
