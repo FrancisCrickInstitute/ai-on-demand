@@ -109,6 +109,10 @@ class AIOnDemand(QWidget):
         self.images_dir_label = QLabel("Image folder: not selected.")
         # Create empty container for selected image filepaths
         self.all_img_files = None
+        # Create empty container for the image directory
+        self.images_dir = None
+        # Create empty counter to show image load progress
+        self.load_img_counter = 0
         # Create a button to navigate to a directory to take images from
         self.dir_btn = QPushButton("Select directory")
         self.dir_btn.clicked.connect(self.browse_directory)
@@ -122,7 +126,7 @@ class AIOnDemand(QWidget):
         self.dir_layout.addWidget(self.images_dir_label)
         # Add a button for viewing the images within napari
         # Optional as potentially taxing, and not necessary
-        self.view_img_btn = QPushButton("View Selected Images")
+        self.view_img_btn = QPushButton("View selected images")
         self.view_img_btn.setToolTip("Load selected images into napari to view.")
         self.view_img_btn.clicked.connect(self.view_images)
         self.dir_layout.addWidget(self.view_img_btn)
@@ -141,13 +145,16 @@ class AIOnDemand(QWidget):
     def browse_directory(self):
         result = QFileDialog.getExistingDirectory(
             self,
-            caption="Test",
+            caption="Select image directory",
             directory=None
         )
-        self.images_dir = result
-        self.images_dir_label.setText(f"Image folder:\n{self.images_dir}")
-        self._count_files()
-        return result if result else None
+        # If a new directory is selected, reset the load button text
+        if result != self.images_dir:
+            self.view_img_btn.setText("View selected images")
+        if result != "":
+            self.images_dir = result
+            self.images_dir_label.setText(f"Image folder:\n{self.images_dir}")
+            self._count_files()
 
     def type_directory(self):
         '''Allow for user to type a directory?
