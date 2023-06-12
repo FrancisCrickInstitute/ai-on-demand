@@ -6,6 +6,8 @@ from qtpy.QtGui import QPixmap
 import qtpy.QtCore
 import skimage.io
 
+import warnings
+
 import napari
 from napari.qt.threading import thread_worker
 
@@ -107,6 +109,7 @@ class AIOnDemand(QWidget):
         self.dir_layout = QVBoxLayout()
         # Add an output to show the selected path
         self.images_dir_label = QLabel("Image folder: not selected.")
+        self.images_dir_label.setWordWrap(True)
         # Create empty container for selected image filepaths
         self.all_img_files = None
         # Create empty container for the image directory
@@ -120,6 +123,7 @@ class AIOnDemand(QWidget):
         self.dir_layout.addWidget(self.dir_btn)
         # Add an output to show the counts
         self.img_counts = QLabel()
+        self.img_counts.setWordWrap(True)
         self.img_counts.setText("No files selected.")
         self.dir_layout.addWidget(self.img_counts)
         # self.images_dir_label = QLineEdit("")  # TODO: Make it editable fo ruser input too
@@ -151,6 +155,7 @@ class AIOnDemand(QWidget):
         # If a new directory is selected, reset the load button text
         if result != self.images_dir:
             self.view_img_btn.setText("View selected images")
+            self.view_img_btn.setEnabled(True)
         if result != "":
             self.images_dir = result
             self.images_dir_label.setText(f"Image folder:\n{self.images_dir}")
@@ -187,17 +192,34 @@ class AIOnDemand(QWidget):
         txt += " files selected."
         self.img_counts.setText(txt)
 
-    def view_images(self, fpath):
+    def view_images(self):
+        self.view_img_btn.setEnabled(False)
         # Return if there's nothing to show
         if self.all_img_files is None:
             return
+        # Reset counter
+        self.load_img_counter = 0
         # Create separate thread worker to avoid blocking
-        @thread_worker(connect={"yielded": self.viewer.add_image})
+        @thread_worker(connect={"returned": self._add_image, "finished": self._reset_view_btn})
         def _load_image(fpath):
-            yield skimage.io.imread(fpath)
+            return skimage.io.imread(fpath), fpath
         # Load each image in a separate thread
         for fpath in self.all_img_files:
             _load_image(fpath)
+        # NOTE: This does not work well for a directory of large images on a remote directory
+        # But that would trigger loading GBs into memory over network, which is...undesirable
+        self.view_img_btn.setText("Loading...")
+
+    def _add_image(self, res):
+        img, fpath = res
+        self.viewer.add_image(img, name=fpath.name)
+        self.load_img_counter += 1
+        self.view_img_btn.setText(f"Loading...({self.load_img_counter}/{len(self.all_img_files)} images loaded).")
+        if self.load_img_counter == len(self.all_img_files):
+            self.view_img_btn.setText(f"All ({self.load_img_counter}/{len(self.all_img_files)}) images loaded.")
+
+    def _reset_view_btn(self):
+        self.view_img_btn.setEnabled(True)
 
     def _on_click(self):
         import nextflow
