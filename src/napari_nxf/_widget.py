@@ -1,12 +1,13 @@
 from collections import Counter
 from pathlib import Path
+import time
 from typing import Union
-from qtpy.QtWidgets import QVBoxLayout, QPushButton, QWidget, QFileDialog, QLabel, QLineEdit, QRadioButton, QGroupBox
+
+from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QFileDialog, QLabel, QLineEdit, QRadioButton, QGroupBox
 from qtpy.QtGui import QPixmap
 import qtpy.QtCore
+import numpy as np
 import skimage.io
-
-import warnings
 
 import napari
 from napari.qt.threading import thread_worker
@@ -28,6 +29,14 @@ class AIOnDemand(QWidget):
     def __init__(self, napari_viewer: napari.Viewer):
         super().__init__()
         self.viewer = napari_viewer
+
+        # Handy attributes to check things
+        self.selected_task = None
+        self.selected_model = None
+
+        # Set the path to watch for masks
+        self.mask_path = Path(__file__).parent / "nextflow" / "resources/usr/bin" / "sam_masks"
+
         # Set overall layout for widget
         self.setLayout(QVBoxLayout())
 
@@ -43,6 +52,9 @@ class AIOnDemand(QWidget):
 
         # Create the box for selecting the directory, showing img count etc.
         self.create_dir_box()
+
+        # Add the button for running the Nextflow pipeline
+        self.create_nxf_button()
 
     def create_organelle_box(self):
         # Define the box and layout
@@ -89,6 +101,7 @@ class AIOnDemand(QWidget):
         # Find out which button was pressed
         for task_name, task_btn in self.task_buttons.items():
             if task_btn.isChecked():
+                self.selected_task = task_name
                 # Get the models available for this task
                 avail_models = MODEL_DICT[task_name]
                 # Disable selection of all models not selected
@@ -102,6 +115,12 @@ class AIOnDemand(QWidget):
                     else:
                         model_btn.setEnabled(True)
                         model_btn.setStyleSheet("")
+
+    def _check_models(self):
+        for model_name, model_btn in self.model_buttons.items():
+            if model_btn.isChecked():
+                self.selected_model = model_name
+                return
 
     def create_dir_box(self):
         # TODO: Simultaneously allow for drag+dropping, probably a common use pattern
@@ -220,6 +239,99 @@ class AIOnDemand(QWidget):
 
     def _reset_view_btn(self):
         self.view_img_btn.setEnabled(True)
+
+    def watch_mask_files(self):
+        # Wait for at least one image to load as layers if not present
+        if not self.viewer.layers:
+            time.sleep(0.5)
+        # Create the Labels layers for each image
+        for fpath in self.all_img_files:
+            # If images still not loaded, add dummy array
+            try:
+                img_shape = self.viewer.layers[f"{fpath.name}"].data.shape
+            except KeyError:
+                img_shape = (500,500)
+            # Set the name following convention
+            name = f"{fpath.stem}_masks"
+            # Add a Labels layer for this file
+            self.viewer.add_labels(
+                np.zeros(img_shape, dtype=int),
+                name=name,
+                visible=False
+            )
+        # NOTE: Wrapper as self/class not available at runtime
+        @thread_worker(connect={"yielded": self.update_masks})
+        def _watch_mask_files(self):
+            # Enable the watcher
+            self.watcher_enabled = True
+            # Initialize empty container for storing mask filepaths
+            self.mask_fpaths = []
+            # Loop and yield any changes infinitely while enabled
+            while self.watcher_enabled:
+                # Get all files
+                current_files = list(self.mask_path.glob("*.npy"))
+                if set(self.mask_fpaths) != set(current_files):
+                    # Get the new files only
+                    new_files = [i for i in current_files if i not in self.mask_fpaths]
+                    # Update file list and yield the difference
+                    self.mask_fpaths = current_files
+                    if new_files:
+                        yield new_files
+                # Sleep until next check
+                time.sleep(2)
+                # Check all masks contain data for all slices
+                masks_finished = [Path(i).stem[-3:] == "all" for i in current_files]
+                # Get how many mask files there should be
+                num_images = len(self.all_img_files)
+                # If all images have complete masks, deactivate watcher
+                print(masks_finished)
+                print(len(masks_finished), num_images)
+                if all(masks_finished) and (len(masks_finished) == num_images):
+                    print("Deactivating watcher...")
+                    self.watcher_enabled = False
+        # Call the nested function
+        _watch_mask_files(self)
+
+    def update_masks(self, new_files):
+        # Iterate over each new files and add the mask to the appropriate image
+        for f in new_files:
+            # Load the numpy array
+            mask_arr = np.load(f)
+            # Extract the relevant Labels layer
+            layer_name = f.stem.split("_masks")[0] + "_masks"
+            label_layer = self.viewer.layers[layer_name]
+            # label_layer.num_colours = mask_arr.max()+1
+            # Insert mask data
+            label_layer.data = mask_arr
+            label_layer.visible = True
+
+    def create_nxf_button(self):
+        self.nxf_layout = QHBoxLayout()
+        # Create a button to navigate to a directory to take images from
+        self.nxf_btn = QPushButton("Run Pipeline!")
+        self.nxf_btn.clicked.connect(self.run_pipeline)
+        self.nxf_btn.setToolTip("Run the pipeline with the chosen organelle(s), model, and images.")
+        self.nxf_layout.addWidget(self.nxf_btn)
+        self.layout().addLayout(self.nxf_layout)
+
+    def run_pipeline(self):
+        # Start with some error checking to ensure that everything has been properly specified
+        # Check a task/organelle has been selected
+        if self.selected_task is None:
+            raise ValueError("No task/organelle has been selected!")
+        # Check a model has been selected
+        self._check_models()
+        if self.selected_model is None:
+            raise ValueError("No model has been selected!")
+        # Reset LayerList
+        self.viewer.layers.clear()
+        # Check a directory of images has been given
+        # NOTE: They do not have to have been loaded, but to show feedback they will be loaded
+        self.view_images()
+        # TODO: Actually run the pipeline...
+
+        # Start the mask file watcher
+        self.watch_mask_files()
 
     def _on_click(self):
         import nextflow
