@@ -1,5 +1,8 @@
 from collections import Counter
 from pathlib import Path
+import os
+import shutil
+import subprocess
 import time
 from typing import Union
 
@@ -11,6 +14,7 @@ import skimage.io
 
 import napari
 from napari.qt.threading import thread_worker
+from napari.utils.notifications import show_info
 
 # Available models, with displayable names
 MODELS = {
@@ -22,7 +26,7 @@ MODEL_DICT = {
     "mito": [k for k in MODELS if k != "sam"],
     "er": [k for k in MODELS if k != "sam"],
     "ne": [k for k in MODELS if k != "sam"],
-    "sam": ["sam"],
+    "everything": ["sam"],
 }
 
 class AIOnDemand(QWidget):
@@ -35,7 +39,7 @@ class AIOnDemand(QWidget):
         self.selected_model = None
 
         # Set the path to watch for masks
-        self.mask_path = Path(__file__).parent / "nextflow" / "resources/usr/bin" / "sam_masks"
+        self.mask_path = Path(__file__).parent / "nextflow/modules/models" / "sam_masks"
 
         # Set overall layout for widget
         self.setLayout(QVBoxLayout())
@@ -70,7 +74,7 @@ class AIOnDemand(QWidget):
         # With callbacks to change other options accoridngly
         self.task_buttons = {}
         for name, label in zip(
-            ["mito", "er", "ne", "sam"],
+            ["mito", "er", "ne", "everything"],
             ["Mitochondria", "Endoplasmic Reticulum", "Nuclear Envelope", "Everything!"]
         ):
             btn = QRadioButton(label)
@@ -256,7 +260,7 @@ class AIOnDemand(QWidget):
             try:
                 img_shape = self.viewer.layers[f"{fpath.name}"].data.shape
             except KeyError:
-                img_shape = (500,500)
+                img_shape = (1000,1000)
             # Set the name following convention
             name = f"{fpath.stem}_masks"
             # Add a Labels layer for this file
@@ -320,6 +324,25 @@ class AIOnDemand(QWidget):
         self.nxf_layout.addWidget(self.nxf_btn)
         self.layout().addLayout(self.nxf_layout)
 
+    def store_img_paths(self):
+        self.img_list_fpath = Path(__file__).parent / "all_img_paths.txt"
+
+        with open(self.img_list_fpath, "w") as output:
+            output.write("\n".join([str(i) for i in self.all_img_files]))
+
+    def create_nextflow_params(self):
+        nxf_params = {}
+        nxf_params["img_dir"] = str(self.img_list_fpath)
+        nxf_params["model_config"] = self.get_model_config()
+        nxf_params["model"] = self.selected_model
+        nxf_params["task"] = self.selected_task
+        # TODO: Implement profiles for this to configure SLURM
+        nxf_params["executor"] = "Local"
+        return nxf_params
+
+    def get_model_config(self):
+        return str(Path.cwd())
+
     def run_pipeline(self):
         # Start with some error checking to ensure that everything has been properly specified
         # Check a task/organelle has been selected
@@ -334,25 +357,45 @@ class AIOnDemand(QWidget):
         # Check a directory of images has been given
         # NOTE: They do not have to have been loaded, but to show feedback they will be loaded
         self.view_images()
-        # TODO: Actually run the pipeline...
-
+        # Create a text file of the image paths
+        self.store_img_paths()
+        # Create the params file for Nextflow
+        nxf_params = self.create_nextflow_params()
         # Start the mask file watcher
         self.watch_mask_files()
 
-    def _on_click(self):
-        import nextflow
+        @thread_worker(connect={"returned": self._pipeline_finish, "errored": self._pipeline_fail})
+        def _run_pipeline(self, nxf_params):
+            # Update the button to signify it's running
+            self.nxf_btn.setText("Running Pipeline...")
+            # Disable the button to avoid issues
+            self.nxf_btn.setEnabled(False)
+            # Get the path the main Nextflow entry pipeline
+            nextflow_script = Path(__file__).parent / "nextflow" / "main.nf"
+            exec_str = f"nextflow run {str(nextflow_script)}"
+            # Add the command line arguments
+            for k, v in nxf_params.items():
+                exec_str += f" --{k}={v}"
+            # FIXME: Necessary, but not ideal, and unclear why
+            os.environ["JAVA_CMD"] = shutil.which("java")
+            # Run the pipeline!
+            subprocess.run(
+                exec_str,
+                shell=True
+            )
+            # TODO: Have some error-handling/polling
 
-        nxf_path = self.abspath(__file__, 'nextflow/main.nf')
-        nxf_config_path = self.abspath(__file__, 'nextflow/nextflow.config')
+        _run_pipeline(self, nxf_params)
 
-        pipeline1 = nextflow.Pipeline(nxf_path, config=nxf_config_path)
+    def _pipeline_finish(self):
+        # Add a notification that the pipeline has finished
+        show_info("Pipeline finished!")
+        # Reset the run pipeline button
+        self.nxf_btn.setText("Run Pipeline!")
+        self.nxf_btn.setEnabled(True)
 
-        print(nxf_path)
-        print(nxf_config_path)
-        print(pipeline1)
-
-        execution = pipeline1.run()
-
-        print(execution.status)
-
-        print(execution.stdout)
+    def _pipeline_fail(self, exc):
+        # Reset the run pipeline button
+        self.nxf_btn.setText("Run Pipeline!")
+        self.nxf_btn.setEnabled(True)
+        raise exc
