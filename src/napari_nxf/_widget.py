@@ -308,12 +308,20 @@ class AIOnDemand(QWidget):
             # Load the numpy array
             mask_arr = np.load(f)
             # Extract the relevant Labels layer
-            layer_name = f.stem.split("_masks")[0] + "_masks"
+            split_names = f.stem.split("_masks")
+            layer_name = split_names[0] + "_masks"
             label_layer = self.viewer.layers[layer_name]
             # label_layer.num_colours = mask_arr.max()+1
             # Insert mask data
             label_layer.data = mask_arr
             label_layer.visible = True
+            slice_num = split_names[-1].replace("_","")
+            # Switch viewer to latest slice
+            if slice_num == "all":
+                slice_num = label_layer.data.shape[0]
+            else:
+                slice_num = int(slice_num)
+            self.viewer.dims.set_point(0, slice_num)
 
     def create_nxf_button(self):
         self.nxf_layout = QHBoxLayout()
