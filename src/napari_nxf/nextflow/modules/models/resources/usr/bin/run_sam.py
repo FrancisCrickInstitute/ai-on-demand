@@ -123,7 +123,9 @@ def align_segment_labels(all_masks, threshold=0.5):
     # From https://github.com/MIC-DKFZ/napari-sam/blob/main/src/napari_sam/_widget.py#L1118
     '''
     There is a potentially better way to do this, using the Hungarian algorithm
-    It will, however, still require computing the "cost" (i.e. overlap)
+    It will, however, still require computing the "cost" (i.e. overlap, defined as
+    the count of co-occurences between every numerical label between two slices)
+    The Hungarian algorithm itself can be easily done using scipy.optimize.linear_sum_assignment
     It's just that then the optimal assignment will be found, rather than using this
     thresholded approach. Can revise later as needed.
     '''
@@ -153,7 +155,7 @@ def align_segment_labels(all_masks, threshold=0.5):
                     new_next_slice[next_slice == next_label] = next_label
             all_masks[i+1] = new_next_slice
     return all_masks
-    
+
 def normalize_slice(img_slice, source_limits, target_limits):
     # From https://github.com/MIC-DKFZ/napari-sam/blob/main/src/napari_sam/utils.py
     if source_limits is None:
@@ -222,6 +224,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", required=True)
     parser.add_argument("--model", help="Select model type", default="default")
+    parser.add_argument("--config", help="Model parameter config path")
 
     cli_args = parser.parse_args()
 
@@ -229,9 +232,6 @@ if __name__ == "__main__":
         fpath=cli_args.path,
         model_type=cli_args.model
     )
-
-    # plot_masks(img, masks)
-    # save_masks(cli_args.path, masks)
 
     '''
     TODO:
