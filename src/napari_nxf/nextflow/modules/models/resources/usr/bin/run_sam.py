@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import argparse
 from pathlib import Path
 
@@ -32,9 +33,9 @@ SAM_MODELS = {
     },
 }
 
-def run_sam(fpath, model_type):
+def run_sam(root_dir, fpath, model_type):
     sam = sam_model_registry[model_type](
-        checkpoint=Path(__file__).parent / "sam_chkpts" / SAM_MODELS[model_type]["filename"]
+        checkpoint=root_dir / "sam_chkpts" / SAM_MODELS[model_type]["filename"]
     )
     # Create the model
     model = SamAutomaticMaskGenerator(sam)
@@ -49,10 +50,10 @@ def run_sam(fpath, model_type):
     if ndim == 2:
         all_masks = _run_sam_slice(img, model)
     elif ndim == 3:
-        all_masks = _run_sam_stack(img, model, fpath)
+        all_masks = _run_sam_stack(root_dir, img, model, fpath)
     else:
         raise ValueError("Can only handle an image, or stack of images!")
-    save_masks(fpath, all_masks, all=True)
+    save_masks(root_dir, fpath, all_masks, all=True)
     return img, all_masks
 
 def _run_sam_slice(img_slice, model):
@@ -65,7 +66,7 @@ def _run_sam_slice(img_slice, model):
     mask_img = create_mask_arr(masks)
     return mask_img
 
-def _run_sam_stack(img_stack, model, fpath):
+def _run_sam_stack(root_dir, img_stack, model, fpath):
     # Initialize the container of all masks
     all_masks = np.zeros(img_stack.shape, dtype=int)
     # Use napari function to extract the contrast limits
@@ -93,11 +94,15 @@ def _run_sam_stack(img_stack, model, fpath):
         print(idx, img_stack.shape[0])
         if idx < img_stack.shape[0]-1:
             save_masks(
+                root_dir=root_dir,
                 fpath=fpath,
                 masks=all_masks,
                 stack_slice=True,
                 idx=idx
             )
+        else:
+            # Remove the penultimate slice
+            (root_dir / "sam_masks" / f"{Path(fpath).stem}_masks_{idx-1}.npy").unlink()
     # Align masks to ensure consistent colouration
     all_masks = align_segment_labels(all_masks)
     return all_masks
@@ -182,8 +187,8 @@ def create_mask_arr(masks):
         mask_img[mask["segmentation"]] = i+1
     return mask_img
 
-def save_masks(fpath, masks, stack_slice=False, all=False, idx=None):
-    save_dir = Path(__file__).parent / "sam_masks"
+def save_masks(root_dir, fpath, masks, stack_slice=False, all=False, idx=None):
+    save_dir = root_dir / "sam_masks"
     save_dir.mkdir(parents=True, exist_ok=True)
     # Cannot save a slice of a stack and all slice(s)
     assert not(stack_slice and all)
@@ -201,7 +206,6 @@ def save_masks(fpath, masks, stack_slice=False, all=False, idx=None):
 
 def plot_masks(img, masks):
     fig, ax = plt.subplots(1, 1, figsize=(20,20))
-
     # Sort the masks/annotations by largest area to allow overwriting/lapping
     sorted_anns = sorted(masks, key=(lambda x: x["area"]), reverse=True)
     # Create the image array for the segmentations themselves to overlay
@@ -214,7 +218,6 @@ def plot_masks(img, masks):
             np.random.random(3),  # Random RGB colour
             [0.35]  # Transparency/alpha
         ])
-    breakpoint()
     ax.imshow(img)
     ax.set_axis_off()
     ax.imshow(mask_img)
@@ -228,12 +231,12 @@ if __name__ == "__main__":
 
     cli_args = parser.parse_args()
 
+    # Kill me
+    root_dir = Path(__file__).parent.parent.parent.parent
+    print(root_dir)
+
     img, masks = run_sam(
+        root_dir=root_dir,
         fpath=cli_args.path,
         model_type=cli_args.model
     )
-
-    '''
-    TODO:
-    - Add a default config to adjust SAM paramters
-    '''
