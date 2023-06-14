@@ -40,8 +40,14 @@ class AIOnDemand(QWidget):
         # Set overall layout for widget
         self.setLayout(QVBoxLayout())
 
-        btn = QPushButton("Click me!")
-        btn.clicked.connect(self._on_click)
+        # Add Crick logo at top for flavour
+        self.logo_label = QLabel()
+        logo = QPixmap(
+            str(Path(__file__).parent.parent.parent / "resources" / "CRICK_Brandmark_01_transparent.png")
+        ).scaledToHeight(150)
+        self.logo_label.setPixmap(logo)
+        self.logo_label.setAlignment(qtpy.QtCore.Qt.AlignCenter)
+        self.layout().addWidget(self.logo_label)
 
         # Create radio buttons for selecting task (i.e. organelle)
         self.create_organelle_box()
