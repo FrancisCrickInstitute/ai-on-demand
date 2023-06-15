@@ -83,3 +83,8 @@ venv/
 # written by setuptools_scm
 **/_version.py
 /.gitignore
+
+
+# Nextflow ignores
+.nextflow*
+work/*
