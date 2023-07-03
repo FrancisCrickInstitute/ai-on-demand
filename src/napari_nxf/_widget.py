@@ -1,20 +1,22 @@
 from collections import Counter
+from functools import partial
 from pathlib import Path
-import os
-import shutil
 import subprocess
 import time
 from typing import Union
 
-from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QFileDialog, QLabel, QLineEdit, QRadioButton, QGroupBox
-from qtpy.QtGui import QPixmap
+from qtpy.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QWidget, QFileDialog, QLabel, QLineEdit, QScrollArea, QRadioButton, QGroupBox, QCheckBox
+from qtpy.QtGui import QPixmap, QIntValidator, QDoubleValidator
 import qtpy.QtCore
 import numpy as np
 import skimage.io
+from superqt import QCollapsible
 
 import napari
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
+
+from .model_params import MODEL_PARAMS, VALIDATORS
 
 # Available models, with displayable names
 MODELS = {
@@ -92,18 +94,99 @@ class AIOnDemand(QWidget):
         self.model_group = QGroupBox("Select model to run:")
         self.model_layout = QVBoxLayout()
         # Define and set the buttons for each model
-        self.model_sam = QRadioButton("Segment Anything")
         self.model_buttons = {}
         for name, label in MODELS.items():
             btn = QRadioButton(label)
             btn.setEnabled(True)
             btn.setChecked(False)
-            # Necessary to allow for unchecking
+            # Necessary to allow for unchecking, without which they cannot be unselected
+            # when switching tasks
             btn.setAutoExclusive(False)
+            # Update model parameters for selected model if checked
+            btn.clicked.connect(partial(self.update_model_params, name))
             self.model_layout.addWidget(btn)
             self.model_buttons[name] = btn
+        # Create a container for the model parameters and containing widget
+        # NOTE: Should be light on memory, but this does store for every model
+        self.model_param_dict = {}
+        self.model_param_widgets = {}
+        self.model_widget = None
+        # Add a collapsible box for model parameters
+        self.model_param_box = QCollapsible("Model parameters:")
+        self.model_param_box.setDuration(0)
+        self.model_param_box.layout().setContentsMargins(0, 0, 0, 0)
+        self.model_param_box.layout().setSpacing(2)
+        # Add a tooltip to the button
+        self.model_param_box._toggle_btn.setToolTip(
+            "Show/hide model parameters if you wish to modify the defaults."
+        )
+        # Add an initial label to show that no model has been selected
+        self.model_param_init_label = QLabel("No model selected.")
+        # Add this to the collapsible box
+        self.model_param_box.addWidget(self.model_param_init_label)
+        # Add the collapsible box to the layout
+        self.model_layout.addWidget(self.model_param_box)
+        # Finalise layout and adding group to main window for model buttons
         self.model_group.setLayout(self.model_layout)
         self.layout().addWidget(self.model_group)
+
+    def update_model_params(self, model_name):
+        # TODO: Add buttons here to switch between modifying parameters and loading yaml
+        if self.model_param_box.isExpanded():
+            self.model_param_box.collapse()
+        # Clear anything present, ignore all errors
+        try:
+            self.model_param_box.removeWidget(self.model_param_init_label)
+            self.model_param_box.removeWidget(self.model_widget)
+        except:
+            pass
+        # Extract the default parameters
+        try:
+            param_dict = MODEL_PARAMS[model_name]
+        except KeyError as e:
+            raise e("Default model parameters not found!")
+        # Retrieve the widget for this model if already created
+        if model_name in self.model_param_widgets:
+            self.model_widget = self.model_param_widgets[model_name]
+        # Otherwise construct it
+        else:
+            self.model_widget = self._create_model_param_widget(model_name, param_dict)
+            self.model_param_widgets[model_name] = self.model_widget
+        # Set the collapsible box to contain the params for this model
+        self.model_param_box.addWidget(self.model_widget)
+        self.model_param_box._toggle_btn.setText(f"{MODELS[model_name]} parameters:")
+
+    def _create_model_param_widget(self, model_name, param_dict):
+        # Create a widget for the model parameters
+        model_widget = QWidget()
+        model_layout = QGridLayout()
+        # Create container for model parameters
+        self.model_param_dict[model_name] = {}
+        for i, (param, _, value, validator_type) in enumerate(param_dict):
+            # Create labels for each of the model parameters
+            param_label = QLabel(f"{param}:")
+            model_layout.addWidget(param_label, i, 0)
+            # Add the default model parameter
+            param_value = QLineEdit()
+            param_value.setText(str(value))
+            # Add validator
+            validator_cls = VALIDATORS[validator_type]
+            validator = validator_cls()
+            if isinstance(validator, QIntValidator):
+                validator.setRange(0, 9999)
+            elif isinstance(validator, QDoubleValidator):
+                validator.setRange(0.0, 1.0)
+                validator.setDecimals(4)
+            param_value.setValidator(validator)
+            model_layout.addWidget(param_value, i, 1)
+            # Store for later retrieval when saving the config
+            self.model_param_dict[model_name][param] = {
+                "label": param_label,
+                "value": param_value
+            }
+        model_layout.setContentsMargins(0, 0, 0, 0)
+        model_widget.setLayout(model_layout)
+        return model_widget
 
     def update_model_box(self):
         '''The model box updates according to what's defined for each task
