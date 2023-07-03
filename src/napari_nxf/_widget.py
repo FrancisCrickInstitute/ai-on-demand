@@ -377,8 +377,6 @@ class AIOnDemand(QWidget):
                 # Get how many mask files there should be
                 num_images = len(self.all_img_files)
                 # If all images have complete masks, deactivate watcher
-                print(masks_finished)
-                print(len(masks_finished), num_images)
                 if all(masks_finished) and (len(masks_finished) == num_images):
                     print("Deactivating watcher...")
                     self.watcher_enabled = False
@@ -467,8 +465,6 @@ class AIOnDemand(QWidget):
             # Add the command line arguments
             for k, v in nxf_params.items():
                 exec_str += f" --{k}={v}"
-            # FIXME: Necessary, but not ideal, and unclear why
-            os.environ["JAVA_CMD"] = shutil.which("java")
             # Run the pipeline!
             subprocess.run(
                 exec_str,
