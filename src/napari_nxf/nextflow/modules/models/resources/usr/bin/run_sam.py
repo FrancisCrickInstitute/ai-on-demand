@@ -2,7 +2,6 @@
 import argparse
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 import skimage.io
@@ -203,25 +202,6 @@ def save_masks(root_dir, fpath, masks, stack_slice=False, all=False, idx=None):
         save_path = save_dir / f"{Path(fpath).stem}_masks_all.npy"
     # Save the masks!
     np.save(save_path, masks)
-
-def plot_masks(img, masks):
-    fig, ax = plt.subplots(1, 1, figsize=(20,20))
-    # Sort the masks/annotations by largest area to allow overwriting/lapping
-    sorted_anns = sorted(masks, key=(lambda x: x["area"]), reverse=True)
-    # Create the image array for the segmentations themselves to overlay
-    mask_img = np.ones((sorted_anns[0]['segmentation'].shape[0], sorted_anns[0]['segmentation'].shape[1], 4))
-    # Set transparency
-    mask_img[:, :, 3] = 0
-    # Loop over each segmentation and insert a random colour at that location
-    for ann in sorted_anns:
-        mask_img[ann["segmentation"]] = np.concatenate([
-            np.random.random(3),  # Random RGB colour
-            [0.35]  # Transparency/alpha
-        ])
-    ax.imshow(img)
-    ax.set_axis_off()
-    ax.imshow(mask_img)
-    plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
