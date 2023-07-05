@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import argparse
 from pathlib import Path
+import yaml
 
 import numpy as np
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
@@ -9,35 +10,13 @@ import skimage.io
 from napari.layers.image._image_utils import guess_rgb
 from napari.layers.utils.layer_utils import calc_data_range
 
-SAM_MODELS = {
-    "default": {
-        "filename": "sam_vit_h_4b8939.pth",
-        "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth"
-    },
-    "vit_h": {
-        "filename": "sam_vit_h_4b8939.pth",
-        "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth"
-    },
-    "vit_l": {
-        "filename": "sam_vit_l_0b3195.pth",
-        "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth"
-    },
-    "vit_b": {
-        "filename": "sam_vit_b_01ec64.pth",
-        "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"
-    },
-    "MedSAM": {
-        "filename": "sam_vit_b_01ec64_medsam.pth",
-        "url": "https://syncandshare.desy.de/index.php/s/yLfdFbpfEGSHJWY/download/medsam_20230423_vit_b_0.0.1.pth"
-    },
-}
 
-def run_sam(root_dir, fpath, model_type):
+def run_sam(root_dir, fpath, model_type, model_chkpt, model_config):
     sam = sam_model_registry[model_type](
-        checkpoint=root_dir / "sam_chkpts" / SAM_MODELS[model_type]["filename"]
+        checkpoint=model_chkpt
     )
     # Create the model
-    model = SamAutomaticMaskGenerator(sam)
+    model = SamAutomaticMaskGenerator(sam, **model_config)
     # Load the image
     img = skimage.io.imread(fpath)
     # Extract the dimensions
@@ -101,6 +80,7 @@ def _run_sam_stack(root_dir, img_stack, model, fpath):
             )
         else:
             # Remove the penultimate slice
+            # TODO: Abstract better, and incorporate the model_type
             (root_dir / "sam_masks" / f"{Path(fpath).stem}_masks_{idx-1}.npy").unlink()
     # Align masks to ensure consistent colouration
     all_masks = align_segment_labels(all_masks)
@@ -205,18 +185,26 @@ def save_masks(root_dir, fpath, masks, stack_slice=False, all=False, idx=None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--path", required=True)
-    parser.add_argument("--model", help="Select model type", default="default")
-    parser.add_argument("--config", help="Model parameter config path")
+    parser.add_argument("--img-path", required=True)
+    parser.add_argument("--module-dir", required=True)
+    parser.add_argument("--model-chkpt", required=True)
+    parser.add_argument("--model-type", help="Select model type", default="default")
+    parser.add_argument("--model-config", help="Model parameter config path")
 
     cli_args = parser.parse_args()
 
     # Kill me
+    # FIXME: Use Nextflow params/implicit variables to sort this
     root_dir = Path(__file__).parent.parent.parent.parent
-    print(root_dir)
+    print(root_dir, cli_args.module_dir)
+
+    with open(cli_args.model_config, "r") as f:
+        model_config = yaml.safe_load(f)
 
     img, masks = run_sam(
         root_dir=root_dir,
-        fpath=cli_args.path,
-        model_type=cli_args.model
+        fpath=cli_args.img_path,
+        model_type=cli_args.model_type,
+        model_chkpt=cli_args.model_chkpt,
+        model_config=model_config
     )
