@@ -1,0 +1,16 @@
+name: ai-od
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pyqt
+  - napari
+  - numpy
+  - scipy
+  - scikit-image
+  - pyyaml
+  - pip
+  - pip:
+    - superqt
+    - -e git+https://github.com/FrancisCrickInstitute/ai-on-demand.git#egg=napari_nxf
