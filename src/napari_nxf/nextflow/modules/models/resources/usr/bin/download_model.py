@@ -89,5 +89,5 @@ if __name__ == "__main__":
     get_model_checkpoint(
         module_dir=args.module_dir,
         model_name=args.model_name,
-        model_type=args.model_type
+        model_type=args.model_type,
     )
