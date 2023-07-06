@@ -517,7 +517,7 @@ class AIOnDemand(QWidget):
             # Extract the original/intended dtype and cast what's in the box
             if param_name != "model_type":
                 orig_dtype = default_params[param_name].dtype
-                model_dict[param_name] = orig_dtype(param_value)
+                model_dict[default_params[param_name].arg] = orig_dtype(param_value)
         # Extract the model type
         model_type = model_dict_orig["model_type"]["value"].currentText()
         # Define save path for the model config
