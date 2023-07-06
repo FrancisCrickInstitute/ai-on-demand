@@ -87,4 +87,4 @@ venv/
 
 # Nextflow ignores
 .nextflow*
-work/*
+**/work/*
