@@ -1,6 +1,7 @@
 
 process downloadModel {
     conda "requests conda-forge::tqdm"
+    publishDir "$params.chkpt_dir", mode: 'copy'
 
     input:
     val model
@@ -8,11 +9,11 @@ process downloadModel {
 
     output:
     // This is where publishDir needs to come in, symlinking to chkpt repo
-    path "${moduleDir}/${model}_chkpts/${model}_${model_type}.pth", emit: model_chkpt
+    path "${params.chkpt_fname}", emit: model_chkpt
 
     script:
     """
-    download_model.py --module-dir ${moduleDir} --model-name ${model} --model-type ${model_type}
+    download_model.py --chkpt-dir ${params.chkpt_dir} --model-name ${model} --model-type ${model_type}
     """
 }
 
@@ -27,6 +28,7 @@ process runSAM {
     val model_type
     
     output:
+    // Switch this to use publishDir and avoid path manipulation in python
     stdout
 
     script:
