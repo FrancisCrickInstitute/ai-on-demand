@@ -67,7 +67,6 @@ def _run_sam_stack(root_dir, img_stack, model, fpath):
         # Insert the masks for this slice
         all_masks[idx, ...] = masks
         # Don't save final slice
-        print(idx, img_stack.shape[0])
         if idx < img_stack.shape[0] - 1:
             save_masks(
                 root_dir=root_dir,
@@ -226,8 +225,7 @@ if __name__ == "__main__":
 
     # Kill me
     # FIXME: Use Nextflow params/implicit variables to sort this
-    root_dir = Path(__file__).parent.parent.parent.parent
-    print(root_dir, cli_args.module_dir)
+    root_dir = Path(cli_args.module_dir)
 
     with open(cli_args.model_config, "r") as f:
         model_config = yaml.safe_load(f)
