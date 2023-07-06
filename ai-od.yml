@@ -13,4 +13,4 @@ dependencies:
   - pip
   - pip:
     - superqt
-    - -e git+https://github.com/FrancisCrickInstitute/ai-on-demand.git#egg=napari_nxf
+    - -e git+https://github.com/FrancisCrickInstitute/ai-on-demand.git@a8d0673#egg=napari_nxf
