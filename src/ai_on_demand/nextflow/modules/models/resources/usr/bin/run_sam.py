@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import argparse
 from pathlib import Path
 import yaml
@@ -6,6 +5,7 @@ import yaml
 import numpy as np
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 import skimage.io
+from tqdm.auto import tqdm
 
 from napari.layers.image._image_utils import guess_rgb
 from napari.layers.utils.layer_utils import calc_data_range
@@ -22,18 +22,22 @@ def run_sam(root_dir, fpath, model_type, model_chkpt, model_config):
     # Reduce ndims if RGB (i.e. it's a single RGB image, not a stack)
     if guess_rgb(img.shape):
         ndim -= 1
+    # Create the progress bar for this stack
+    num_slices = img.shape[0] if ndim == 3 else 1
+    pbar = tqdm(total=num_slices, desc=f"{Path(fpath).stem}")
     # Send the image to the corresponding run func based on slice or stack
     if ndim == 2:
-        all_masks = _run_sam_slice(img, model)
+        all_masks = _run_sam_slice(img, model, pbar)
     elif ndim == 3:
-        all_masks = _run_sam_stack(root_dir, img, model, fpath)
+        all_masks = _run_sam_stack(root_dir, img, model, fpath, pbar)
     else:
         raise ValueError("Can only handle an image, or stack of images!")
     save_masks(root_dir, fpath, all_masks, all=True)
+    pbar.close()
     return img, all_masks
 
 
-def _run_sam_slice(img_slice, model):
+def _run_sam_slice(img_slice, model, pbar):
     # Expand to 3-channel if not rgb
     if not guess_rgb(img_slice.shape):
         img_slice = np.stack((img_slice,) * 3, axis=-1)
@@ -41,10 +45,12 @@ def _run_sam_slice(img_slice, model):
     masks = model.generate(img_slice)
     # Convert the masks into a napari-friendly format
     mask_img = create_mask_arr(masks)
+    # Update progress bar
+    pbar.update(1)
     return mask_img
 
 
-def _run_sam_stack(root_dir, img_stack, model, fpath):
+def _run_sam_stack(root_dir, img_stack, model, fpath, pbar):
     # Initialize the container of all masks
     all_masks = np.zeros(img_stack.shape, dtype=int)
     # Use napari function to extract the contrast limits
@@ -63,7 +69,7 @@ def _run_sam_stack(root_dir, img_stack, model, fpath):
             img_slice, source_limits=contrast_limits, target_limits=(0, 255)
         ).astype(np.uint8)
         # Actually run the model on this slice
-        masks = _run_sam_slice(img_slice, model)
+        masks = _run_sam_slice(img_slice, model, pbar)
         # Insert the masks for this slice
         all_masks[idx, ...] = masks
         # Don't save final slice

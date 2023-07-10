@@ -469,15 +469,30 @@ class AIOnDemand(QWidget):
             self.viewer.dims.set_point(0, slice_num)
 
     def create_nxf_button(self):
-        self.nxf_layout = QHBoxLayout()
+        self.nxf_group = QGroupBox("Nextflow Pipeline:")
+        self.nxf_layout1 = QVBoxLayout()
+        self.nxf_layout2 = QHBoxLayout()
+        # Create a drop-down box to select the execution profile
+        self.nxf_profile_label = QLabel("Execution profile:")
+        self.nxf_profile_label.setToolTip("Select the execution profile to use.")
+        self.nxf_profile_box = QComboBox()
+        # Get the available profiles from config dir
+        config_dir = Path(__file__).parent / "nextflow" / "profiles"
+        avail_confs = [str(i.stem) for i in config_dir.glob("*.conf")]
+        self.nxf_profile_box.addItems(avail_confs)
+        self.nxf_layout2.addWidget(self.nxf_profile_label)
+        self.nxf_layout2.addWidget(self.nxf_profile_box)
+        # Nest this layout within the main layout
+        self.nxf_layout1.addLayout(self.nxf_layout2)
         # Create a button to navigate to a directory to take images from
         self.nxf_btn = QPushButton("Run Pipeline!")
         self.nxf_btn.clicked.connect(self.run_pipeline)
         self.nxf_btn.setToolTip(
             "Run the pipeline with the chosen organelle(s), model, and images."
         )
-        self.nxf_layout.addWidget(self.nxf_btn)
-        self.layout().addLayout(self.nxf_layout)
+        self.nxf_layout1.addWidget(self.nxf_btn)
+        self.nxf_group.setLayout(self.nxf_layout1)
+        self.layout().addWidget(self.nxf_group)
 
     def store_img_paths(self):
         self.img_list_fpath = Path(__file__).parent / "all_img_paths.txt"
@@ -569,6 +584,8 @@ class AIOnDemand(QWidget):
             # Add the command line arguments
             for k, v in nxf_params.items():
                 exec_str += f" --{k}={v}"
+            # Add the execution profile
+            exec_str += f" -profile {self.nxf_profile_box.currentText()}"
             # Run the pipeline!
             subprocess.run(exec_str, shell=True)
             # TODO: Have some error-handling/polling
