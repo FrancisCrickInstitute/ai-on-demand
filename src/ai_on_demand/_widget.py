@@ -63,7 +63,7 @@ class AIOnDemand(QWidget):
         self.logo_label = QLabel()
         logo = QPixmap(
             str(
-                Path(__file__).parent.parent.parent
+                Path(__file__).parent
                 / "resources"
                 / "CRICK_Brandmark_01_transparent.png"
             )
@@ -509,7 +509,7 @@ class AIOnDemand(QWidget):
         nxf_params["model_type"] = model_type
         nxf_params["task"] = self.selected_task
         # TODO: Implement profiles for this to configure SLURM
-        nxf_params["executor"] = "Local"
+        nxf_params["executor"] = self.nxf_profile_box.currentText()
         return nxf_params
 
     def get_model_config(self):
