@@ -13,4 +13,4 @@ dependencies:
   - pip
   - pip:
     - superqt
-    - -e git+https://github.com/FrancisCrickInstitute/ai-on-demand.git@9bb238b#egg=ai_on_demand
+    - -e git+https://github.com/FrancisCrickInstitute/ai-on-demand.git@79ddff3#egg=ai_on_demand
