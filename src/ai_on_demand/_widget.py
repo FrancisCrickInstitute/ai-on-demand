@@ -44,6 +44,9 @@ class AIOnDemand(QWidget):
             Path(__file__).parent / "nextflow/modules/models" / "sam_masks"
         )
 
+        # Set selection colour
+        self.colour_selected = "#F7AD6F"
+
         # Set overall layout for widget
         self.setLayout(QVBoxLayout())
 
@@ -84,7 +87,7 @@ class AIOnDemand(QWidget):
             btn = QRadioButton(label)
             btn.setEnabled(True)
             btn.setChecked(False)
-            btn.clicked.connect(self.update_model_box)
+            btn.clicked.connect(self.on_click_task)
             self.task_layout.addWidget(btn)
             self.task_buttons[name] = btn
         # Add the buttons under the overall group box
@@ -92,56 +95,204 @@ class AIOnDemand(QWidget):
         # Add to main widget
         self.layout().addWidget(self.task_group)
 
+    def on_click_task(self):
+        """
+        Callback for when a task button is clicked.
+
+        Updates the model box to show only the models available for the selected task.
+        """
+        # Find out which button was pressed
+        for task_name, task_btn in self.task_buttons.items():
+            if task_btn.isChecked():
+                self.selected_task = task_name
+        # Collapse the modify params or config widgets if open
+        # if self.model_param_btn.isChecked():
+        #     self.model_param_btn.click()
+        # Update the model box for the selected task
+        self.update_model_box(self.selected_task)
+
     def create_model_box(self):
         self.model_group = QGroupBox("Model:")
         self.model_layout = QVBoxLayout()
-        # Define and set the buttons for each model
-        self.model_buttons = {}
-        for name, label in MODELS.items():
-            btn = QRadioButton(label)
-            btn.setEnabled(True)
-            btn.setChecked(False)
-            # Necessary to allow for unchecking, without which they cannot be unselected
-            # when switching tasks
-            btn.setAutoExclusive(False)
-            # Update model parameters for selected model if checked
-            btn.clicked.connect(partial(self.update_model_params, name))
-            self.model_layout.addWidget(btn)
-            self.model_buttons[name] = btn
-        # Create a container for the model parameters and containing widget
-        # NOTE: Should be light on memory, but this does store for every model
-        self.model_param_dict = {}
-        self.model_param_widgets = {}
-        self.model_widget = None
-        # Add a collapsible box for model parameters
-        self.model_param_box = QCollapsible("Model parameters:")
-        self.model_param_box.setDuration(0)
-        self.model_param_box.layout().setContentsMargins(0, 0, 0, 0)
-        self.model_param_box.layout().setSpacing(2)
-        # Add a tooltip to the button
-        self.model_param_box._toggle_btn.setToolTip(
-            "Show/hide model parameters if you wish to modify the defaults."
+
+        model_box_layout = QGridLayout()
+        # Create a label for the dropdown
+        model_label = QLabel("Select model:")
+        # Dropdown of available models
+        self.model_dropdown = QComboBox()
+        self.model_dropdown.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        # Store initial message to handle erroneous clicking
+        self.model_name_init = "Select a task first!"
+        self.model_dropdown.addItems([self.model_name_init])
+        # Connect function when new model selected
+        self.model_dropdown.activated.connect(self.on_model_select)
+        model_box_layout.addWidget(model_label, 0, 0)
+        model_box_layout.addWidget(self.model_dropdown, 0, 1)
+        # Add label + dropdown for model variants/versions
+        model_version_label = QLabel("Select model version:")
+        model_version_label.setToolTip(
+            "Select the model version to use."
+            "Versions can vary either by intended functionality, or are specifically for reproducibility."
         )
-        # Add an initial label to show that no model has been selected
-        self.model_param_init_label = QLabel("No model selected.")
-        # Add this to the collapsible box
-        self.model_param_box.addWidget(self.model_param_init_label)
-        # Add the collapsible box to the layout
-        self.model_layout.addWidget(self.model_param_box)
+        self.model_version_dropdown = QComboBox()
+        self.model_version_dropdown.setSizeAdjustPolicy(
+            QComboBox.AdjustToContents
+        )
+        self.model_version_dropdown.addItems(["Select a model first!"])
+        model_box_layout.addWidget(model_version_label, 1, 0)
+        model_box_layout.addWidget(self.model_version_dropdown, 1, 1)
+
+        self.model_layout.addLayout(model_box_layout)
+
+        # Store model config location if given
+        self.model_config = None
+
+        # Create container for switching between setting params and loading config
+        self.params_config_widget = QWidget()
+        self.params_config_layout = QHBoxLayout()
+        # Create button for displaying model param options
+        self.model_param_btn = QPushButton("Modify Params")
+        self.model_param_btn.setToolTip(
+            "Open options for modifying model parameters directly in napari."
+        )
+        self.model_param_btn.setCheckable(True)
+        self.model_param_btn.setStyleSheet(
+            f"QPushButton:checked {{background-color: {self.colour_selected}}}"
+        )
+        self.model_param_btn.clicked.connect(self._click_model_params)
+        self.params_config_layout.addWidget(self.model_param_btn)
+        # Create button for displaying model config options
+        self.model_config_btn = QPushButton("Load Config")
+        self.model_config_btn.setToolTip(
+            "Open options for loading a config file to pass to the model."
+        )
+        self.model_config_btn.setCheckable(True)
+        self.model_config_btn.setStyleSheet(
+            f"QPushButton:checked {{background-color: {self.colour_selected}}}"
+        )
+        self.model_config_btn.clicked.connect(self._click_model_config)
+        self.params_config_layout.addWidget(self.model_config_btn)
+        # Reduce unnecessary margins/spacing
+        self.params_config_layout.setContentsMargins(0, 0, 0, 0)
+        self.params_config_layout.setSpacing(5)
+        self.params_config_widget.setLayout(self.params_config_layout)
+        # Add the widgets to the overall container
+        self.model_layout.addWidget(self.params_config_widget)
+
+        # Create widgets for the two options
+        self.create_model_param_widget()
+        self.create_model_config_widget()
+
         # Finalise layout and adding group to main window for model buttons
         self.model_group.setLayout(self.model_layout)
         self.layout().addWidget(self.model_group)
 
-    def update_model_params(self, model_name):
-        # TODO: Add buttons here to switch between modifying parameters and loading yaml
-        if self.model_param_box.isExpanded():
-            self.model_param_box.collapse()
-        # Clear anything present, ignore all errors
-        try:
-            self.model_param_box.removeWidget(self.model_param_init_label)
-            self.model_param_box.removeWidget(self.model_widget)
-        except:
-            pass
+    def on_model_select(self):
+        """
+        Callback for when a model button is clicked.
+
+        Updates model params & config widgets for selected model.
+        """
+        # Extract selected model
+        model_name = self.model_dropdown.currentText()
+        if model_name == self.model_name_init:
+            return
+        self.selected_model = MODEL_DISPLAYNAMES[model_name]
+        # Update the dropdown for the model variants
+        self.model_version_dropdown.clear()
+        model_versions = MODEL_INFO[self.selected_model]["versions"]
+        if model_versions is None:
+            model_versions = ["default"]
+        self.model_version_dropdown.addItems(model_versions)
+        # Update the model params & config widgets for the selected model
+        self.update_model_param_config(self.selected_model)
+        # TODO: Clear the model config file
+
+    def _click_model_params(self):
+        # Uncheck config button
+        if self.model_config_btn.isChecked():
+            self.model_config_btn.setChecked(False)
+            self.model_config_widget.setVisible(False)
+        # Change visibility depending on checked status
+        if self.model_param_btn.isChecked():
+            self.curr_model_param_widget.setVisible(True)
+            self.model_param_widget.setVisible(True)
+        else:
+            self.curr_model_param_widget.setVisible(False)
+            self.model_param_widget.setVisible(False)
+
+    def _click_model_config(self):
+        # Uncheck param button
+        if self.model_param_btn.isChecked():
+            self.model_param_btn.setChecked(False)
+            self.curr_model_param_widget.setVisible(False)
+            self.model_param_widget.setVisible(False)
+        # Change visibility depending on checked status
+        if self.model_config_btn.isChecked():
+            self.model_config_widget.setVisible(True)
+        else:
+            self.model_config_widget.setVisible(False)
+
+    def create_model_config_widget(self):
+        self.model_config_widget = QWidget()
+        self.model_config_layout = QVBoxLayout()
+
+        # Add the button for loading a config file
+        self.model_config_load_btn = QPushButton("Select model config file")
+        self.model_config_load_btn.clicked.connect(self.select_model_config)
+        self.model_config_load_btn.setToolTip(
+            "Select a config file to be used for the selected model."
+            "Note that no checking/validation is done on the config file, it is just given to the model."
+        )
+        self.model_config_layout.addWidget(self.model_config_load_btn)
+        # Add a label to display the selected config file (if any)
+        self.model_config_label = QLabel("No model config file selected.")
+        self.model_config_label.setWordWrap(True)
+        self.model_config_layout.addWidget(self.model_config_label)
+        # Set the overall widget layout
+        self.model_config_widget.setLayout(self.model_config_layout)
+
+        self.model_config_widget.setVisible(False)
+        self.model_layout.addWidget(self.model_config_widget)
+
+    def create_model_param_widget(self):
+        self.model_param_widget = QWidget()
+        self.model_param_layout = QVBoxLayout()
+        # Create a container for the model parameters and containing widget
+        # NOTE: Should be light on memory, but this does store for every model!
+        self.model_param_dict = {}
+        self.model_param_widgets_dict = {}
+        # Create initial widget as no model has been selected
+        init_widget = QWidget()
+        init_widget.setLayout(QVBoxLayout())
+        # Add an initial label to show that no model has been selected
+        model_param_init_label = QLabel("No model selected.")
+        # Add this to the collapsible box
+        init_widget.layout().addWidget(model_param_init_label)
+        self.curr_model_param_widget = init_widget
+        # Store initial widget so we can revert state if model deselected
+        self.model_param_widgets_dict["init"] = init_widget
+        # Add the initial widget to the main model param widget
+        self.model_param_layout.addWidget(init_widget)
+        self.model_param_widget.setLayout(self.model_param_layout)
+        # Disable showing widget until selected to view
+        self.model_param_widget.setVisible(False)
+        self.model_layout.addWidget(self.model_param_widget)
+
+    def update_model_param_config(self, model_name):
+        # Update the model parameters
+        self.update_model_param_widget(model_name)
+
+    def update_model_param_widget(self, model_name):
+        """
+        Updates the model param widget for a specific model
+        """
+        # Skip if initial message is still showing and clicked
+        if model_name not in MODEL_INFO:
+            return
+        # Remove the current model param widget
+        self.model_param_layout.removeWidget(self.curr_model_param_widget)
+        self.curr_model_param_widget.setParent(None)
         # Extract the default parameters
         try:
             param_dict = MODEL_INFO[model_name]["params"]
@@ -154,28 +305,31 @@ class AIOnDemand(QWidget):
             ]
         # Otherwise construct it
         else:
-            self.model_widget = self._create_model_param_widget(
+            self.curr_model_param_widget = self._create_model_params_widget(
                 model_name, param_dict
             )
-            self.model_param_widgets[model_name] = self.model_widget
+            self.model_param_widgets_dict[
+                model_name
+            ] = self.curr_model_param_widget
         # Set the collapsible box to contain the params for this model
-        self.model_param_box.addWidget(self.model_widget)
-        self.model_param_box._toggle_btn.setText(
-            f"{MODELS[model_name]} parameters:"
-        )
+        self.model_param_layout.addWidget(self.curr_model_param_widget)
+        # Ensure it's visible if the params button is pressed
+        if self.model_param_btn.isChecked():
+            self.curr_model_param_widget.setVisible(True)
+        else:
+            self.curr_model_param_widget.setVisible(False)
 
-    def _create_model_param_widget(self, model_name, param_dict):
+    def _create_model_params_widget(self, model_name, param_dict):
+        """
+        Creates the widget for a specific model's parameters to swap in and out
+        """
         # Create a widget for the model parameters
         model_widget = QWidget()
         model_layout = QGridLayout()
         # Create container for model parameters
         self.model_param_dict[model_name] = {}
-        # Add dropdown of model checkpoints/types if available
-        self._list_model_checkpoints(model_name, model_layout)
-        # Initialize row counter in grid layout
-        i = 1
         # Add the default model parameters
-        for label, model_param in param_dict.items():
+        for i, (label, model_param) in enumerate(param_dict.items()):
             # Create labels for each of the model parameters
             param_label = QLabel(f"{label}:")
             param_label.setToolTip(model_param.tooltip)
@@ -189,60 +343,44 @@ class AIOnDemand(QWidget):
                 "label": param_label,
                 "value": param_value,
             }
-            i += 1
         # Tighten up margins and set layout
         model_layout.setContentsMargins(0, 0, 0, 0)
         model_widget.setLayout(model_layout)
         return model_widget
 
-    def _list_model_checkpoints(self, model_name, model_layout):
-        model_types = MODEL_VERSIONS[model_name]
-        # If no types available, just add a default
-        if model_types is None:
-            model_types = ["default"]
-        # Create a label for the dropdown
-        param_label = QLabel("Model type:")
-        param_label.setToolTip(
-            "Select the model type to use. If only 'default' is available, then no model variants are available."
+    def update_model_box(self, task_name):
+        """The model box updates according to what's defined for each task."""
+        # Clear and set available models in dropdown
+        self.model_dropdown.clear()
+        self.model_dropdown.addItems(
+            [
+                MODEL_INFO[model]["display_name"]
+                for model in TASK_MODELS[task_name]
+            ]
         )
-        # Create the dropdown box
-        model_type_box = QComboBox()
-        model_type_box.addItems(model_types)
-        model_type_box.setCurrentIndex(0)
-        # Insert into dict for later retrieval
-        self.model_param_dict[model_name]["model_type"] = {
-            "label": param_label,
-            "value": model_type_box,
-        }
-        # Add to layout
-        model_layout.addWidget(param_label, 0, 0)
-        model_layout.addWidget(model_type_box, 0, 1)
+        # Technically the first model in the list is now selected
+        # So update everything accordingly
+        self.on_model_select()
 
-    def update_model_box(self):
-        """The model box updates according to what's defined for each task"""
-        # Find out which button was pressed
-        for task_name, task_btn in self.task_buttons.items():
-            if task_btn.isChecked():
-                self.selected_task = task_name
-                # Get the models available for this task
-                avail_models = MODEL_DICT[task_name]
-                # Disable selection of all models not selected
-                for model_name, model_btn in self.model_buttons.items():
-                    if model_name not in avail_models:
-                        # Grey out and disable ineligible options
-                        model_btn.setEnabled(False)
-                        model_btn.setStyleSheet("color: gray")
-                        # Uncheck if already checked and no longer available
-                        model_btn.setChecked(False)
-                    else:
-                        model_btn.setEnabled(True)
-                        model_btn.setStyleSheet("")
-
-    def _check_models(self):
-        for model_name, model_btn in self.model_buttons.items():
-            if model_btn.isChecked():
-                self.selected_model = model_name
-                return
+    def select_model_config(self):
+        fname, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select a model config",
+            str(Path.home()),
+            "",
+        )
+        #
+        if fname == "":
+            self.model_config_label.setText("No model config file selected.")
+            self.model_config = None
+            return
+        fname = Path(fname)
+        # Add a label to show that the config was selected
+        self.model_config_label.setText(
+            f"Model config file ({fname.name}) selected."
+        )
+        # Register config location for use in the pipeline
+        self.model_config = fname
 
     def create_dir_box(self):
         # TODO: Simultaneously allow for drag+dropping, probably a common use pattern
@@ -483,7 +621,13 @@ class AIOnDemand(QWidget):
             output.write("\n".join([str(i) for i in self.all_img_files]))
 
     def create_nextflow_params(self):
-        config_path, model_type = self.get_model_config()
+        if self.model_config is None:
+            config_path = self.get_model_config()
+        else:
+            config_path = self.model_config
+        # Extract the current model version selected
+        model_type = self.model_version_dropdown.currentText()
+        # Construct the params to be given to Nextflow
         nxf_params = {}
         nxf_params["img_dir"] = str(self.img_list_fpath)
         nxf_params["model"] = self.selected_model
@@ -512,11 +656,12 @@ class AIOnDemand(QWidget):
             else:
                 raise NotImplementedError
             # Extract the original/intended dtype and cast what's in the box
-            if param_name != "model_type":
-                orig_dtype = default_params[param_name].dtype
-                model_dict[default_params[param_name].arg] = orig_dtype(param_value)
+            orig_dtype = default_params[param_name].dtype
+            model_dict[default_params[param_name].arg] = orig_dtype(
+                param_value
+            )
         # Extract the model type
-        model_type = model_dict_orig["model_type"]["value"].currentText()
+        model_type = self.model_version_dropdown.currentText()
         # Define save path for the model config
         config_dir = Path(__file__).parent / "nextflow" / "configs"
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -526,7 +671,7 @@ class AIOnDemand(QWidget):
         # Save the yaml config
         with open(model_config_fpath, "w") as f:
             yaml.dump(model_dict, f)
-        return model_config_fpath, model_type
+        return model_config_fpath
 
     def run_pipeline(self):
         # Start with some error checking to ensure that everything has been properly specified
@@ -534,7 +679,6 @@ class AIOnDemand(QWidget):
         if self.selected_task is None:
             raise ValueError("No task/organelle has been selected!")
         # Check a model has been selected
-        self._check_models()
         if self.selected_model is None:
             raise ValueError("No model has been selected!")
         # Reset LayerList
