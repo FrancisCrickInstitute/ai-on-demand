@@ -26,17 +26,8 @@ import napari
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 
-from .model_params import MODEL_PARAMS, MODEL_VERSIONS
-
-# Available models, with displayable names
-MODELS = {"unet": "UNet", "sam": "Segment Anything"}
-# Specify which models are available for each task
-MODEL_DICT = {
-    "mito": [k for k in MODELS if k != "sam"],
-    "er": [k for k in MODELS if k != "sam"],
-    "ne": [k for k in MODELS if k != "sam"],
-    "everything": ["sam"],
-}
+from .models import MODEL_INFO, MODEL_DISPLAYNAMES, TASK_MODELS
+from .tasks import TASK_NAMES
 
 
 class AIOnDemand(QWidget):
@@ -89,15 +80,7 @@ class AIOnDemand(QWidget):
         # Define and set the buttons for the different tasks
         # With callbacks to change other options accoridngly
         self.task_buttons = {}
-        for name, label in zip(
-            ["mito", "er", "ne", "everything"],
-            [
-                "Mitochondria",
-                "Endoplasmic Reticulum",
-                "Nuclear Envelope",
-                "Everything!",
-            ],
-        ):
+        for name, label in TASK_NAMES.items():
             btn = QRadioButton(label)
             btn.setEnabled(True)
             btn.setChecked(False)
@@ -110,7 +93,7 @@ class AIOnDemand(QWidget):
         self.layout().addWidget(self.task_group)
 
     def create_model_box(self):
-        self.model_group = QGroupBox("Select model to run:")
+        self.model_group = QGroupBox("Model:")
         self.model_layout = QVBoxLayout()
         # Define and set the buttons for each model
         self.model_buttons = {}
@@ -161,12 +144,14 @@ class AIOnDemand(QWidget):
             pass
         # Extract the default parameters
         try:
-            param_dict = MODEL_PARAMS[model_name]
+            param_dict = MODEL_INFO[model_name]["params"]
         except KeyError as e:
             raise e("Default model parameters not found!")
         # Retrieve the widget for this model if already created
-        if model_name in self.model_param_widgets:
-            self.model_widget = self.model_param_widgets[model_name]
+        if model_name in self.model_param_widgets_dict:
+            self.curr_model_param_widget = self.model_param_widgets_dict[
+                model_name
+            ]
         # Otherwise construct it
         else:
             self.model_widget = self._create_model_param_widget(
@@ -513,7 +498,7 @@ class AIOnDemand(QWidget):
         # Get the current dictionary of widgets for selected model
         model_dict_orig = self.model_param_dict[self.selected_model]
         # Get the relevant default params for this model
-        default_params = MODEL_PARAMS[self.selected_model]
+        default_params = MODEL_INFO[self.selected_model]["params"]
         # Reformat the dict to pipe into downstream model run scripts
         model_dict = {}
         # Extract params from model param widgets
