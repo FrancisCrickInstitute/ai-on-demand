@@ -1,9 +1,7 @@
 from collections import Counter
-from functools import partial
 from pathlib import Path
 import subprocess
 import time
-from typing import Union
 import yaml
 
 from qtpy.QtWidgets import (
@@ -19,11 +17,10 @@ from qtpy.QtWidgets import (
     QGroupBox,
     QComboBox,
 )
-from qtpy.QtGui import QPixmap, QIntValidator, QDoubleValidator
+from qtpy.QtGui import QPixmap
 import qtpy.QtCore
 import numpy as np
 import skimage.io
-from superqt import QCollapsible
 
 import napari
 from napari.qt.threading import thread_worker
