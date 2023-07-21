@@ -74,9 +74,12 @@ class AIOnDemand(QWidget):
         self.create_dir_box()
 
         # Add the button for running the Nextflow pipeline
-        self.create_nxf_button()
+        self.create_nxf_box()
 
     def create_organelle_box(self):
+        """
+        Create the box for selecting the task (i.e. organelle) to segment.
+        """
         # Define the box and layout
         self.task_group = QGroupBox("Select organelle to segment:")
         self.task_layout = QVBoxLayout()
@@ -112,6 +115,11 @@ class AIOnDemand(QWidget):
         self.update_model_box(self.selected_task)
 
     def create_model_box(self):
+        """
+        Create the box for selecting the model (and model version) to run.
+
+        Also contains the widgets for modifying the model parameters and/or loading a config file.
+        """
         self.model_group = QGroupBox("Model:")
         self.model_layout = QVBoxLayout()
 
@@ -127,9 +135,9 @@ class AIOnDemand(QWidget):
         # Connect function when new model selected
         self.model_dropdown.activated.connect(self.on_model_select)
         model_box_layout.addWidget(model_label, 0, 0)
-        model_box_layout.addWidget(self.model_dropdown, 0, 1)
+        model_box_layout.addWidget(self.model_dropdown, 0, 1, 1, 2)
         # Add label + dropdown for model variants/versions
-        model_version_label = QLabel("Select model version:")
+        model_version_label = QLabel("Select version:")
         model_version_label.setToolTip(
             "Select the model version to use."
             "Versions can vary either by intended functionality, or are specifically for reproducibility."
@@ -140,7 +148,7 @@ class AIOnDemand(QWidget):
         )
         self.model_version_dropdown.addItems(["Select a model first!"])
         model_box_layout.addWidget(model_version_label, 1, 0)
-        model_box_layout.addWidget(self.model_version_dropdown, 1, 1)
+        model_box_layout.addWidget(self.model_version_dropdown, 1, 1, 1, 2)
 
         self.model_layout.addLayout(model_box_layout)
 
@@ -159,7 +167,7 @@ class AIOnDemand(QWidget):
         self.model_param_btn.setStyleSheet(
             f"QPushButton:checked {{background-color: {self.colour_selected}}}"
         )
-        self.model_param_btn.clicked.connect(self._click_model_params)
+        self.model_param_btn.clicked.connect(self.on_click_model_params)
         self.params_config_layout.addWidget(self.model_param_btn)
         # Create button for displaying model config options
         self.model_config_btn = QPushButton("Load Config")
@@ -170,7 +178,7 @@ class AIOnDemand(QWidget):
         self.model_config_btn.setStyleSheet(
             f"QPushButton:checked {{background-color: {self.colour_selected}}}"
         )
-        self.model_config_btn.clicked.connect(self._click_model_config)
+        self.model_config_btn.clicked.connect(self.on_click_model_config)
         self.params_config_layout.addWidget(self.model_config_btn)
         # Reduce unnecessary margins/spacing
         self.params_config_layout.setContentsMargins(0, 0, 0, 0)
@@ -208,7 +216,7 @@ class AIOnDemand(QWidget):
         self.update_model_param_config(self.selected_model)
         # TODO: Clear the model config file
 
-    def _click_model_params(self):
+    def on_click_model_params(self):
         # Uncheck config button
         if self.model_config_btn.isChecked():
             self.model_config_btn.setChecked(False)
@@ -221,7 +229,7 @@ class AIOnDemand(QWidget):
             self.curr_model_param_widget.setVisible(False)
             self.model_param_widget.setVisible(False)
 
-    def _click_model_config(self):
+    def on_click_model_config(self):
         # Uncheck param button
         if self.model_param_btn.isChecked():
             self.model_param_btn.setChecked(False)
@@ -234,6 +242,9 @@ class AIOnDemand(QWidget):
             self.model_config_widget.setVisible(False)
 
     def create_model_config_widget(self):
+        """
+        Creates the widget for loading a model config file.
+        """
         self.model_config_widget = QWidget()
         self.model_config_layout = QVBoxLayout()
 
@@ -256,6 +267,9 @@ class AIOnDemand(QWidget):
         self.model_layout.addWidget(self.model_config_widget)
 
     def create_model_param_widget(self):
+        """
+        Creates the widget for modifying model parameters.
+        """
         self.model_param_widget = QWidget()
         self.model_param_layout = QVBoxLayout()
         # Create a container for the model parameters and containing widget
@@ -280,6 +294,11 @@ class AIOnDemand(QWidget):
         self.model_layout.addWidget(self.model_param_widget)
 
     def update_model_param_config(self, model_name):
+        """
+        Updates the model param and config widgets for a specific model.
+
+        Currently only updates the model widget as the config is now constant.
+        """
         # Update the model parameters
         self.update_model_param_widget(model_name)
 
@@ -363,6 +382,11 @@ class AIOnDemand(QWidget):
         self.on_model_select()
 
     def select_model_config(self):
+        """
+        Opens a file dialog for selecting the model config.
+
+        Filters can be applied to restrict selection, which may help if restricting processing of those files.
+        """
         fname, _ = QFileDialog.getOpenFileName(
             self,
             "Select a model config",
@@ -383,6 +407,11 @@ class AIOnDemand(QWidget):
         self.model_config = fname
 
     def create_dir_box(self):
+        """
+        Create the box for selecting the directory to take images from, and optionally view them.
+        
+        Displays the number and types of files found in the selected directory.
+        """
         # TODO: Simultaneously allow for drag+dropping, probably a common use pattern
         self.dir_group = QGroupBox("Data selection:")
         self.dir_layout = QVBoxLayout()
@@ -397,15 +426,14 @@ class AIOnDemand(QWidget):
         self.load_img_counter = 0
         # Create a button to navigate to a directory to take images from
         self.dir_btn = QPushButton("Select directory")
-        self.dir_btn.clicked.connect(self.browse_directory)
+        self.dir_btn.clicked.connect(self.browse_directory_imgs)
         self.dir_btn.setToolTip(
             "Select folder/directory of images to use as input to the model."
         )
         self.dir_layout.addWidget(self.dir_btn)
         # Add an output to show the counts
-        self.img_counts = QLabel()
+        self.img_counts = QLabel("No files selected.")
         self.img_counts.setWordWrap(True)
-        self.img_counts.setText("No files selected.")
         self.dir_layout.addWidget(self.img_counts)
         # self.images_dir_label = QLineEdit("")  # TODO: Make it editable fo ruser input too
         self.dir_layout.addWidget(self.images_dir_label)
@@ -421,15 +449,10 @@ class AIOnDemand(QWidget):
         self.dir_group.setLayout(self.dir_layout)
         self.layout().addWidget(self.dir_group)
 
-    def abspath(self, root, relpath):
-        root = Path(root)
-        if root.is_dir():
-            path = root / relpath
-        else:
-            path = root.parent / relpath
-        return str(path.absolute())
-
-    def browse_directory(self):
+    def browse_directory_imgs(self):
+        """
+        Opens a dialog for selecting a directory that contains images to segment.
+        """
         result = QFileDialog.getExistingDirectory(
             self, caption="Select image directory", directory=None
         )
@@ -445,14 +468,15 @@ class AIOnDemand(QWidget):
     def type_directory(self):
         """Allow for user to type a directory?
 
-        Will require checking that the path is valid, and using the ToolTip if it's not
-        (or a similar pop-up/warning object) to raise the issue.
+        Will require checking that the path is valid, and using the ToolTip if
+        it's not (or a similar pop-up/warning object) to raise the issue.
         """
         return NotImplementedError
 
     def _count_files(self):
-        """Function to extract all the files in a given path,
-        and return a count (broken down by extension)
+        """
+        Function to extract all the files in a given path, and return a count
+        (broken down by extension)
         """
         txt = ""
         # Get all the files in the given path
@@ -474,6 +498,9 @@ class AIOnDemand(QWidget):
         self.img_counts.setText(txt)
 
     def view_images(self):
+        """
+        Loads the selected images into napari for viewing (in separate threads).
+        """
         self.view_img_btn.setEnabled(False)
         # Return if there's nothing to show
         if self.all_img_files is None:
@@ -499,6 +526,9 @@ class AIOnDemand(QWidget):
         self.view_img_btn.setText("Loading...")
 
     def _add_image(self, res):
+        """
+        Adds an image to the viewer when loaded, using its filepath as the name.
+        """
         img, fpath = res
         self.viewer.add_image(img, name=fpath.name)
         self.load_img_counter += 1
@@ -511,9 +541,18 @@ class AIOnDemand(QWidget):
             )
 
     def _reset_view_btn(self):
+        """Reset the view button to be clickable again when done."""
         self.view_img_btn.setEnabled(True)
 
     def watch_mask_files(self):
+        """
+        File watcher to watch for new mask files being created during the Nextflow run.
+
+        This is used to update the napari Labels layers with the new masks.
+
+        Currently expects that the slices are stored as .npy files. Deactivates
+        when it sees each image has an associated "*_all.npy" file.
+        """
         # Wait for at least one image to load as layers if not present
         if not self.viewer.layers:
             time.sleep(0.5)
@@ -568,6 +607,9 @@ class AIOnDemand(QWidget):
         _watch_mask_files(self)
 
     def update_masks(self, new_files):
+        """
+        Update the masks in the napari Labels layers with the new masks found in the last scan.
+        """
         # Iterate over each new files and add the mask to the appropriate image
         for f in new_files:
             # Load the numpy array
@@ -576,7 +618,6 @@ class AIOnDemand(QWidget):
             split_names = f.stem.split("_masks")
             layer_name = split_names[0] + "_masks"
             label_layer = self.viewer.layers[layer_name]
-            # label_layer.num_colours = mask_arr.max()+1
             # Insert mask data
             label_layer.data = mask_arr
             label_layer.visible = True
@@ -588,39 +629,48 @@ class AIOnDemand(QWidget):
                 slice_num = int(slice_num)
             self.viewer.dims.set_point(0, slice_num)
 
-    def create_nxf_button(self):
+    def create_nxf_box(self):
+        """
+        Create the widget box containing options for the Nextflow pipeline.
+        """
         self.nxf_group = QGroupBox("Nextflow Pipeline:")
-        self.nxf_layout1 = QVBoxLayout()
-        self.nxf_layout2 = QHBoxLayout()
+        self.nxf_layout = QGridLayout()
         # Create a drop-down box to select the execution profile
         self.nxf_profile_label = QLabel("Execution profile:")
-        self.nxf_profile_label.setToolTip("Select the execution profile to use.")
+        self.nxf_profile_label.setToolTip(
+            "Select the execution profile to use."
+        )
         self.nxf_profile_box = QComboBox()
         # Get the available profiles from config dir
+        # TODO: This will not work when Nextflow has been separated
         config_dir = Path(__file__).parent / "nextflow" / "profiles"
         avail_confs = [str(i.stem) for i in config_dir.glob("*.conf")]
         self.nxf_profile_box.addItems(avail_confs)
-        self.nxf_layout2.addWidget(self.nxf_profile_label)
-        self.nxf_layout2.addWidget(self.nxf_profile_box)
-        # Nest this layout within the main layout
-        self.nxf_layout1.addLayout(self.nxf_layout2)
+        self.nxf_layout.addWidget(self.nxf_profile_label, 0, 0)
+        self.nxf_layout.addWidget(self.nxf_profile_box, 0, 1)
         # Create a button to navigate to a directory to take images from
         self.nxf_btn = QPushButton("Run Pipeline!")
         self.nxf_btn.clicked.connect(self.run_pipeline)
         self.nxf_btn.setToolTip(
             "Run the pipeline with the chosen organelle(s), model, and images."
         )
-        self.nxf_layout1.addWidget(self.nxf_btn)
-        self.nxf_group.setLayout(self.nxf_layout1)
+        self.nxf_layout.addWidget(self.nxf_btn, 1, 0, 1, 2)
+        self.nxf_group.setLayout(self.nxf_layout)
         self.layout().addWidget(self.nxf_group)
 
     def store_img_paths(self):
+        """
+        Write the image paths of all images to a text file for input to the Nextflow pipeline.
+        """
         self.img_list_fpath = Path(__file__).parent / "all_img_paths.txt"
 
         with open(self.img_list_fpath, "w") as output:
             output.write("\n".join([str(i) for i in self.all_img_files]))
 
     def create_nextflow_params(self):
+        """
+        Create the parameters to pass to the Nextflow pipeline
+        """
         if self.model_config is None:
             config_path = self.get_model_config()
         else:
@@ -639,6 +689,9 @@ class AIOnDemand(QWidget):
         return nxf_params
 
     def get_model_config(self):
+        """
+        Construct the model config from the parameter widgets.
+        """
         # Get the current dictionary of widgets for selected model
         model_dict_orig = self.model_param_dict[self.selected_model]
         # Get the relevant default params for this model
@@ -674,6 +727,9 @@ class AIOnDemand(QWidget):
         return model_config_fpath
 
     def run_pipeline(self):
+        """
+        Run the nextflow pipeline. Checks a task and model are selected, and that images have been loaded. Loads the images to the viewer, and starts the file watcher for the masks.
+        """
         # Start with some error checking to ensure that everything has been properly specified
         # Check a task/organelle has been selected
         if self.selected_task is None:
