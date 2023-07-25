@@ -43,9 +43,10 @@ class AIOnDemand(QWidget):
         self.selected_task = None
         self.selected_model = None
 
-        # Set the path to watch for masks
-        self.mask_path = (
-            Path(__file__).parent / "nextflow/modules/models" / "sam_masks"
+        # Set the basepath to watch for masks
+        self.mask_base_path = (
+            Path(__file__).parent
+            / ".nextflow"
         )
 
         # Set selection colour
@@ -696,12 +697,14 @@ class AIOnDemand(QWidget):
             except KeyError:
                 img_shape = (1000, 1000)
             # Set the name following convention
-            name = f"{fpath.stem}_masks"
+            name = f"{fpath.stem}_masks_{self.selected_model}-{self.selected_variant}"
             # Add a Labels layer for this file
             self.viewer.add_labels(
                 np.zeros(img_shape, dtype=int), name=name, visible=False
             )
-
+        # Construct the proper mask path
+        self.mask_path = self.mask_base_path / f"{self.selected_model}-{self.selected_variant}_masks"
+        print(self.mask_path)
         # NOTE: Wrapper as self/class not available at runtime
         @thread_worker(connect={"yielded": self.update_masks})
         def _watch_mask_files(self):
