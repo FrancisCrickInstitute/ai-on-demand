@@ -25,6 +25,7 @@ import skimage.io
 import napari
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
+from napari.layers import Image
 
 from .models import MODEL_INFO, MODEL_DISPLAYNAMES, TASK_MODELS
 from .tasks import TASK_NAMES
@@ -34,6 +35,9 @@ class AIOnDemand(QWidget):
     def __init__(self, napari_viewer: napari.Viewer):
         super().__init__()
         self.viewer = napari_viewer
+        # Connect to the viewer to some callbacks
+        self.viewer.layers.events.inserted.connect(self.on_layer_added)
+        self.viewer.layers.events.removed.connect(self.on_layer_removed)
 
         # Handy attributes to check things
         self.selected_task = None
@@ -75,6 +79,37 @@ class AIOnDemand(QWidget):
 
         # Add the button for running the Nextflow pipeline
         self.create_nxf_box()
+
+    def on_layer_added(self, event):
+        """
+        Triggered whenever there is a new layer added to the viewer.
+
+        Checks if the layer is an image, and if so, adds it to the list of images to process.
+        """
+        if isinstance(event.value, Image):
+            # Extract the underlying filepath of the image
+            img_path = event.value.source.path
+            # Insert into the overall dict of images and their paths (if path is present)
+            # This will be None when we are viewing arrays loaded separately from napari
+            if img_path is not None:
+                self.image_path_dict[Path(img_path).name] = Path(img_path)
+            # Then update the counts of files (and their types) with the extra image
+            self.update_file_count()
+
+    def on_layer_removed(self, event):
+        """
+        Triggered whenever a layer is removed from the viewer.
+
+        Checks if the layer is an image, and if so, removes it from the list of images to process.
+        """
+        if isinstance(event.value, Image):
+            # Extract the underlying filepath of the image
+            img_path = Path(event.value.source.path)
+            # Remove from the list of images
+            if img_path.name in self.image_path_dict:
+                del self.image_path_dict[img_path.name]
+            # Update file count with image removed
+            self.update_file_count()
 
     def create_organelle_box(self):
         """
@@ -424,6 +459,25 @@ class AIOnDemand(QWidget):
         self.images_dir = None
         # Create empty counter to show image load progress
         self.load_img_counter = 0
+        # Create container for image paths
+        self.image_path_dict = {}
+        # Do a quick check to see if the user has added any images already
+        if self.viewer.layers:
+            for img_layer in self.viewer.layers:
+                if isinstance(img_layer, Image):
+                    try:
+                        img_path = Path(img_layer.source.path)
+                        self.image_path_dict[img_path.name] = img_path
+                    except AttributeError:
+                        continue
+        # Create a button to select individual images from
+        self.img_btn = QPushButton("Select image files")
+        self.img_btn.clicked.connect(self.browse_imgs_files)
+        self.img_btn.setToolTip(
+            "Select individual image files to use as input to the model."
+        )
+        self.dir_layout.addWidget(self.img_btn, 0, 0)
+        # TODO: What happens if multiple directories are selected? Is this possible?
         # Create a button to navigate to a directory to take images from
         self.dir_btn = QPushButton("Select directory")
         self.dir_btn.clicked.connect(self.browse_directory_imgs)
@@ -473,16 +527,26 @@ class AIOnDemand(QWidget):
         """
         return NotImplementedError
 
-    def _count_files(self):
+    def update_file_count(self, paths=None):
         """
         Function to extract all the files in a given path, and return a count
         (broken down by extension)
         """
+        # Reinitialise text
         txt = ""
-        # Get all the files in the given path
-        self.all_img_files = list(Path(self.images_dir).glob("*"))
+        # Add paths to the overall list if specific ones need adding
+        if paths is not None:
+            for img_path in paths:
+                img_path = Path(img_path)
+                self.image_path_dict[img_path.name] = img_path
+        # If no files remaining, reset message and return
+        if len(self.image_path_dict) == 0:
+            self.img_counts.setText(self.init_file_msg)
+            return
         # Get all the extensions in the path
-        extension_counts = Counter([i.suffix for i in self.all_img_files])
+        extension_counts = Counter(
+            [i.suffix for i in self.image_path_dict.values()]
+        )
         # Sort by highest and get the suffixes and their counts
         ext_counts = extension_counts.most_common()
         if len(ext_counts) > 1:
@@ -501,10 +565,21 @@ class AIOnDemand(QWidget):
         """
         Loads the selected images into napari for viewing (in separate threads).
         """
-        self.view_img_btn.setEnabled(False)
         # Return if there's nothing to show
-        if self.all_img_files is None:
+        if len(self.image_path_dict) == 0:
             return
+        # Check if there are images to load that haven't been already
+        viewer_imgs = [
+            Path(i._source.path)
+            for i in self.viewer.layers
+            if isinstance(i, Image)
+        ]
+        imgs_to_load = [
+            i for i in self.image_path_dict.values() if i not in viewer_imgs
+        ]
+        if imgs_to_load == []:
+            return
+        self.view_img_btn.setEnabled(False)
         # Reset counter
         self.load_img_counter = 0
 
@@ -519,7 +594,7 @@ class AIOnDemand(QWidget):
             return skimage.io.imread(fpath), fpath
 
         # Load each image in a separate thread
-        for fpath in self.all_img_files:
+        for fpath in imgs_to_load:
             _load_image(fpath)
         # NOTE: This does not work well for a directory of large images on a remote directory
         # But that would trigger loading GBs into memory over network, which is...undesirable
@@ -530,14 +605,17 @@ class AIOnDemand(QWidget):
         Adds an image to the viewer when loaded, using its filepath as the name.
         """
         img, fpath = res
+        # Add the image to the overall dict
+        self.image_path_dict[fpath.name] = fpath
         self.viewer.add_image(img, name=fpath.name)
         self.load_img_counter += 1
+        num_files = len(self.image_path_dict)
         self.view_img_btn.setText(
-            f"Loading...({self.load_img_counter}/{len(self.all_img_files)} images loaded)."
+            f"Loading...({self.load_img_counter}/{num_files} images loaded)."
         )
-        if self.load_img_counter == len(self.all_img_files):
+        if self.load_img_counter == num_files:
             self.view_img_btn.setText(
-                f"All ({self.load_img_counter}/{len(self.all_img_files)}) images loaded."
+                f"All ({self.load_img_counter}/{num_files}) images loaded."
             )
 
     def _reset_view_btn(self):
@@ -557,7 +635,7 @@ class AIOnDemand(QWidget):
         if not self.viewer.layers:
             time.sleep(0.5)
         # Create the Labels layers for each image
-        for fpath in self.all_img_files:
+        for fpath in self.image_path_dict.values():
             # If images still not loaded, add dummy array
             try:
                 img_shape = self.viewer.layers[f"{fpath.name}"].data.shape
@@ -581,6 +659,10 @@ class AIOnDemand(QWidget):
             while self.watcher_enabled:
                 # Get all files
                 current_files = list(self.mask_path.glob("*.npy"))
+                # Filter out files we are not running on
+                current_files = [
+                    i for i in current_files if Path(i).stem.split("_")[0] in self.image_path_dict
+                ]
                 if set(self.mask_fpaths) != set(current_files):
                     # Get the new files only
                     new_files = [
@@ -596,8 +678,8 @@ class AIOnDemand(QWidget):
                 masks_finished = [
                     Path(i).stem[-3:] == "all" for i in current_files
                 ]
-                # Get how many mask files there should be
-                num_images = len(self.all_img_files)
+                # Get how many complete mask files there should be
+                num_images = len(self.image_path_dict)
                 # If all images have complete masks, deactivate watcher
                 if all(masks_finished) and (len(masks_finished) == num_images):
                     print("Deactivating watcher...")
@@ -663,9 +745,11 @@ class AIOnDemand(QWidget):
         Write the image paths of all images to a text file for input to the Nextflow pipeline.
         """
         self.img_list_fpath = Path(__file__).parent / "all_img_paths.txt"
-
+        # Extract the paths for all the stored images
+        img_file_paths = self.image_path_dict.values()
+        # Write the image paths into a newline-separated text file
         with open(self.img_list_fpath, "w") as output:
-            output.write("\n".join([str(i) for i in self.all_img_files]))
+            output.write("\n".join([str(i) for i in img_file_paths]))
 
     def create_nextflow_params(self):
         """
