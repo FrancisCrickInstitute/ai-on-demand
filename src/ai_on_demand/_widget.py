@@ -281,7 +281,7 @@ class AIOnDemand(QWidget):
         Creates the widget for loading a model config file.
         """
         self.model_config_widget = QWidget()
-        self.model_config_layout = QVBoxLayout()
+        self.model_config_layout = QGridLayout()
 
         # Add the button for loading a config file
         self.model_config_load_btn = QPushButton("Select model config file")
@@ -290,11 +290,18 @@ class AIOnDemand(QWidget):
             "Select a config file to be used for the selected model."
             "Note that no checking/validation is done on the config file, it is just given to the model."
         )
-        self.model_config_layout.addWidget(self.model_config_load_btn)
+        self.model_config_layout.addWidget(self.model_config_load_btn, 0, 0)
+        # Add a button for clearing the config file
+        self.model_config_clear_btn = QPushButton("Clear config selection")
+        self.model_config_clear_btn.clicked.connect(self.clear_model_config)
+        self.model_config_clear_btn.setToolTip(
+            "Clear the selected model config file."
+        )
+        self.model_config_layout.addWidget(self.model_config_clear_btn, 0, 1)
         # Add a label to display the selected config file (if any)
         self.model_config_label = QLabel("No model config file selected.")
         self.model_config_label.setWordWrap(True)
-        self.model_config_layout.addWidget(self.model_config_label)
+        self.model_config_layout.addWidget(self.model_config_label, 1, 0, 1, 2)
         # Set the overall widget layout
         self.model_config_widget.setLayout(self.model_config_layout)
 
@@ -441,20 +448,23 @@ class AIOnDemand(QWidget):
         # Register config location for use in the pipeline
         self.model_config = fname
 
+    def clear_model_config(self):
+        pass
+
     def create_dir_box(self):
         """
         Create the box for selecting the directory to take images from, and optionally view them.
-        
+
         Displays the number and types of files found in the selected directory.
         """
         # TODO: Simultaneously allow for drag+dropping, probably a common use pattern
-        self.dir_group = QGroupBox("Data selection:")
-        self.dir_layout = QVBoxLayout()
-        # Add an output to show the selected path
-        self.images_dir_label = QLabel("Image folder: not selected.")
-        self.images_dir_label.setWordWrap(True)
-        # Create empty container for selected image filepaths
-        self.all_img_files = None
+        self.dir_group = QGroupBox("Data Selection:")
+        self.dir_layout = QGridLayout()
+        self.dir_group.setToolTip(
+            "Select a directory to take images from, or select individual images.\n"
+            "Images can also be opened, or dragged into napari as normal. The selection will be updated accordingly.\n"
+            "Note that all images loaded are additive, unless removed as a layer. The 'Reset selection' button can be used to clear all images.\n"
+        )
         # Create empty container for the image directory
         self.images_dir = None
         # Create empty counter to show image load progress
@@ -479,18 +489,24 @@ class AIOnDemand(QWidget):
         self.dir_layout.addWidget(self.img_btn, 0, 0)
         # TODO: What happens if multiple directories are selected? Is this possible?
         # Create a button to navigate to a directory to take images from
-        self.dir_btn = QPushButton("Select directory")
-        self.dir_btn.clicked.connect(self.browse_directory_imgs)
+        self.dir_btn = QPushButton("Select image directory")
+        self.dir_btn.clicked.connect(self.browse_imgs_dir)
         self.dir_btn.setToolTip(
-            "Select folder/directory of images to use as input to the model."
+            "Select folder/directory of images to use as input to the model.\n"
+            "Note that this allows for running the pipeline without having to load images into napari first.\n"
+            "Any images loaded into napari will also be used within the pipeline, however."
         )
-        self.dir_layout.addWidget(self.dir_btn)
+        self.dir_layout.addWidget(self.dir_btn, 0, 1)
         # Add an output to show the counts
-        self.img_counts = QLabel("No files selected.")
+        self.init_file_msg = "No files selected or added to Napari."
+        self.img_counts = QLabel(self.init_file_msg)
         self.img_counts.setWordWrap(True)
-        self.dir_layout.addWidget(self.img_counts)
-        # self.images_dir_label = QLineEdit("")  # TODO: Make it editable fo ruser input too
-        self.dir_layout.addWidget(self.images_dir_label)
+        self.dir_layout.addWidget(self.img_counts, 1, 0, 1, 2)
+        # # Add an output to show the selected path
+        # self.images_dir_label = QLabel("Image folder: not selected.")
+        # self.images_dir_label.setWordWrap(True)
+        # # self.images_dir_label = QLineEdit("")  # TODO: Make it editable fo ruser input too
+        # self.dir_layout.addWidget(self.images_dir_label)
         # Add a button for viewing the images within napari
         # Optional as potentially taxing, and not necessary
         self.view_img_btn = QPushButton("View selected images")
@@ -498,15 +514,37 @@ class AIOnDemand(QWidget):
             "Load selected images into napari to view."
         )
         self.view_img_btn.clicked.connect(self.view_images)
-        self.dir_layout.addWidget(self.view_img_btn)
+        self.dir_layout.addWidget(self.view_img_btn, 2, 0)
+        # Create a button to clear selected directory
+        self.clear_dir_btn = QPushButton("Reset selection")
+        self.clear_dir_btn.clicked.connect(self.clear_directory)
+        self.clear_dir_btn.setToolTip(
+            "Reset selection of image directory and clear all images."
+        )
+        self.dir_layout.addWidget(self.clear_dir_btn, 2, 1)
+        # Add button layout to box layout
         # Sort out layout and add to main widget
         self.dir_group.setLayout(self.dir_layout)
         self.layout().addWidget(self.dir_group)
 
-    def browse_directory_imgs(self):
+    def browse_imgs_files(self):
+        fnames, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select one or more images",
+            str(Path.home()),
+            "",
+        )
+        # if fname == "":
+        #     self.model_config_label.setText("No model config file selected.")
+        #     self.model_config = None
+        #     return
+        # fname = Path(fname)
+
+    def browse_imgs_dir(self):
         """
         Opens a dialog for selecting a directory that contains images to segment.
         """
+        # TODO: Possible to add multiple directories?
         result = QFileDialog.getExistingDirectory(
             self, caption="Select image directory", directory=None
         )
@@ -516,8 +554,24 @@ class AIOnDemand(QWidget):
             self.view_img_btn.setEnabled(True)
         if result != "":
             self.images_dir = result
-            self.images_dir_label.setText(f"Image folder:\n{self.images_dir}")
-            self._count_files()
+            self.update_file_count(paths=list(Path(self.images_dir).glob("*")))
+
+    def clear_directory(self):
+        """
+        Clears the selected directory and resets the image counts.
+        """
+        # Reset directory
+        self.images_dir = None
+        # Reset selected images and their paths
+        self.image_path_dict = {}
+        # Reset image count text
+        self.img_counts.setText(self.init_file_msg)
+        # Reset the images loaded button text
+        self.view_img_btn.setText("View selected images")
+        # Remove Image layers from napari viewer
+        img_layers = [i for i in self.viewer.layers if isinstance(i, Image)]
+        for layer in img_layers:
+            self.viewer.layers.remove(layer)
 
     def type_directory(self):
         """Allow for user to type a directory?
@@ -760,13 +814,13 @@ class AIOnDemand(QWidget):
         else:
             config_path = self.model_config
         # Extract the current model version selected
-        model_type = self.model_version_dropdown.currentText()
+        self.selected_variant = self.model_version_dropdown.currentText()
         # Construct the params to be given to Nextflow
         nxf_params = {}
         nxf_params["img_dir"] = str(self.img_list_fpath)
         nxf_params["model"] = self.selected_model
         nxf_params["model_config"] = config_path
-        nxf_params["model_type"] = model_type
+        nxf_params["model_type"] = self.selected_variant
         nxf_params["task"] = self.selected_task
         # TODO: Implement profiles for this to configure SLURM
         nxf_params["executor"] = self.nxf_profile_box.currentText()
@@ -798,12 +852,13 @@ class AIOnDemand(QWidget):
                 param_value
             )
         # Extract the model type
-        model_type = self.model_version_dropdown.currentText()
+        self.selected_variant = self.model_version_dropdown.currentText()
         # Define save path for the model config
         config_dir = Path(__file__).parent / "nextflow" / "configs"
         config_dir.mkdir(parents=True, exist_ok=True)
         model_config_fpath = (
-            config_dir / f"{self.selected_model}-{model_type}_config.yaml"
+            config_dir
+            / f"{self.selected_model}-{self.selected_variant}_config.yaml"
         )
         # Save the yaml config
         with open(model_config_fpath, "w") as f:
@@ -845,6 +900,7 @@ class AIOnDemand(QWidget):
             # Disable the button to avoid issues
             self.nxf_btn.setEnabled(False)
             # Get the path the main Nextflow entry pipeline
+            # TODO: Will not work when nextflow is separated, will need to switch to call from repo
             nextflow_script = Path(__file__).parent / "nextflow" / "main.nf"
             exec_str = f"nextflow run {str(nextflow_script)}"
             # Add the command line arguments
