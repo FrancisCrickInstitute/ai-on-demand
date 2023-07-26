@@ -102,10 +102,13 @@ class AIOnDemand(QWidget):
         """
         if isinstance(event.value, Image):
             # Extract the underlying filepath of the image
-            img_path = Path(event.value.source.path)
+            img_path = event.value.source.path
             # Remove from the list of images
-            if img_path.stem in self.image_path_dict:
-                del self.image_path_dict[img_path.stem]
+            if (
+                img_path is not None
+                and Path(img_path).stem in self.image_path_dict
+            ):
+                del self.image_path_dict[Path(img_path).stem]
             # Update file count with image removed
             self.update_file_count()
 
@@ -511,7 +514,7 @@ class AIOnDemand(QWidget):
         self.clear_dir_btn = QPushButton("Reset selection")
         self.clear_dir_btn.clicked.connect(self.clear_directory)
         self.clear_dir_btn.setToolTip(
-            "Reset selection of image directory and clear all images."
+            "Reset selection of images (clears all images in the viewer)."
         )
         self.dir_layout.addWidget(self.clear_dir_btn, 2, 1)
         # Add button layout to box layout
@@ -570,7 +573,7 @@ class AIOnDemand(QWidget):
         (broken down by extension)
         """
         # Reinitialise text
-        txt = ""
+        txt = "Selected "
         # Add paths to the overall list if specific ones need adding
         if paths is not None:
             for img_path in paths:
@@ -595,7 +598,7 @@ class AIOnDemand(QWidget):
                     txt += f"{count} {ext}, "
         else:
             txt += f"{ext_counts[0][1]} {ext_counts[0][0]}"
-        txt += " files selected."
+        txt += f" file{'s' if sum(extension_counts.values()) > 1 else ''}."
         self.img_counts.setText(txt)
 
     def view_images(self):
@@ -612,7 +615,7 @@ class AIOnDemand(QWidget):
             if isinstance(i, Image)
         ]
         imgs_to_load = [
-            i for i in self.image_path_dict.values() if i not in viewer_imgs
+            v for k, v in self.image_path_dict.items() if k not in viewer_imgs
         ]
         if imgs_to_load == []:
             return
@@ -644,16 +647,15 @@ class AIOnDemand(QWidget):
         img, fpath = res
         # Add the image to the overall dict
         self.image_path_dict[fpath.stem] = fpath
-        self.viewer.add_image(img, name=fpath.name)
+        self.viewer.add_image(img, name=fpath.stem)
         self.load_img_counter += 1
-        num_files = len(self.image_path_dict)
         self.view_img_btn.setText(
-            f"Loading...({self.load_img_counter}/{num_files} images loaded)."
+            f"Loading...({self.load_img_counter} image{'s' if self.load_img_counter > 1 else ''} loaded)."
         )
-        if self.load_img_counter == num_files:
-            self.view_img_btn.setText(
-                f"All ({self.load_img_counter}/{num_files}) images loaded."
-            )
+        img_layers = [i for i in self.viewer.layers if isinstance(i, Image)]
+        # Only change text when we have as many image layers as images
+        if len(img_layers) == len(self.image_path_dict):
+            self.view_img_btn.setText("All images loaded.")
 
     def _reset_view_btn(self):
         """Reset the view button to be clickable again when done."""
