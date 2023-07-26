@@ -933,8 +933,9 @@ class AIOnDemand(QWidget):
             # TODO: Add '-bg' to run in background?
             # TODO: Add '-resume' to resume from last run just in case?
             # Run the pipeline!
-            subprocess.run(exec_str, shell=True, cwd=Path(__file__).parent)
-            # TODO: Have some error-handling/polling
+            subprocess.run(
+                exec_str, shell=True, cwd=Path(__file__).parent, check=True
+            )
 
         _run_pipeline(self, nxf_params)
 
@@ -948,6 +949,8 @@ class AIOnDemand(QWidget):
         self.export_masks_btn.setEnabled(True)
 
     def _pipeline_fail(self, exc):
+        show_info("Pipeline failed! See terminal for details")
+        print(exc)
         # Reset the run pipeline button
         self.nxf_btn.setText("Run Pipeline!")
         self.nxf_btn.setEnabled(True)
