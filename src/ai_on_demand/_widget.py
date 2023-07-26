@@ -433,7 +433,7 @@ class AIOnDemand(QWidget):
             str(Path.home()),
             "",
         )
-        #
+        # Reset if dialog cancelled
         if fname == "":
             self.model_config_label.setText("No model config file selected.")
             self.model_config = None
@@ -463,8 +463,6 @@ class AIOnDemand(QWidget):
             "Images can also be opened, or dragged into napari as normal. The selection will be updated accordingly.\n"
             "Note that all images loaded are additive, unless removed as a layer. The 'Reset selection' button can be used to clear all images.\n"
         )
-        # Create empty container for the image directory
-        self.images_dir = None
         # Create empty counter to show image load progress
         self.load_img_counter = 0
         # Create container for image paths
@@ -500,11 +498,7 @@ class AIOnDemand(QWidget):
         self.img_counts = QLabel(self.init_file_msg)
         self.img_counts.setWordWrap(True)
         self.dir_layout.addWidget(self.img_counts, 1, 0, 1, 2)
-        # # Add an output to show the selected path
-        # self.images_dir_label = QLabel("Image folder: not selected.")
-        # self.images_dir_label.setWordWrap(True)
-        # # self.images_dir_label = QLineEdit("")  # TODO: Make it editable fo ruser input too
-        # self.dir_layout.addWidget(self.images_dir_label)
+
         # Add a button for viewing the images within napari
         # Optional as potentially taxing, and not necessary
         self.view_img_btn = QPushButton("View selected images")
@@ -532,34 +526,25 @@ class AIOnDemand(QWidget):
             str(Path.home()),
             "",
         )
-        # if fname == "":
-        #     self.model_config_label.setText("No model config file selected.")
-        #     self.model_config = None
-        #     return
-        # fname = Path(fname)
+        if fnames != []:
+            self.update_file_count(paths=fnames)
 
     def browse_imgs_dir(self):
         """
         Opens a dialog for selecting a directory that contains images to segment.
         """
-        # TODO: Possible to add multiple directories?
+        # TODO: Load multiple directories - https://stackoverflow.com/a/28548773/9963224
+        # Quite the pain, and potentially brittle if Qt backend changes
         result = QFileDialog.getExistingDirectory(
             self, caption="Select image directory", directory=None
         )
-        # If a new directory is selected, reset the load button text
-        if result != self.images_dir:
-            self.view_img_btn.setText("View selected images")
-            self.view_img_btn.setEnabled(True)
         if result != "":
-            self.images_dir = result
-            self.update_file_count(paths=list(Path(self.images_dir).glob("*")))
+            self.update_file_count(paths=list(Path(result).glob("*")))
 
     def clear_directory(self):
         """
         Clears the selected directory and resets the image counts.
         """
-        # Reset directory
-        self.images_dir = None
         # Reset selected images and their paths
         self.image_path_dict = {}
         # Reset image count text
@@ -622,7 +607,7 @@ class AIOnDemand(QWidget):
             return
         # Check if there are images to load that haven't been already
         viewer_imgs = [
-            Path(i._source.path)
+            Path(i.name).stem
             for i in self.viewer.layers
             if isinstance(i, Image)
         ]
