@@ -756,6 +756,24 @@ class AIOnDemand(QWidget):
             else:
                 slice_num = int(slice_num)
             self.viewer.dims.set_point(0, slice_num)
+            # TODO: Can increment a progress bar here
+
+    def on_click_export(self):
+        """
+        Callback for when the export button is clicked. Opens a dialog to select a directory to save the masks to.
+        """
+        export_dir = QFileDialog.getExistingDirectory(
+            self, caption="Select directory to save masks", directory=None
+        )
+        # Get all the mask layers
+        mask_layers = []
+        for img_name in self.image_path_dict:
+            layer_name = f"{img_name}_masks_{self.selected_model}-{self.selected_variant}"
+            if layer_name in self.viewer.layers:
+                mask_layers.append(self.viewer.layers[layer_name])
+        # Extract the data from each of the layers, and save the result in the given folder
+        for mask_layer in mask_layers:
+            np.save(Path(export_dir) / f"{layer_name}.npy", mask_layer.data)
 
     def create_nxf_box(self):
         """
@@ -783,6 +801,16 @@ class AIOnDemand(QWidget):
             "Run the pipeline with the chosen organelle(s), model, and images."
         )
         self.nxf_layout.addWidget(self.nxf_btn, 1, 0, 1, 2)
+
+        # Add a button for exporting masks
+        self.export_masks_btn = QPushButton("Export masks")
+        self.export_masks_btn.clicked.connect(self.on_click_export)
+        self.export_masks_btn.setToolTip(
+            "Export the segmentation masks to a directory."
+        )
+        self.export_masks_btn.setEnabled(False)
+        self.nxf_layout.addWidget(self.export_masks_btn, 2, 0, 1, 1)
+
         self.nxf_group.setLayout(self.nxf_layout)
         self.layout().addWidget(self.nxf_group)
 
@@ -868,8 +896,8 @@ class AIOnDemand(QWidget):
         # Check a model has been selected
         if self.selected_model is None:
             raise ValueError("No model has been selected!")
-        # Reset LayerList
-        self.viewer.layers.clear()
+        # Ensure the export masks button is disabled
+        self.export_masks_btn.setEnabled(False)
         # Check a directory of images has been given
         # NOTE: They do not have to have been loaded, but to show feedback they will be loaded
         self.view_images()
@@ -916,6 +944,8 @@ class AIOnDemand(QWidget):
         # Reset the run pipeline button
         self.nxf_btn.setText("Run Pipeline!")
         self.nxf_btn.setEnabled(True)
+        # Enable the Export Masks button
+        self.export_masks_btn.setEnabled(True)
 
     def _pipeline_fail(self, exc):
         # Reset the run pipeline button
