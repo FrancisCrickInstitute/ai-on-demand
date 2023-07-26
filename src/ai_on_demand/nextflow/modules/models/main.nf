@@ -1,6 +1,6 @@
 
 process downloadModel {
-    conda "requests conda-forge::tqdm"
+    conda "${moduleDir}/envs/conda_download_model.yml"
     publishDir "$params.chkpt_dir", mode: 'copy'
 
     input:
@@ -20,19 +20,21 @@ process downloadModel {
 process runSAM {
     label 'small_gpu'
     conda "${moduleDir}/envs/conda_sam.yml"
+    // Switch this to use publishDir and avoid path manipulation in python?
 
     input:
-    path image_path
+    tuple path(image_path), val(mask_fname)
+    val mask_output_dir
     path model_config
     path model_chkpt
     val model_type
-    
+
     output:
-    // Switch this to use publishDir and avoid path manipulation in python
+    // Because we are manually saving it in the .cache so napari can watch for each slice
     stdout
 
     script:
     """
-    python ${moduleDir}/resources/usr/bin/run_sam.py --img-path ${image_path} --module-dir ${moduleDir} --model-chkpt ${model_chkpt} --model-type ${model_type} --model-config ${model_config}
+    python ${moduleDir}/resources/usr/bin/run_sam.py --img-path ${image_path} --mask-fname ${mask_fname} --output-dir ${mask_output_dir} --model-chkpt ${model_chkpt} --model-type ${model_type} --model-config ${model_config}
     """
 }

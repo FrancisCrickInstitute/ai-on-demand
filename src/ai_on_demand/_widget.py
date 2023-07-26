@@ -44,10 +44,7 @@ class AIOnDemand(QWidget):
         self.selected_model = None
 
         # Set the basepath to watch for masks
-        self.mask_base_path = (
-            Path(__file__).parent
-            / ".nextflow"
-        )
+        self.mask_base_path = Path(__file__).parent / ".nextflow" / "cache"
 
         # Set selection colour
         self.colour_selected = "#F7AD6F"
@@ -93,7 +90,7 @@ class AIOnDemand(QWidget):
             # Insert into the overall dict of images and their paths (if path is present)
             # This will be None when we are viewing arrays loaded separately from napari
             if img_path is not None:
-                self.image_path_dict[Path(img_path).name] = Path(img_path)
+                self.image_path_dict[Path(img_path).stem] = Path(img_path)
             # Then update the counts of files (and their types) with the extra image
             self.update_file_count()
 
@@ -107,8 +104,8 @@ class AIOnDemand(QWidget):
             # Extract the underlying filepath of the image
             img_path = Path(event.value.source.path)
             # Remove from the list of images
-            if img_path.name in self.image_path_dict:
-                del self.image_path_dict[img_path.name]
+            if img_path.stem in self.image_path_dict:
+                del self.image_path_dict[img_path.stem]
             # Update file count with image removed
             self.update_file_count()
 
@@ -478,7 +475,7 @@ class AIOnDemand(QWidget):
                 if isinstance(img_layer, Image):
                     try:
                         img_path = Path(img_layer.source.path)
-                        self.image_path_dict[img_path.name] = img_path
+                        self.image_path_dict[img_path.stem] = img_path
                     except AttributeError:
                         continue
         # Create a button to select individual images from
@@ -593,7 +590,7 @@ class AIOnDemand(QWidget):
         if paths is not None:
             for img_path in paths:
                 img_path = Path(img_path)
-                self.image_path_dict[img_path.name] = img_path
+                self.image_path_dict[img_path.stem] = img_path
         # If no files remaining, reset message and return
         if len(self.image_path_dict) == 0:
             self.img_counts.setText(self.init_file_msg)
@@ -661,7 +658,7 @@ class AIOnDemand(QWidget):
         """
         img, fpath = res
         # Add the image to the overall dict
-        self.image_path_dict[fpath.name] = fpath
+        self.image_path_dict[fpath.stem] = fpath
         self.viewer.add_image(img, name=fpath.name)
         self.load_img_counter += 1
         num_files = len(self.image_path_dict)
@@ -703,8 +700,12 @@ class AIOnDemand(QWidget):
                 np.zeros(img_shape, dtype=int), name=name, visible=False
             )
         # Construct the proper mask path
-        self.mask_path = self.mask_base_path / f"{self.selected_model}-{self.selected_variant}_masks"
-        print(self.mask_path)
+        self.mask_path = (
+            self.mask_base_path
+            / f"{self.selected_model}"
+            / f"{self.selected_variant}_masks"
+        )
+
         # NOTE: Wrapper as self/class not available at runtime
         @thread_worker(connect={"yielded": self.update_masks})
         def _watch_mask_files(self):
@@ -718,7 +719,9 @@ class AIOnDemand(QWidget):
                 current_files = list(self.mask_path.glob("*.npy"))
                 # Filter out files we are not running on
                 current_files = [
-                    i for i in current_files if Path(i).stem.split("_")[0] in self.image_path_dict
+                    i
+                    for i in current_files
+                    if Path(i).stem.split("_masks_")[0] in self.image_path_dict
                 ]
                 if set(self.mask_fpaths) != set(current_files):
                     # Get the new files only
@@ -754,13 +757,12 @@ class AIOnDemand(QWidget):
             # Load the numpy array
             mask_arr = np.load(f)
             # Extract the relevant Labels layer
-            split_names = f.stem.split("_masks")
-            layer_name = split_names[0] + "_masks"
-            label_layer = self.viewer.layers[layer_name]
+            mask_layer_name = f"{f.stem.split('_masks_')[0]}_masks_{self.selected_model}-{self.selected_variant}"
+            label_layer = self.viewer.layers[mask_layer_name]
             # Insert mask data
             label_layer.data = mask_arr
             label_layer.visible = True
-            slice_num = split_names[-1].replace("_", "")
+            slice_num = f.stem.split("_")[-1]
             # Switch viewer to latest slice
             if slice_num == "all":
                 slice_num = label_layer.data.shape[0]
@@ -911,8 +913,12 @@ class AIOnDemand(QWidget):
                 exec_str += f" --{k}={v}"
             # Add the execution profile
             exec_str += f" -profile {self.nxf_profile_box.currentText()}"
+            exec_str += " -process.echo true"
+            # exec_str += " -with-dag flowchart.png"
+            # TODO: Add '-bg' to run in background?
+            # TODO: Add '-resume' to resume from last run just in case?
             # Run the pipeline!
-            subprocess.run(exec_str, shell=True)
+            subprocess.run(exec_str, shell=True, cwd=Path(__file__).parent)
             # TODO: Have some error-handling/polling
 
         _run_pipeline(self, nxf_params)

@@ -11,7 +11,14 @@ from napari.layers.image._image_utils import guess_rgb
 from napari.layers.utils.layer_utils import calc_data_range
 
 
-def run_sam(root_dir, fpath, model_type, model_chkpt, model_config):
+def run_sam(
+    save_dir: Path | str,
+    save_name: str,
+    fpath: Path | str,
+    model_type: str,
+    model_chkpt: Path | str,
+    model_config: dict,
+):
     sam = sam_model_registry[model_type](checkpoint=model_chkpt)
     # Create the model
     model = SamAutomaticMaskGenerator(sam, **model_config)
@@ -29,10 +36,20 @@ def run_sam(root_dir, fpath, model_type, model_chkpt, model_config):
     if ndim == 2:
         all_masks = _run_sam_slice(img, model, pbar)
     elif ndim == 3:
-        all_masks = _run_sam_stack(root_dir, img, model, fpath, pbar)
+        all_masks = _run_sam_stack(
+            save_dir, save_name, img, model, fpath, pbar
+        )
+    elif ndim == 4:
+        if img.shape[0] == 1:
+            img = img.squeeze()
+            all_masks = _run_sam_stack(
+                save_dir, save_name, img, model, fpath, pbar
+            )
+        else:
+            raise ValueError("Cannot handle a stack of multi-channel images")
     else:
         raise ValueError("Can only handle an image, or stack of images!")
-    save_masks(root_dir, fpath, all_masks, all=True)
+    save_masks(save_dir, save_name, all_masks, all=True)
     pbar.close()
     return img, all_masks
 
@@ -50,7 +67,7 @@ def _run_sam_slice(img_slice, model, pbar):
     return mask_img
 
 
-def _run_sam_stack(root_dir, img_stack, model, fpath, pbar):
+def _run_sam_stack(save_dir, save_name, img_stack, model, fpath, pbar):
     # Initialize the container of all masks
     all_masks = np.zeros(img_stack.shape, dtype=int)
     # Use napari function to extract the contrast limits
@@ -72,23 +89,14 @@ def _run_sam_stack(root_dir, img_stack, model, fpath, pbar):
         masks = _run_sam_slice(img_slice, model, pbar)
         # Insert the masks for this slice
         all_masks[idx, ...] = masks
-        # Don't save final slice
-        if idx < img_stack.shape[0] - 1:
-            save_masks(
-                root_dir=root_dir,
-                fpath=fpath,
-                masks=all_masks,
-                stack_slice=True,
-                idx=idx,
-            )
-        else:
-            # Remove the penultimate slice
-            # TODO: Abstract better, and incorporate the model_type
-            (
-                root_dir
-                / "sam_masks"
-                / f"{Path(fpath).stem}_masks_{idx-1}.npy"
-            ).unlink()
+        # Save this slice (and all previous slices)
+        save_masks(
+            save_dir=save_dir,
+            save_name=save_name,
+            masks=all_masks,
+            stack_slice=True,
+            idx=idx,
+        )
     # Align masks to ensure consistent colouration
     all_masks = align_segment_labels(all_masks)
     return all_masks
@@ -121,6 +129,8 @@ def align_segment_labels(all_masks, threshold=0.5):
     The Hungarian algorithm itself can be easily done using scipy.optimize.linear_sum_assignment
     It's just that then the optimal assignment will be found, rather than using this
     thresholded approach. Can revise later as needed.
+
+    TODO: Abstract out into separate nextflow process?
     """
     all_masks = all_masks.copy()
     for i in range(all_masks.shape[0] - 1):
@@ -199,28 +209,33 @@ def create_mask_arr(masks):
     return mask_img
 
 
-def save_masks(root_dir, fpath, masks, stack_slice=False, all=False, idx=None):
-    save_dir = root_dir / "sam_masks"
+def save_masks(
+    save_dir, save_name, masks, stack_slice=False, all=False, idx=None
+):
     save_dir.mkdir(parents=True, exist_ok=True)
     # Cannot save a slice of a stack and all slice(s)
     assert not (stack_slice and all)
     # Incrementally save the masks of a slice from a stack
     if stack_slice:
-        save_path = save_dir / f"{Path(fpath).stem}_masks_{idx}.npy"
+        save_path = save_dir / f"{save_name}_{idx}.npy"
         # Remove file for previous mask iteration
         if idx > 0:
-            (save_dir / f"{Path(fpath).stem}_masks_{idx-1}.npy").unlink()
+            (save_dir / f"{save_name}_{idx-1}.npy").unlink()
     # Specify path for img or all slices, indicating finished
     if all:
-        save_path = save_dir / f"{Path(fpath).stem}_masks_all.npy"
-    # Save the masks!
+        save_path = save_dir / f"{save_name}_all.npy"
+        # Remove any previous files
+        for f in save_dir.glob(f"{save_name}_*.npy"):
+            f.unlink()
+    # Save the complete masks!
     np.save(save_path, masks)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--img-path", required=True)
-    parser.add_argument("--module-dir", required=True)
+    parser.add_argument("--mask-fname", required=True)
+    parser.add_argument("--output-dir", required=True)
     parser.add_argument("--model-chkpt", required=True)
     parser.add_argument(
         "--model-type", help="Select model type", default="default"
@@ -229,15 +244,12 @@ if __name__ == "__main__":
 
     cli_args = parser.parse_args()
 
-    # Kill me
-    # FIXME: Use Nextflow params/implicit variables to sort this
-    root_dir = Path(cli_args.module_dir)
-
     with open(cli_args.model_config, "r") as f:
         model_config = yaml.safe_load(f)
 
     img, masks = run_sam(
-        root_dir=root_dir,
+        save_dir=Path(cli_args.output_dir),
+        save_name=cli_args.mask_fname,
         fpath=cli_args.img_path,
         model_type=cli_args.model_type,
         model_chkpt=cli_args.model_chkpt,

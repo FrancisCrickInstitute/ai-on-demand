@@ -57,7 +57,7 @@ def download_from_url(url, chkpt_fname):
             total=content_length,
             unit="B",
             unit_scale=True,
-            unit_divisor=1024
+            unit_divisor=1024,
         ) as pbar:
             for chunk in req.iter_content(chunk_size=8192):
                 if chunk:
