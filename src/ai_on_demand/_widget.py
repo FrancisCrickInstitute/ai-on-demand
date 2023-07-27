@@ -16,6 +16,8 @@ from qtpy.QtWidgets import (
     QRadioButton,
     QGroupBox,
     QComboBox,
+    QScrollArea,
+    QProgressBar,
 )
 from qtpy.QtGui import QPixmap
 import qtpy.QtCore
@@ -656,10 +658,16 @@ class AIOnDemand(QWidget):
         # Only change text when we have as many image layers as images
         if len(img_layers) == len(self.image_path_dict):
             self.view_img_btn.setText("All images loaded.")
+        # Update the progress bar range (just in case the image wasn't loaded in time)
+        if img.ndim > 2:
+            self.progress_bar_dict[fpath.stem].setRange(0, img.shape[-3])
+            self.progress_bar_dict[fpath.stem].setValue(0)
 
     def _reset_view_btn(self):
         """Reset the view button to be clickable again when done."""
         self.view_img_btn.setEnabled(True)
+        # Also reset the viewer itself
+        self.viewer.reset_view()
 
     def watch_mask_files(self):
         """
@@ -752,11 +760,15 @@ class AIOnDemand(QWidget):
             slice_num = f.stem.split("_")[-1]
             # Switch viewer to latest slice
             if slice_num == "all":
-                slice_num = label_layer.data.shape[0]
+                slice_num = label_layer.data.shape[0] - 1
             else:
                 slice_num = int(slice_num)
             self.viewer.dims.set_point(0, slice_num)
-            # TODO: Can increment a progress bar here
+            # Increment the associated progress bar
+            print(f.stem, slice_num + 1)
+            self.progress_bar_dict[f"{f.stem.split('_masks_')[0]}"].setValue(
+                slice_num + 1
+            )
 
     def on_click_export(self):
         """
@@ -898,6 +910,13 @@ class AIOnDemand(QWidget):
             raise ValueError("No model has been selected!")
         # Ensure the export masks button is disabled
         self.export_masks_btn.setEnabled(False)
+        # If a previous progress bar widget exists, remove it
+        if hasattr(self, "progress_bar_widget"):
+            print("Removing progress bars")
+            self.layout().removeWidget(self.progress_bar_widget)
+            self.progress_bar_widget.setParent(None)
+        # Create the progress bars
+        self.create_progress_bars()
         # Check a directory of images has been given
         # NOTE: They do not have to have been loaded, but to show feedback they will be loaded
         self.view_images()
@@ -955,3 +974,46 @@ class AIOnDemand(QWidget):
         self.nxf_btn.setText("Run Pipeline!")
         self.nxf_btn.setEnabled(True)
         raise exc
+
+    def create_progress_bars(self):
+        print("Making progress bars")
+        # Create the overall widget
+        self.progress_bar_widget = QGroupBox("Progress Bars:")
+        # progress_widget_layout = QVBoxLayout()
+
+        progress_bar_layout = QGridLayout()
+
+        # If only 2D images are present, then max slice for all will be 1
+        if self.viewer.dims.ndim == 2:
+            max_slice = 1
+        # Construct a progress bar for each model
+        self.progress_bar_dict = {}
+        for row_num, img_name in enumerate(self.image_path_dict):
+            # Extract the number of slices
+            if self.viewer.dims.ndim > 2:
+                try:
+                    # Assumes ([C], D, H, W) ordering
+                    max_slice = self.viewer.layers[img_name].data.shape[-3]
+                # If the image hasn't loaded yet, set to 0 and fill in later
+                except KeyError:
+                    max_slice = 0
+            # Create the pbar and set the range
+            pbar = QProgressBar()
+            pbar.setRange(0, max_slice)
+            pbar.setValue(0)
+            # Create the label associated with the progress bar
+            pbar_label = QLabel(f"{img_name}:")
+
+            progress_bar_layout.addWidget(pbar_label, row_num, 0)
+            progress_bar_layout.addWidget(pbar, row_num, 1)
+
+            self.progress_bar_dict[img_name] = pbar
+
+        # Scroll area
+        # scroll_area = QScrollArea()
+        # scroll_area.setWidget(self.progress_bar_widget)
+        # progress_widget_layout.addWidget(scroll_area)
+        # progress_widget_layout.addLayout(progress_bar_layout)
+        self.progress_bar_widget.setLayout(progress_bar_layout)
+
+        # self.layout().addWidget(self.progress_bar_widget)
