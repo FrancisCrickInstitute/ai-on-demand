@@ -1,19 +1,24 @@
 
 process downloadModel {
     conda "${moduleDir}/envs/conda_download_model.yml"
-    publishDir "$params.chkpt_dir", mode: 'copy'
+    publishDir "$params.model_chkpt_dir", mode: 'copy'
 
     input:
-    val model
-    val model_type
+    val model_chkpt_path
+    val model_chkpt_loc
+    val model_chkpt_type
+    val model_chkpt_fname
 
     output:
     // This is where publishDir needs to come in, symlinking to chkpt repo
-    path "${params.chkpt_fname}", emit: model_chkpt
+    path "${model_chkpt_fname}", emit: model_chkpt
 
     script:
     """
-    python ${moduleDir}/resources/usr/bin/download_model.py --chkpt-dir ${params.chkpt_dir} --model-name ${model} --model-type ${model_type}
+    python ${moduleDir}/resources/usr/bin/download_model.py \
+        --chkpt-path ${model_chkpt_path} \
+        --chkpt-loc ${model_chkpt_loc} \
+        --chkpt-type ${model_chkpt_type}
     """
 }
 
@@ -35,6 +40,12 @@ process runSAM {
 
     script:
     """
-    python ${moduleDir}/resources/usr/bin/run_sam.py --img-path ${image_path} --mask-fname ${mask_fname} --output-dir ${mask_output_dir} --model-chkpt ${model_chkpt} --model-type ${model_type} --model-config ${model_config}
+    python ${moduleDir}/resources/usr/bin/run_sam.py \
+        --img-path ${image_path} \
+        --mask-fname ${mask_fname} \
+        --output-dir ${mask_output_dir} \
+        --model-chkpt ${model_chkpt} \
+        --model-type ${model_type} \
+        --model-config ${model_config}
     """
 }

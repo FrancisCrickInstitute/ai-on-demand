@@ -29,7 +29,12 @@ from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 from napari.layers import Image
 
-from .models import MODEL_INFO, MODEL_DISPLAYNAMES, TASK_MODELS
+from .models import (
+    MODEL_INFO,
+    MODEL_DISPLAYNAMES,
+    TASK_MODELS,
+    MODEL_TASK_VERSIONS,
+)
 from .tasks import TASK_NAMES
 
 
@@ -169,6 +174,7 @@ class AIOnDemand(QWidget):
         self.model_dropdown.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         # Store initial message to handle erroneous clicking
         self.model_name_init = "Select a task first!"
+        self.model_name_unavail = "No models available!"
         self.model_dropdown.addItems([self.model_name_init])
         # Connect function when new model selected
         self.model_dropdown.activated.connect(self.on_model_select)
@@ -185,6 +191,9 @@ class AIOnDemand(QWidget):
             QComboBox.AdjustToContents
         )
         self.model_version_dropdown.addItems(["Select a model first!"])
+        self.model_version_dropdown.activated.connect(
+            self.on_model_version_select
+        )
         model_box_layout.addWidget(model_version_label, 1, 0)
         model_box_layout.addWidget(self.model_version_dropdown, 1, 1, 1, 2)
 
@@ -242,17 +251,35 @@ class AIOnDemand(QWidget):
         # Extract selected model
         model_name = self.model_dropdown.currentText()
         if model_name == self.model_name_init:
+            self.clear_model_param_widget()
+            self.set_model_param_widget("init")
+            return
+        elif model_name == self.model_name_unavail:
+            self.clear_model_param_widget()
+            self.set_model_param_widget("init")
+            self.model_version_dropdown.clear()
+            self.model_version_dropdown.addItems([self.model_name_unavail])
             return
         self.selected_model = MODEL_DISPLAYNAMES[model_name]
         # Update the dropdown for the model variants
         self.model_version_dropdown.clear()
-        model_versions = MODEL_INFO[self.selected_model]["versions"]
-        if model_versions is None:
-            model_versions = ["default"]
+        model_versions = MODEL_INFO[self.selected_model]["versions"][
+            self.selected_task
+        ]
         self.model_version_dropdown.addItems(model_versions)
+        self.selected_variant = self.model_version_dropdown.currentText()
         # Update the model params & config widgets for the selected model
-        self.update_model_param_config(self.selected_model)
-        # TODO: Clear the model config file
+        self.update_model_param_config(
+            self.selected_model, self.selected_variant
+        )
+
+    def on_model_version_select(self):
+        # Update tracker for selected model variant/version
+        self.selected_variant = self.model_version_dropdown.currentText()
+        # Update the model params & config widgets for the selected model variant/version
+        self.update_model_param_config(
+            self.selected_model, self.selected_variant
+        )
 
     def on_click_model_params(self):
         # Uncheck config button
@@ -338,16 +365,16 @@ class AIOnDemand(QWidget):
         self.model_param_widget.setVisible(False)
         self.model_layout.addWidget(self.model_param_widget)
 
-    def update_model_param_config(self, model_name):
+    def update_model_param_config(self, model_name: str, model_version: str):
         """
         Updates the model param and config widgets for a specific model.
 
         Currently only updates the model widget as the config is now constant.
         """
         # Update the model parameters
-        self.update_model_param_widget(model_name)
+        self.update_model_param_widget(model_name, model_version)
 
-    def update_model_param_widget(self, model_name):
+    def update_model_param_widget(self, model_name: str, model_version: str):
         """
         Updates the model param widget for a specific model
         """
@@ -355,35 +382,43 @@ class AIOnDemand(QWidget):
         if model_name not in MODEL_INFO:
             return
         # Remove the current model param widget
-        self.model_param_layout.removeWidget(self.curr_model_param_widget)
-        self.curr_model_param_widget.setParent(None)
+        self.clear_model_param_widget()
         # Extract the default parameters
         try:
-            param_dict = MODEL_INFO[model_name]["params"]
+            param_dict = MODEL_INFO[model_name]["params"][self.selected_task]
+            # Check if there is a version-specific set of params
+            if model_version in param_dict:
+                param_dict = param_dict[model_version]
         except KeyError as e:
             raise e("Default model parameters not found!")
+        # Construct the unique tuple for this widget
+        # NOTE: Likely to create a lot of redundant widgets, but should be light on memory
+        # and is the most extendable
+        model_task_version = (model_name, self.selected_task, model_version)
         # Retrieve the widget for this model if already created
-        if model_name in self.model_param_widgets_dict:
+        if model_task_version in self.model_param_widgets_dict:
             self.curr_model_param_widget = self.model_param_widgets_dict[
-                model_name
+                model_task_version
             ]
         # Otherwise construct it
         else:
             self.curr_model_param_widget = self._create_model_params_widget(
-                model_name, param_dict
+                model_task_version, param_dict
             )
             self.model_param_widgets_dict[
-                model_name
+                model_task_version
             ] = self.curr_model_param_widget
-        # Set the collapsible box to contain the params for this model
-        self.model_param_layout.addWidget(self.curr_model_param_widget)
-        # Ensure it's visible if the params button is pressed
-        if self.model_param_btn.isChecked():
-            self.curr_model_param_widget.setVisible(True)
-        else:
-            self.curr_model_param_widget.setVisible(False)
+        # # Set the collapsible box to contain the params for this model
+        # self.model_param_layout.addWidget(self.curr_model_param_widget)
+        # # Ensure it's visible if the params button is pressed
+        # if self.model_param_btn.isChecked():
+        #     self.curr_model_param_widget.setVisible(True)
+        # else:
+        #     self.curr_model_param_widget.setVisible(False)
+        # Set the current model param widget
+        self.set_model_param_widget()
 
-    def _create_model_params_widget(self, model_name, param_dict):
+    def _create_model_params_widget(self, model_task_version, param_dict):
         """
         Creates the widget for a specific model's parameters to swap in and out
         """
@@ -391,7 +426,7 @@ class AIOnDemand(QWidget):
         model_widget = QWidget()
         model_layout = QGridLayout()
         # Create container for model parameters
-        self.model_param_dict[model_name] = {}
+        self.model_param_dict[model_task_version] = {}
         # Add the default model parameters
         for i, (label, model_param) in enumerate(param_dict.items()):
             # Create labels for each of the model parameters
@@ -403,7 +438,7 @@ class AIOnDemand(QWidget):
             param_value.setText(str(model_param.default))
             model_layout.addWidget(param_value, i, 1)
             # Store for later retrieval when saving the config
-            self.model_param_dict[model_name][label] = {
+            self.model_param_dict[model_task_version][label] = {
                 "label": param_label,
                 "value": param_value,
             }
@@ -412,16 +447,37 @@ class AIOnDemand(QWidget):
         model_widget.setLayout(model_layout)
         return model_widget
 
+    def clear_model_param_widget(self):
+        # Remove the current model param widget
+        self.model_param_layout.removeWidget(self.curr_model_param_widget)
+        self.curr_model_param_widget.setParent(None)
+
+    def set_model_param_widget(self, model_task_version=None):
+        if model_task_version is not None:
+            self.curr_model_param_widget = self.model_param_widgets_dict[
+                model_task_version
+            ]
+        # Set the collapsible box to contain the params for this model
+        self.model_param_layout.addWidget(self.curr_model_param_widget)
+        # Ensure it's visible if the params button is pressed
+        if self.model_param_btn.isChecked():
+            self.curr_model_param_widget.setVisible(True)
+        else:
+            self.curr_model_param_widget.setVisible(False)
+
     def update_model_box(self, task_name):
         """The model box updates according to what's defined for each task."""
         # Clear and set available models in dropdown
         self.model_dropdown.clear()
-        self.model_dropdown.addItems(
-            [
+        # Check that there is a model available for this task (always should be...)
+        if task_name in TASK_MODELS:
+            model_names = [
                 MODEL_INFO[model]["display_name"]
                 for model in TASK_MODELS[task_name]
             ]
-        )
+        else:
+            model_names = [self.model_name_unavail]
+        self.model_dropdown.addItems(model_names)
         # Technically the first model in the list is now selected
         # So update everything accordingly
         self.on_model_select()
@@ -452,7 +508,8 @@ class AIOnDemand(QWidget):
         self.model_config = fname
 
     def clear_model_config(self):
-        pass
+        self.model_config_label.setText("No model config file selected.")
+        self.model_config = None
 
     def create_dir_box(self):
         """
@@ -689,11 +746,15 @@ class AIOnDemand(QWidget):
             except KeyError:
                 img_shape = (1000, 1000)
             # Set the name following convention
-            name = f"{fpath.stem}_masks_{self.selected_model}-{self.selected_variant}"
+            name = (
+                f"{prefix}_masks_{self.selected_model}-{self.selected_variant}"
+            )
             # Add a Labels layer for this file
             self.viewer.add_labels(
                 np.zeros(img_shape, dtype=int), name=name, visible=False
             )
+            # Move this layer to the top
+            self.viewer.layers.move(self.viewer.layers.index(name), -1)
         # Construct the proper mask path
         self.mask_path = (
             self.mask_base_path
@@ -854,6 +915,18 @@ class AIOnDemand(QWidget):
         nxf_params["model_config"] = config_path
         nxf_params["model_type"] = self.selected_variant
         nxf_params["task"] = self.selected_task
+        # Extract the model checkpoint location and location type
+        checkpoint_info = MODEL_TASK_VERSIONS[self.selected_model][
+            self.selected_task
+        ][self.selected_variant]
+        if "url" in checkpoint_info:
+            nxf_params["model_chkpt_type"] = "url"
+            nxf_params["model_chkpt_loc"] = checkpoint_info["url"]
+            nxf_params["model_chkpt_fname"] = checkpoint_info["filename"]
+        elif "dir" in checkpoint_info:
+            nxf_params["model_chkpt_type"] = "dir"
+            nxf_params["model_chkpt_loc"] = checkpoint_info["dir"]
+            nxf_params["model_chkpt_fname"] = checkpoint_info["filename"]
         # TODO: Implement profiles for this to configure SLURM
         nxf_params["executor"] = self.nxf_profile_box.currentText()
         return nxf_params
@@ -863,9 +936,16 @@ class AIOnDemand(QWidget):
         Construct the model config from the parameter widgets.
         """
         # Get the current dictionary of widgets for selected model
-        model_dict_orig = self.model_param_dict[self.selected_model]
+        model_dict_orig = self.model_param_dict[
+            (self.selected_model, self.selected_task, self.selected_variant)
+        ]
         # Get the relevant default params for this model
-        default_params = MODEL_INFO[self.selected_model]["params"]
+        default_params = MODEL_INFO[self.selected_model]["params"][
+            self.selected_task
+        ]
+        # Check if there is a version-specific set of params
+        if self.selected_variant in default_params:
+            default_params = default_params[self.selected_variant]
         # Reformat the dict to pipe into downstream model run scripts
         model_dict = {}
         # Extract params from model param widgets
