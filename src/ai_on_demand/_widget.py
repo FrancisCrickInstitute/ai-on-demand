@@ -361,6 +361,12 @@ class AIOnDemand(QWidget):
         # Add the initial widget to the main model param widget
         self.model_param_layout.addWidget(init_widget)
         self.model_param_widget.setLayout(self.model_param_layout)
+        # Add a widget for when there aren't parameters, and a config is needed
+        no_param_widget = QWidget()
+        no_param_widget.setLayout(QVBoxLayout())
+        no_param_label = QLabel("Cannot modify parameters for this model!\nPlease select a config file.")
+        no_param_widget.layout().addWidget(no_param_label)
+        self.model_param_widgets_dict["no_param"] = no_param_widget
         # Disable showing widget until selected to view
         self.model_param_widget.setVisible(False)
         self.model_layout.addWidget(self.model_param_widget)
@@ -400,6 +406,9 @@ class AIOnDemand(QWidget):
             self.curr_model_param_widget = self.model_param_widgets_dict[
                 model_task_version
             ]
+        # If no parameters, use the no_param widget
+        elif not param_dict:
+            self.curr_model_param_widget = self.model_param_widgets_dict["no_param"]
         # Otherwise construct it
         else:
             self.curr_model_param_widget = self._create_model_params_widget(

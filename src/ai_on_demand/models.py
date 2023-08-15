@@ -126,10 +126,7 @@ sam_params = {
     ),
     "Min mask region area": Param("min_mask_region_area", 0, float, ""),
 }
-unet_params = {
-    "Test 1": Param("test", 0.5, float, ""),
-    "Test 2": Param("test2", 3, int, ""),
-}
+unet_params = {}
 # Assuming every model version for each task has the same set of params
 # TODO: Need a better solution long-term
 MODEL_PARAMS = {
