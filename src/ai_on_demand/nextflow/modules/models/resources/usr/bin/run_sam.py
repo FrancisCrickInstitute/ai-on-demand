@@ -1,22 +1,24 @@
 import argparse
 from pathlib import Path
+from typing import Union
 import yaml
 
+from napari.layers.image._image_utils import guess_rgb
+from napari.layers.utils.layer_utils import calc_data_range
 import numpy as np
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 import skimage.io
 from tqdm.auto import tqdm
 
-from napari.layers.image._image_utils import guess_rgb
-from napari.layers.utils.layer_utils import calc_data_range
+from utils import save_masks
 
 
 def run_sam(
-    save_dir: Path | str,
+    save_dir: Union[Path, str],
     save_name: str,
-    fpath: Path | str,
+    fpath: Union[Path, str],
     model_type: str,
-    model_chkpt: Path | str,
+    model_chkpt: Union[Path, str],
     model_config: dict,
 ):
     sam = sam_model_registry[model_type](checkpoint=model_chkpt)
@@ -209,28 +211,6 @@ def create_mask_arr(masks):
     return mask_img
 
 
-def save_masks(
-    save_dir, save_name, masks, stack_slice=False, all=False, idx=None
-):
-    save_dir.mkdir(parents=True, exist_ok=True)
-    # Cannot save a slice of a stack and all slice(s)
-    assert not (stack_slice and all)
-    # Incrementally save the masks of a slice from a stack
-    if stack_slice:
-        save_path = save_dir / f"{save_name}_{idx}.npy"
-        # Remove file for previous mask iteration
-        if idx > 0:
-            (save_dir / f"{save_name}_{idx-1}.npy").unlink()
-    # Specify path for img or all slices, indicating finished
-    if all:
-        save_path = save_dir / f"{save_name}_all.npy"
-        # Remove any previous files
-        for f in save_dir.glob(f"{save_name}_*.npy"):
-            f.unlink()
-    # Save the complete masks!
-    np.save(save_path, masks)
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--img-path", required=True)
@@ -240,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model-type", help="Select model type", default="default"
     )
-    parser.add_argument("--model-config", help="Model parameter config path")
+    parser.add_argument("--model-config", help="Model parameter config path", required=True)
 
     cli_args = parser.parse_args()
 
