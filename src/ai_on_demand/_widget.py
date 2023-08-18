@@ -941,6 +941,62 @@ class AIOnDemand(QWidget):
         return nxf_params
 
     def get_model_config(self):
+        # First check if there is a config file for this model
+        model_task_dict = MODEL_TASK_VERSIONS[self.selected_model][
+            self.selected_task
+        ][self.selected_variant]
+        if "config" in model_task_dict:
+            # Set this as the base config
+            base_config = model_task_dict["config"]
+            # Load this config
+            with open(Path(model_task_dict["dir"]) / base_config, "r") as f:
+                model_dict = yaml.safe_load(f)
+            # If there are parameters to overwrite, insert them into the base
+            # NOTE: This requires that the base parameters come from this config!
+            # NOTE: This currently does not happen
+            default_params = MODEL_INFO[self.selected_model]["params"][
+                self.selected_task
+            ]
+            if default_params:
+                model_params = self.create_config_params()
+                # TODO: Need to test this
+                model_dict = self._merge_dicts(model_dict, model_params)
+        # Otherwise, just extract from the parameters
+        else:
+            model_dict = self.create_config_params()
+        # Save the model config
+        model_config_fpath = self.save_model_config(model_dict)
+        return model_config_fpath
+
+    def _merge_dicts(self, d1, d2):
+        """
+        Merge two dictionaries recursively. d2 will overwrite d1 where specified.
+
+        Assumes both dicts have same structure/keys.
+        """
+        for k, v in d2.items():
+            if isinstance(v, dict):
+                d1[k] = self._merge_dicts(d1[k], v)
+            else:
+                d1[k] = v
+        return d1
+
+    def save_model_config(self, model_dict):
+        # Extract the model type
+        self.selected_variant = self.model_version_dropdown.currentText()
+        # Define save path for the model config
+        config_dir = Path(__file__).parent / "nextflow" / "configs"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        model_config_fpath = (
+            config_dir
+            / f"{self.selected_model}-{self.selected_variant}_config.yaml"
+        )
+        # Save the yaml config
+        with open(model_config_fpath, "w") as f:
+            yaml.dump(model_dict, f)
+        return model_config_fpath
+
+    def create_config_params(self):
         """
         Construct the model config from the parameter widgets.
         """
@@ -972,19 +1028,7 @@ class AIOnDemand(QWidget):
             model_dict[default_params[param_name].arg] = orig_dtype(
                 param_value
             )
-        # Extract the model type
-        self.selected_variant = self.model_version_dropdown.currentText()
-        # Define save path for the model config
-        config_dir = Path(__file__).parent / "nextflow" / "configs"
-        config_dir.mkdir(parents=True, exist_ok=True)
-        model_config_fpath = (
-            config_dir
-            / f"{self.selected_model}-{self.selected_variant}_config.yaml"
-        )
-        # Save the yaml config
-        with open(model_config_fpath, "w") as f:
-            yaml.dump(model_dict, f)
-        return model_config_fpath
+        return model_dict
 
     def run_pipeline(self):
         """
