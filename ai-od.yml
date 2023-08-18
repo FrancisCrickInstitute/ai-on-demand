@@ -6,7 +6,7 @@ dependencies:
   - python=3.9
   - pyqt
   - napari
-  - numpy
+  - numpy<1.25
   - scipy
   - scikit-image
   - pyyaml
