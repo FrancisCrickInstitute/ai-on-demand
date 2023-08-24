@@ -1,12 +1,16 @@
 from pathlib import Path
 
-from empanada.inference.engines import PanopticDeepLabRenderEngine
+from empanada.inference.engines import (
+    PanopticDeepLabRenderEngine,
+    PanopticDeepLabRenderEngine3d,
+)
 import numpy as np
 import skimage.io
 import torch
 import yaml
 
-from utils import save_masks
+from utils import save_masks, get_device
+
 
 def normalize(img, mean, std):
     # Isn't the image a tensor?
@@ -25,6 +29,7 @@ def normalize(img, mean, std):
     img *= denominator
     return img
 
+
 def force_connected(pan_seg, thing_list, label_divisor=1000):
     for label in thing_list:
         min_id = label * label_divisor
@@ -39,10 +44,14 @@ def force_connected(pan_seg, thing_list, label_divisor=1000):
         pan_seg[instance_seg > 0] = instance_seg[instance_seg > 0]
     return pan_seg
 
+
 def preprocess(img, norms):
     # TODO: It should be just an image right?
     assert img.ndim == 2
-    return torch.from_numpy(normalize(img, norms["mean"], norms["std"])[None]).unsqueeze(0)
+    return torch.from_numpy(
+        normalize(img, norms["mean"], norms["std"])[None]
+    ).unsqueeze(0)
+
 
 def infer_2d(engine, img, norms):
     # Resize if doing - SKIP
@@ -52,8 +61,13 @@ def infer_2d(engine, img, norms):
     # Run inference
     pan_seg = engine(img, orig_size, upsampling=1)
     # Postprocess
-    pan_seg = force_connected(pan_seg.squeeze().cpu().numpy().astype(np.int32), engine.thing_list, engine.label_divisor)
+    pan_seg = force_connected(
+        pan_seg.squeeze().cpu().numpy().astype(np.int32),
+        engine.thing_list,
+        engine.label_divisor,
+    )
     return pan_seg
+
 
 def run_2d(engine, img, norms, inference_kwargs):
     # Stack of slices
@@ -94,6 +108,7 @@ def run_2d(engine, img, norms, inference_kwargs):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--img-path", required=True)
     parser.add_argument("--mask-fname", required=True)
@@ -102,8 +117,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model-type", help="Select model type", default="default"
     )
-    parser.add_argument("--model-config", help="Input parameters for inference")
-
+    parser.add_argument(
+        "--model-config", help="Input parameters for inference"
+    )
 
     cli_args = parser.parse_args()
     print(cli_args.output_dir)
@@ -114,10 +130,11 @@ if __name__ == "__main__":
     with open(cli_args.model_config, "r") as f:
         config = yaml.safe_load(f)
     print(config)
-    model = torch.jit.load(cli_args.model_chkpt, map_location="cpu")
+    device = get_device()
+    model = torch.jit.load(cli_args.model_chkpt, map_location=device)
     # NOTE: These are fixed from MitoNet configs, no matter the version
-    norms = {'mean': 0.57571, 'std': 0.12765}
-    thing_list = [] if config['semantic_only'] else [1]
+    norms = {"mean": 0.57571, "std": 0.12765}
+    thing_list = [] if config["semantic_only"] else [1]
 
     if "mini" in cli_args.model_type.lower():
         padding_factor = 128
@@ -125,8 +142,8 @@ if __name__ == "__main__":
         padding_factor = 16
 
     inference_kwargs = {
-        "semantic_only": config['semantic_only'],
-        "inference_scale": config['downsampling'],
+        "semantic_only": config["semantic_only"],
+        "inference_scale": config["downsampling"],
     }
 
     if config["mode"] == "2D":
@@ -135,11 +152,11 @@ if __name__ == "__main__":
             model=model,
             thing_list=thing_list,
             padding_factor=padding_factor,
-            nms_kernel=config['min_distance'],
-            nms_threshold=config['center_threshold'],
-            confidence_thr=config['conf_threshold'],
-            coarse_boundaries=not config['fine_boundaries'],
-            label_divisor=config['max_objects'],
+            nms_kernel=config["min_distance"],
+            nms_threshold=config["center_threshold"],
+            confidence_thr=config["conf_threshold"],
+            coarse_boundaries=not config["fine_boundaries"],
+            label_divisor=config["max_objects"],
         )
         # Run inference
         pan_seg = run_2d(engine, img, norms, inference_kwargs)

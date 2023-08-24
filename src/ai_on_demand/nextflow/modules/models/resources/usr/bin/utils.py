@@ -1,6 +1,8 @@
 from pathlib import Path
 
 import numpy as np
+import torch
+
 
 def save_masks(
     save_dir, save_name, masks, stack_slice=False, all=False, idx=None
@@ -22,3 +24,7 @@ def save_masks(
             f.unlink()
     # Save the complete masks!
     np.save(save_path, masks)
+
+
+def get_device():
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")

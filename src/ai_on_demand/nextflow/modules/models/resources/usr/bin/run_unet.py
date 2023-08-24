@@ -4,10 +4,11 @@ import skimage.measure
 
 from em_segment.modules.loading import load_from_yaml
 from em_segment.predictions import do_predictions
-from utils import save_masks
+from utils import save_masks, get_device
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--img-path", required=True)
     parser.add_argument("--mask-fname", required=True)
@@ -34,7 +35,7 @@ if __name__ == "__main__":
         stack_name=Path(cli_args.img_path).stem,
         stack_filepath=cli_args.img_path,
         chkpt_path=chkpt_path,
-        load_kwargs={"map_location": "cpu"}
+        load_kwargs={"map_location": get_device()},
     )
     labelled_stack = skimage.measure.label(preds > 0.5)
     # Save the stack
