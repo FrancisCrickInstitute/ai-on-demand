@@ -6,7 +6,7 @@ params.model_dir = "${launchDir}/.nextflow/cache/${params.model}"
 params.model_chkpt_dir = "${params.model_dir}/checkpoints"
 params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}"
 
-include { downloadModel; runSAM; runUNET } from './modules/models'
+include { downloadModel; runSAM; runUNET; runMITONET } from './modules/models'
 
 log.info """\
          AI ON DEMAND PIPELINE
@@ -72,6 +72,14 @@ workflow {
             mask_output_dir,
             params.model_config,
             chkpt_ch,
+        )
+    else if( params.model == "mitonet" )
+        runMITONET (
+            img_mask_ch,
+            mask_output_dir,
+            params.model_config,
+            chkpt_ch,
+            params.model_type
         )
     else
         error "Model ${params.model} not yet implemented!"
