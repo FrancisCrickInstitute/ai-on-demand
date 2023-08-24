@@ -128,7 +128,7 @@ for model, task_dict in MODEL_TASK_VERSIONS.items():
         TASK_MODELS[task].append(model)
 
 # Define namedtuple structure for a model parameter
-Param = namedtuple("Param", ["arg", "default", "dtype", "tooltip"])
+Param = namedtuple("Param", ["arg", "values", "dtype", "tooltip"])
 # Define each of the model parameters
 sam_params = {
     "Points per side": Param("points_per_side", 32, int, ""),

@@ -18,6 +18,7 @@ from qtpy.QtWidgets import (
     QComboBox,
     QScrollArea,
     QProgressBar,
+    QCheckBox,
 )
 from qtpy.QtGui import QPixmap
 import qtpy.QtCore
@@ -442,14 +443,33 @@ class AIOnDemand(QWidget):
             param_label = QLabel(f"{label}:")
             param_label.setToolTip(model_param.tooltip)
             model_layout.addWidget(param_label, i, 0)
-            # Add the default model parameter
-            param_value = QLineEdit()
-            param_value.setText(str(model_param.default))
-            model_layout.addWidget(param_value, i, 1)
+            # Add the model parameter(s)
+            param_values = model_param.values
+            # Widget added depends on the input
+            # True/False -> Checkbox
+            if param_values is True or param_values is False:
+                param_val_widget = QCheckBox()
+                if param_values:
+                    param_val_widget.setChecked(True)
+                else:
+                    param_val_widget.setChecked(False)
+            # List -> ComboBox
+            elif isinstance(param_values, list):
+                param_val_widget = QComboBox()
+                param_val_widget.addItems([str(i) for i in param_values])
+            # Int/float -> LineEdit
+            elif isinstance(param_values, (int, float, str)):
+                param_val_widget = QLineEdit()
+                param_val_widget.setText(str(param_values))
+            else:
+                raise ValueError(
+                    f"Model parameter {label} has invalid type {type(param_values)}"
+                )
+            model_layout.addWidget(param_val_widget, i, 1)
             # Store for later retrieval when saving the config
             self.model_param_dict[model_task_version][label] = {
                 "label": param_label,
-                "value": param_value,
+                "value": param_val_widget,
             }
         # Tighten up margins and set layout
         model_layout.setContentsMargins(0, 0, 0, 0)
@@ -775,6 +795,7 @@ class AIOnDemand(QWidget):
         @thread_worker(connect={"yielded": self.update_masks})
         def _watch_mask_files(self):
             # Enable the watcher
+            print("Activating watcher...")
             self.watcher_enabled = True
             # Initialize empty container for storing mask filepaths
             self.mask_fpaths = []
@@ -1018,9 +1039,9 @@ class AIOnDemand(QWidget):
             if isinstance(sub_dict["value"], QLineEdit):
                 param_value = sub_dict["value"].text()
             elif isinstance(sub_dict["value"], QComboBox):
-                param_value = sub_dict["value"].itemData(
-                    sub_dict["value"].currentIndex()
-                )
+                param_value = sub_dict["value"].currentText()
+            elif isinstance(sub_dict["value"], QCheckBox):
+                param_value = sub_dict["value"].isChecked()
             else:
                 raise NotImplementedError
             # Extract the original/intended dtype and cast what's in the box
