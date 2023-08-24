@@ -6,48 +6,6 @@ from typing import Union
 import requests
 from tqdm.auto import tqdm
 
-# SAM_MODELS = {
-#     "everything": {
-#         "default": {
-#             "filename": "sam_default.pth",
-#             "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
-#         },
-#         "vit_h": {
-#             "filename": "sam_vit_h.pth",
-#             "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
-#         },
-#         "vit_l": {
-#             "filename": "sam_vit_l.pth",
-#             "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
-#         },
-#         "vit_b": {
-#             "filename": "sam_vit_b.pth",
-#             "url": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
-#         },
-#         "MedSAM": {
-#             "filename": "sam_MedSAM.pth",
-#             "url": "https://syncandshare.desy.de/index.php/s/yLfdFbpfEGSHJWY/download/medsam_20230423_vit_b_0.0.1.pth",
-#         },
-#     }
-# }
-
-# UNET_MODELS = {
-#     "mito": {
-#         "Attention U-Net": {
-#             "filename": "Attention_HUNet_3e5_Adam_restart_12_16.best.1266.pt",
-#             "dir": "/nemo/stp/ddt/working/shandc/aiod_models/"
-#         },
-#     },
-#     "ne": {
-#         "Attention U-Net": {
-#             "filename": "Attention_HUNet_NE.best.368.pt",
-#             "dir": "/nemo/stp/ddt/working/shandc/aiod_models/"
-#         }
-#     }
-# }
-
-# MODEL_BANK = {"sam": SAM_MODELS, "unet": UNET_MODELS}
-
 
 def get_model_checkpoint(
     chkpt_output_dir: Union[Path, str], chkpt_fname: str, chkpt_loc: str, chkpt_type: str, 

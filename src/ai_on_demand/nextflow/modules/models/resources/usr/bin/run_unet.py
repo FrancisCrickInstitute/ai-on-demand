@@ -46,8 +46,3 @@ if __name__ == "__main__":
         all=True,
         idx=None,
     )
-
-    # TODO:
-    # - Sort out the model checkpoints in step before this
-    # - Ensure that the checkpoint is setup for mito only
-    # - Check that this runs through the whole pipeline
