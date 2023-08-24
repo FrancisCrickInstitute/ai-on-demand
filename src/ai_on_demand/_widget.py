@@ -776,7 +776,7 @@ class AIOnDemand(QWidget):
                 img_shape = (1000, 1000)
             # Set the name following convention
             name = (
-                f"{prefix}_masks_{self.selected_model}-{self.selected_variant}"
+                f"{prefix}_masks_{self.selected_model}-{self._sanitise_name(self.selected_variant)}"
             )
             # Add a Labels layer for this file
             self.viewer.add_labels(
@@ -788,7 +788,7 @@ class AIOnDemand(QWidget):
         self.mask_path = (
             self.mask_base_path
             / f"{self.selected_model}"
-            / f"{self.selected_variant}_masks"
+            / f"{self._sanitise_name(self.selected_variant)}_masks"
         )
 
         # NOTE: Wrapper as self/class not available at runtime
@@ -843,7 +843,9 @@ class AIOnDemand(QWidget):
             # Load the numpy array
             mask_arr = np.load(f)
             # Extract the relevant Labels layer
-            mask_layer_name = f"{f.stem.split('_masks_')[0]}_masks_{self.selected_model}-{self.selected_variant}"
+            mask_layer_name = (
+                f"{prefix}_masks_{self.selected_model}-{self._sanitise_name(self.selected_variant)}"
+            )
             label_layer = self.viewer.layers[mask_layer_name]
             # Insert mask data
             label_layer.data = mask_arr
@@ -871,12 +873,14 @@ class AIOnDemand(QWidget):
         # Get all the mask layers
         mask_layers = []
         for img_name in self.image_path_dict:
-            layer_name = f"{img_name}_masks_{self.selected_model}-{self.selected_variant}"
+            layer_name = f"{img_name}_masks_{self.selected_model}-{self._sanitise_name(self.selected_variant)}"
             if layer_name in self.viewer.layers:
                 mask_layers.append(self.viewer.layers[layer_name])
         # Extract the data from each of the layers, and save the result in the given folder
         for mask_layer in mask_layers:
-            np.save(Path(export_dir) / f"{layer_name}.npy", mask_layer.data)
+            np.save(
+                Path(export_dir) / f"{mask_layer.name}.npy", mask_layer.data
+            )
 
     def create_nxf_box(self):
         """
@@ -928,6 +932,9 @@ class AIOnDemand(QWidget):
         with open(self.img_list_fpath, "w") as output:
             output.write("\n".join([str(i) for i in img_file_paths]))
 
+    def _sanitise_name(self, name):
+        return name.replace(" ", "-")
+
     def create_nextflow_params(self):
         """
         Create the parameters to pass to the Nextflow pipeline
@@ -943,7 +950,7 @@ class AIOnDemand(QWidget):
         nxf_params["img_dir"] = str(self.img_list_fpath)
         nxf_params["model"] = self.selected_model
         nxf_params["model_config"] = config_path
-        nxf_params["model_type"] = self.selected_variant
+        nxf_params["model_type"] = self._sanitise_name(self.selected_variant)
         nxf_params["task"] = self.selected_task
         # Extract the model checkpoint location and location type
         checkpoint_info = MODEL_TASK_VERSIONS[self.selected_model][
@@ -1010,7 +1017,7 @@ class AIOnDemand(QWidget):
         config_dir.mkdir(parents=True, exist_ok=True)
         model_config_fpath = (
             config_dir
-            / f"{self.selected_model}-{self.selected_variant}_config.yaml"
+            / f"{self.selected_model}-{self._sanitise_name(self.selected_variant)}_config.yaml"
         )
         # Save the yaml config
         with open(model_config_fpath, "w") as f:
