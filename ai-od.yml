@@ -1,6 +1,7 @@
-name: ai-od
+name: ai-od-new
 channels:
   - conda-forge
+  - bioconda
   - defaults
 dependencies:
   - python=3.9
@@ -10,7 +11,7 @@ dependencies:
   - scipy
   - scikit-image
   - pyyaml
+  - nextflow
   - pip
   - pip:
-    - superqt
-    - -e git+https://github.com/FrancisCrickInstitute/ai-on-demand.git@79ddff3#egg=ai_on_demand
+    - git+https://github.com/FrancisCrickInstitute/ai-on-demand.git
