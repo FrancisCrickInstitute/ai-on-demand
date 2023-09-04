@@ -778,14 +778,9 @@ class AIOnDemand(QWidget):
                 img_shape = self.viewer.layers[f"{fpath.name}"].data.shape
             except KeyError:
                 img_shape = (1000, 1000)
-            # Check if there's been an image layer rename
-            if fpath.stem in self.image_layer_name_dict:
-                prefix = self.image_layer_name_dict[fpath.stem]
-            else:
-                prefix = f"{fpath.stem}"
             # Set the name following convention
             name = (
-                f"{prefix}_masks_{self.selected_model}-{self._sanitise_name(self.selected_variant)}"
+                f"{fpath.stem}_masks_{self.selected_model}-{self._sanitise_name(self.selected_variant)}"
             )
             # Add a Labels layer for this file
             self.viewer.add_labels(
@@ -853,8 +848,6 @@ class AIOnDemand(QWidget):
             mask_arr = np.load(f)
             # Check if the mask layer has been renamed
             prefix = f.stem.split("_masks_")[0]
-            if prefix in self.image_layer_name_dict:
-                prefix = self.image_layer_name_dict[prefix]
             # Extract the relevant Labels layer
             mask_layer_name = (
                 f"{prefix}_masks_{self.selected_model}-{self._sanitise_name(self.selected_variant)}"
@@ -876,10 +869,9 @@ class AIOnDemand(QWidget):
                 slice_num = int(slice_num)
             self.viewer.dims.set_point(0, slice_num)
             # Increment the associated progress bar
-            print(f.stem, slice_num + 1)
-            self.progress_bar_dict[f"{f.stem.split('_masks_')[0]}"].setValue(
-                slice_num + 1
-            )
+            # self.progress_bar_dict[f"{f.stem.split('_masks_')[0]}"].setValue(
+            #     slice_num + 1
+            # )
 
     def on_click_export(self):
         """
