@@ -365,7 +365,9 @@ class AIOnDemand(QWidget):
         # Add a widget for when there aren't parameters, and a config is needed
         no_param_widget = QWidget()
         no_param_widget.setLayout(QVBoxLayout())
-        no_param_label = QLabel("Cannot modify parameters for this model!\nPlease select a config file.")
+        no_param_label = QLabel(
+            "Cannot modify parameters for this model!\nPlease select a config file."
+        )
         no_param_widget.layout().addWidget(no_param_label)
         self.model_param_widgets_dict["no_param"] = no_param_widget
         # Disable showing widget until selected to view
@@ -409,7 +411,9 @@ class AIOnDemand(QWidget):
             ]
         # If no parameters, use the no_param widget
         elif not param_dict:
-            self.curr_model_param_widget = self.model_param_widgets_dict["no_param"]
+            self.curr_model_param_widget = self.model_param_widgets_dict[
+                "no_param"
+            ]
         # Otherwise construct it
         else:
             self.curr_model_param_widget = self._create_model_params_widget(
@@ -774,6 +778,11 @@ class AIOnDemand(QWidget):
                 img_shape = self.viewer.layers[f"{fpath.name}"].data.shape
             except KeyError:
                 img_shape = (1000, 1000)
+            # Check if there's been an image layer rename
+            if fpath.stem in self.image_layer_name_dict:
+                prefix = self.image_layer_name_dict[fpath.stem]
+            else:
+                prefix = f"{fpath.stem}"
             # Set the name following convention
             name = (
                 f"{prefix}_masks_{self.selected_model}-{self._sanitise_name(self.selected_variant)}"
@@ -842,6 +851,10 @@ class AIOnDemand(QWidget):
         for f in new_files:
             # Load the numpy array
             mask_arr = np.load(f)
+            # Check if the mask layer has been renamed
+            prefix = f.stem.split("_masks_")[0]
+            if prefix in self.image_layer_name_dict:
+                prefix = self.image_layer_name_dict[prefix]
             # Extract the relevant Labels layer
             mask_layer_name = (
                 f"{prefix}_masks_{self.selected_model}-{self._sanitise_name(self.selected_variant)}"
