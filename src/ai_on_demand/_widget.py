@@ -863,6 +863,11 @@ class AIOnDemand(QWidget):
             # Insert mask data
             label_layer.data = mask_arr
             label_layer.visible = True
+            # Move this label layer and it's image layer to the top
+            label_idx = self.viewer.layers.index(label_layer)
+            img_idx = self.viewer.layers.index(self.viewer.layers[prefix])
+            self.viewer.layers.move(label_idx, 0)
+            self.viewer.layers.move(img_idx, 1)
             slice_num = f.stem.split("_")[-1]
             # Switch viewer to latest slice
             if slice_num == "all":
@@ -909,7 +914,7 @@ class AIOnDemand(QWidget):
         self.nxf_profile_box = QComboBox()
         # Get the available profiles from config dir
         # TODO: This will not work when Nextflow has been separated
-        config_dir = Path(__file__).parent / "nextflow" / "profiles"
+        config_dir = Path(__file__).parent / "Segment-Flow" / "profiles"
         avail_confs = [str(i.stem) for i in config_dir.glob("*.conf")]
         self.nxf_profile_box.addItems(avail_confs)
         self.nxf_layout.addWidget(self.nxf_profile_label, 0, 0)
@@ -1113,9 +1118,8 @@ class AIOnDemand(QWidget):
             # Disable the button to avoid issues
             self.nxf_btn.setEnabled(False)
             # Get the path the main Nextflow entry pipeline
-            # TODO: Will not work when nextflow is separated, will need to switch to call from repo
-            nextflow_script = Path(__file__).parent / "nextflow" / "main.nf"
-            exec_str = f"nextflow run {str(nextflow_script)}"
+            nextflow_script = "FrancisCrickInstitute/Segment-Flow"
+            exec_str = f"nextflow run {str(nextflow_script)} -r master"
             # Add the command line arguments
             for k, v in nxf_params.items():
                 exec_str += f" --{k}={v}"
