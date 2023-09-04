@@ -905,7 +905,6 @@ class AIOnDemand(QWidget):
         )
         self.nxf_profile_box = QComboBox()
         # Get the available profiles from config dir
-        # TODO: This will not work when Nextflow has been separated
         config_dir = Path(__file__).parent / "Segment-Flow" / "profiles"
         avail_confs = [str(i.stem) for i in config_dir.glob("*.conf")]
         self.nxf_profile_box.addItems(avail_confs)

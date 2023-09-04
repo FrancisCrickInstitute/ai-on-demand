@@ -1,4 +1,4 @@
-name: ai-od-new
+name: ai-od
 channels:
   - conda-forge
   - bioconda
