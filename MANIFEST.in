@@ -1,7 +1,7 @@
 include LICENSE
 include README.md
-include src/resources/*
-include src/Segment-Flow/profiles/*.conf
+include src/ai_on_demand/resources/*
+include src/ai_on_demand/Segment-Flow/profiles/*.conf
 
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
