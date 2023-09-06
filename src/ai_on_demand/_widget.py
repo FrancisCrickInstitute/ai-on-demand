@@ -16,8 +16,6 @@ from qtpy.QtWidgets import (
     QRadioButton,
     QGroupBox,
     QComboBox,
-    QScrollArea,
-    QProgressBar,
     QCheckBox,
 )
 from qtpy.QtGui import QPixmap
@@ -750,10 +748,10 @@ class AIOnDemand(QWidget):
         # Only change text when we have as many image layers as images
         if len(img_layers) == len(self.image_path_dict):
             self.view_img_btn.setText("All images loaded.")
-        # Update the progress bar range (just in case the image wasn't loaded in time)
-        if img.ndim > 2:
-            self.progress_bar_dict[fpath.stem].setRange(0, img.shape[-3])
-            self.progress_bar_dict[fpath.stem].setValue(0)
+        # # Update the progress bar range (just in case the image wasn't loaded in time)
+        # if img.ndim > 2:
+        #     self.progress_bar_dict[fpath.stem].setRange(0, img.shape[-3])
+        #     self.progress_bar_dict[fpath.stem].setValue(0)
 
     def _reset_view_btn(self):
         """Reset the view button to be clickable again when done."""
