@@ -84,7 +84,9 @@ class AIOnDemand(QWidget):
         self.create_dir_box()
 
         # Add the button for running the Nextflow pipeline
-        self.create_nxf_box()
+        self.nxf_widget = NxfWidget(
+            viewer=self.viewer, parent=self, pipeline="inference"
+        )
 
     def on_layer_added(self, event):
         """
@@ -869,63 +871,6 @@ class AIOnDemand(QWidget):
             #     slice_num + 1
             # )
 
-    def on_click_export(self):
-        """
-        Callback for when the export button is clicked. Opens a dialog to select a directory to save the masks to.
-        """
-        export_dir = QFileDialog.getExistingDirectory(
-            self, caption="Select directory to save masks", directory=None
-        )
-        # Get all the mask layers
-        mask_layers = []
-        for img_name in self.image_path_dict:
-            layer_name = f"{img_name}_masks_{self.selected_model}-{self._sanitise_name(self.selected_variant)}"
-            if layer_name in self.viewer.layers:
-                mask_layers.append(self.viewer.layers[layer_name])
-        # Extract the data from each of the layers, and save the result in the given folder
-        for mask_layer in mask_layers:
-            np.save(
-                Path(export_dir) / f"{mask_layer.name}.npy", mask_layer.data
-            )
-
-    def create_nxf_box(self):
-        """
-        Create the widget box containing options for the Nextflow pipeline.
-        """
-        self.nxf_group = QGroupBox("Nextflow Pipeline:")
-        self.nxf_layout = QGridLayout()
-        # Create a drop-down box to select the execution profile
-        self.nxf_profile_label = QLabel("Execution profile:")
-        self.nxf_profile_label.setToolTip(
-            "Select the execution profile to use."
-        )
-        self.nxf_profile_box = QComboBox()
-        # Get the available profiles from config dir
-        config_dir = Path(__file__).parent / "Segment-Flow" / "profiles"
-        avail_confs = [str(i.stem) for i in config_dir.glob("*.conf")]
-        self.nxf_profile_box.addItems(avail_confs)
-        self.nxf_layout.addWidget(self.nxf_profile_label, 0, 0)
-        self.nxf_layout.addWidget(self.nxf_profile_box, 0, 1)
-        # Create a button to navigate to a directory to take images from
-        self.nxf_btn = QPushButton("Run Pipeline!")
-        self.nxf_btn.clicked.connect(self.run_pipeline)
-        self.nxf_btn.setToolTip(
-            "Run the pipeline with the chosen organelle(s), model, and images."
-        )
-        self.nxf_layout.addWidget(self.nxf_btn, 1, 0, 1, 2)
-
-        # Add a button for exporting masks
-        self.export_masks_btn = QPushButton("Export masks")
-        self.export_masks_btn.clicked.connect(self.on_click_export)
-        self.export_masks_btn.setToolTip(
-            "Export the segmentation masks to a directory."
-        )
-        self.export_masks_btn.setEnabled(False)
-        self.nxf_layout.addWidget(self.export_masks_btn, 2, 0, 1, 1)
-
-        self.nxf_group.setLayout(self.nxf_layout)
-        self.layout().addWidget(self.nxf_group)
-
     def store_img_paths(self):
         """
         Write the image paths of all images to a text file for input to the Nextflow pipeline.
@@ -936,42 +881,6 @@ class AIOnDemand(QWidget):
         # Write the image paths into a newline-separated text file
         with open(self.img_list_fpath, "w") as output:
             output.write("\n".join([str(i) for i in img_file_paths]))
-
-    def _sanitise_name(self, name):
-        return name.replace(" ", "-")
-
-    def create_nextflow_params(self):
-        """
-        Create the parameters to pass to the Nextflow pipeline
-        """
-        if self.model_config is None:
-            config_path = self.get_model_config()
-        else:
-            config_path = self.model_config
-        # Extract the current model version selected
-        self.selected_variant = self.model_version_dropdown.currentText()
-        # Construct the params to be given to Nextflow
-        nxf_params = {}
-        nxf_params["img_dir"] = str(self.img_list_fpath)
-        nxf_params["model"] = self.selected_model
-        nxf_params["model_config"] = config_path
-        nxf_params["model_type"] = self._sanitise_name(self.selected_variant)
-        nxf_params["task"] = self.selected_task
-        # Extract the model checkpoint location and location type
-        checkpoint_info = MODEL_TASK_VERSIONS[self.selected_model][
-            self.selected_task
-        ][self.selected_variant]
-        if "url" in checkpoint_info:
-            nxf_params["model_chkpt_type"] = "url"
-            nxf_params["model_chkpt_loc"] = checkpoint_info["url"]
-            nxf_params["model_chkpt_fname"] = checkpoint_info["filename"]
-        elif "dir" in checkpoint_info:
-            nxf_params["model_chkpt_type"] = "dir"
-            nxf_params["model_chkpt_loc"] = checkpoint_info["dir"]
-            nxf_params["model_chkpt_fname"] = checkpoint_info["filename"]
-        # TODO: Implement profiles for this to configure SLURM
-        nxf_params["executor"] = self.nxf_profile_box.currentText()
-        return nxf_params
 
     def get_model_config(self):
         # First check if there is a config file for this model
@@ -1049,123 +958,3 @@ class AIOnDemand(QWidget):
                 param_value
             )
         return model_dict
-
-    def run_pipeline(self):
-        """
-        Run the nextflow pipeline. Checks a task and model are selected, and that images have been loaded. Loads the images to the viewer, and starts the file watcher for the masks.
-        """
-        # Start with some error checking to ensure that everything has been properly specified
-        # Check a task/organelle has been selected
-        if self.selected_task is None:
-            raise ValueError("No task/organelle has been selected!")
-        # Check a model has been selected
-        if self.selected_model is None:
-            raise ValueError("No model has been selected!")
-        # Ensure the export masks button is disabled
-        self.export_masks_btn.setEnabled(False)
-        # If a previous progress bar widget exists, remove it
-        if hasattr(self, "progress_bar_widget"):
-            print("Removing progress bars")
-            self.layout().removeWidget(self.progress_bar_widget)
-            self.progress_bar_widget.setParent(None)
-        # Create the progress bars
-        self.create_progress_bars()
-        # Check a directory of images has been given
-        # NOTE: They do not have to have been loaded, but to show feedback they will be loaded
-        self.view_images()
-        # Create a text file of the image paths
-        self.store_img_paths()
-        # Create the params file for Nextflow
-        nxf_params = self.create_nextflow_params()
-        # Start the mask file watcher
-        self.watch_mask_files()
-
-        @thread_worker(
-            connect={
-                "returned": self._pipeline_finish,
-                "errored": self._pipeline_fail,
-            }
-        )
-        def _run_pipeline(self, nxf_params):
-            # Update the button to signify it's running
-            self.nxf_btn.setText("Running Pipeline...")
-            # Disable the button to avoid issues
-            self.nxf_btn.setEnabled(False)
-            # Get the path the main Nextflow entry pipeline
-            nextflow_script = "FrancisCrickInstitute/Segment-Flow"
-            exec_str = f"nextflow run {str(nextflow_script)} -r master"
-            # Add the command line arguments
-            for k, v in nxf_params.items():
-                exec_str += f" --{k}={v}"
-            # Add the execution profile
-            exec_str += f" -profile {self.nxf_profile_box.currentText()}"
-            exec_str += " -process.echo true"
-            # exec_str += " -with-dag flowchart.png"
-            # TODO: Add '-bg' to run in background?
-            # TODO: Add '-resume' to resume from last run just in case?
-            # Run the pipeline!
-            subprocess.run(
-                exec_str, shell=True, cwd=Path(__file__).parent, check=True
-            )
-
-        _run_pipeline(self, nxf_params)
-
-    def _pipeline_finish(self):
-        # Add a notification that the pipeline has finished
-        show_info("Pipeline finished!")
-        # Reset the run pipeline button
-        self.nxf_btn.setText("Run Pipeline!")
-        self.nxf_btn.setEnabled(True)
-        # Enable the Export Masks button
-        self.export_masks_btn.setEnabled(True)
-
-    def _pipeline_fail(self, exc):
-        show_info("Pipeline failed! See terminal for details")
-        print(exc)
-        # Reset the run pipeline button
-        self.nxf_btn.setText("Run Pipeline!")
-        self.nxf_btn.setEnabled(True)
-        raise exc
-
-    def create_progress_bars(self):
-        print("Making progress bars")
-        # Create the overall widget
-        self.progress_bar_widget = QGroupBox("Progress Bars:")
-        # progress_widget_layout = QVBoxLayout()
-
-        progress_bar_layout = QGridLayout()
-
-        # If only 2D images are present, then max slice for all will be 1
-        if self.viewer.dims.ndim == 2:
-            max_slice = 1
-        # Construct a progress bar for each model
-        self.progress_bar_dict = {}
-        for row_num, img_name in enumerate(self.image_path_dict):
-            # Extract the number of slices
-            if self.viewer.dims.ndim > 2:
-                try:
-                    # Assumes ([C], D, H, W) ordering
-                    max_slice = self.viewer.layers[img_name].data.shape[-3]
-                # If the image hasn't loaded yet, set to 0 and fill in later
-                except KeyError:
-                    max_slice = 0
-            # Create the pbar and set the range
-            pbar = QProgressBar()
-            pbar.setRange(0, max_slice)
-            pbar.setValue(0)
-            # Create the label associated with the progress bar
-            pbar_label = QLabel(f"{img_name}:")
-
-            progress_bar_layout.addWidget(pbar_label, row_num, 0)
-            progress_bar_layout.addWidget(pbar, row_num, 1)
-
-            self.progress_bar_dict[img_name] = pbar
-
-        # Scroll area
-        # scroll_area = QScrollArea()
-        # scroll_area.setWidget(self.progress_bar_widget)
-        # progress_widget_layout.addWidget(scroll_area)
-        # progress_widget_layout.addLayout(progress_bar_layout)
-        self.progress_bar_widget.setLayout(progress_bar_layout)
-
-        # self.layout().addWidget(self.progress_bar_widget)
