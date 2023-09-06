@@ -30,13 +30,15 @@ from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 from napari.layers import Image
 
-from .models import (
+from ai_on_demand.models import (
     MODEL_INFO,
     MODEL_DISPLAYNAMES,
     TASK_MODELS,
     MODEL_TASK_VERSIONS,
 )
-from .tasks import TASK_NAMES
+from ai_on_demand.tasks import TASK_NAMES
+from ai_on_demand.nxf import NxfWidget
+from ai_on_demand.utils import sanitise_name, merge_dicts
 
 
 class AIOnDemand(QWidget):

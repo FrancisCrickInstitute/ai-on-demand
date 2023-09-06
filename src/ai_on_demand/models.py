@@ -1,6 +1,6 @@
 from collections import namedtuple, defaultdict
 
-from .tasks import TASK_NAMES
+from ai_on_demand.tasks import TASK_NAMES
 
 # Define model shorthand and display names
 MODEL_NAMES = {
