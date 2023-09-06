@@ -779,9 +779,7 @@ class AIOnDemand(QWidget):
             except KeyError:
                 img_shape = (1000, 1000)
             # Set the name following convention
-            name = (
-                f"{fpath.stem}_masks_{self.selected_model}-{self._sanitise_name(self.selected_variant)}"
-            )
+            name = f"{fpath.stem}_masks_{self.selected_model}-{sanitise_name(self.selected_variant)}"
             # Add a Labels layer for this file
             self.viewer.add_labels(
                 np.zeros(img_shape, dtype=int), name=name, visible=False
@@ -792,7 +790,7 @@ class AIOnDemand(QWidget):
         self.mask_path = (
             self.mask_base_path
             / f"{self.selected_model}"
-            / f"{self._sanitise_name(self.selected_variant)}_masks"
+            / f"{sanitise_name(self.selected_variant)}_masks"
         )
 
         # NOTE: Wrapper as self/class not available at runtime
@@ -849,9 +847,7 @@ class AIOnDemand(QWidget):
             # Check if the mask layer has been renamed
             prefix = f.stem.split("_masks_")[0]
             # Extract the relevant Labels layer
-            mask_layer_name = (
-                f"{prefix}_masks_{self.selected_model}-{self._sanitise_name(self.selected_variant)}"
-            )
+            mask_layer_name = f"{prefix}_masks_{self.selected_model}-{sanitise_name(self.selected_variant)}"
             label_layer = self.viewer.layers[mask_layer_name]
             # Insert mask data
             label_layer.data = mask_arr
@@ -997,26 +993,13 @@ class AIOnDemand(QWidget):
             if default_params:
                 model_params = self.create_config_params()
                 # TODO: Need to test this
-                model_dict = self._merge_dicts(model_dict, model_params)
+                model_dict = merge_dicts(model_dict, model_params)
         # Otherwise, just extract from the parameters
         else:
             model_dict = self.create_config_params()
         # Save the model config
         model_config_fpath = self.save_model_config(model_dict)
         return model_config_fpath
-
-    def _merge_dicts(self, d1, d2):
-        """
-        Merge two dictionaries recursively. d2 will overwrite d1 where specified.
-
-        Assumes both dicts have same structure/keys.
-        """
-        for k, v in d2.items():
-            if isinstance(v, dict):
-                d1[k] = self._merge_dicts(d1[k], v)
-            else:
-                d1[k] = v
-        return d1
 
     def save_model_config(self, model_dict):
         # Extract the model type
@@ -1026,7 +1009,7 @@ class AIOnDemand(QWidget):
         config_dir.mkdir(parents=True, exist_ok=True)
         model_config_fpath = (
             config_dir
-            / f"{self.selected_model}-{self._sanitise_name(self.selected_variant)}_config.yaml"
+            / f"{self.selected_model}-{sanitise_name(self.selected_variant)}_config.yaml"
         )
         # Save the yaml config
         with open(model_config_fpath, "w") as f:
