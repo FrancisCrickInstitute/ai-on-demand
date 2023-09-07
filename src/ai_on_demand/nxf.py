@@ -1,11 +1,13 @@
 from pathlib import Path
 import subprocess
+from typing import Optional
 
 import napari
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 import numpy as np
 from qtpy.QtWidgets import (
+    QWidget,
     QLayout,
     QGroupBox,
     QGridLayout,
@@ -26,7 +28,7 @@ class NxfWidget(SubWidget):
         self,
         viewer: napari.Viewer,
         pipeline: str,
-        parent=None,
+        parent: Optional[QWidget] = None,
         layout: QLayout = QGridLayout,
     ):
         super().__init__(
@@ -46,7 +48,10 @@ class NxfWidget(SubWidget):
             "inference": self.setup_inference,
             "finetuning": self.setup_finetuning,
         }
+        # Create the initial widgets/elements
+        self.create_box()
 
+    def create_box(self):
         # Create a drop-down box to select the execution profile
         self.nxf_profile_label = QLabel("Execution profile:")
         self.nxf_profile_label.setToolTip(
@@ -80,8 +85,8 @@ class NxfWidget(SubWidget):
         self.widget.setLayout(self.layout())
 
         # If given a parent at creation, add this widget to the parent's layout
-        if parent is not None:
-            parent.layout().addWidget(self.widget)
+        if self.parent is not None:
+            self.parent.layout().addWidget(self.widget)
 
     def store_img_paths(self, img_paths):
         """
