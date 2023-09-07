@@ -6,7 +6,7 @@ from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 import numpy as np
 from qtpy.QtWidgets import (
-    QWidget,
+    QLayout,
     QGroupBox,
     QGridLayout,
     QLabel,
@@ -18,16 +18,23 @@ from qtpy.QtWidgets import (
 )
 from ai_on_demand.models import MODEL_TASK_VERSIONS, MODEL_DISPLAYNAMES
 from ai_on_demand.utils import sanitise_name
+from ai_on_demand.subwidget import SubWidget
 
 
-class NxfWidget(QWidget):
-    def __init__(self, viewer: napari.Viewer, pipeline: str, parent=None):
-        super().__init__()
-        self.viewer = viewer
-        self.parent = parent
-
-        # Set the layout
-        self.setLayout(QGridLayout())
+class NxfWidget(SubWidget):
+    def __init__(
+        self,
+        viewer: napari.Viewer,
+        pipeline: str,
+        parent=None,
+        layout: QLayout = QGridLayout,
+    ):
+        super().__init__(
+            viewer=viewer,
+            title="Nextflow Pipeline",
+            parent=parent,
+            layout=layout,
+        )
 
         # Define attributes that may be useful outside of this class
         # or throughout it
@@ -39,9 +46,6 @@ class NxfWidget(QWidget):
             "inference": self.setup_inference,
             "finetuning": self.setup_finetuning,
         }
-
-        # Create the widget itself
-        self.widget = QGroupBox("Nextflow Pipeline:")
 
         # Create a drop-down box to select the execution profile
         self.nxf_profile_label = QLabel("Execution profile:")
