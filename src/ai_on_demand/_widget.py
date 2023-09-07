@@ -1,6 +1,5 @@
 from collections import Counter
 from pathlib import Path
-import subprocess
 import time
 import yaml
 
@@ -18,8 +17,6 @@ from qtpy.QtWidgets import (
     QComboBox,
     QCheckBox,
 )
-from qtpy.QtGui import QPixmap
-import qtpy.QtCore
 import numpy as np
 import skimage.io
 
@@ -37,12 +34,12 @@ from ai_on_demand.models import (
 from ai_on_demand.tasks import TASK_NAMES
 from ai_on_demand.nxf import NxfWidget
 from ai_on_demand.utils import sanitise_name, merge_dicts
+from ai_on_demand.widget_classes import MainWidget
 
 
-class AIOnDemand(QWidget):
+class AIOnDemand(MainWidget):
     def __init__(self, napari_viewer: napari.Viewer):
-        super().__init__()
-        self.viewer = napari_viewer
+        super().__init__(napari_viewer=napari_viewer, title="Inference")
         # Connect to the viewer to some callbacks
         self.viewer.layers.events.inserted.connect(self.on_layer_added)
         self.viewer.layers.events.removed.connect(self.on_layer_removed)
@@ -56,22 +53,6 @@ class AIOnDemand(QWidget):
 
         # Set selection colour
         self.colour_selected = "#F7AD6F"
-
-        # Set overall layout for widget
-        self.setLayout(QVBoxLayout())
-
-        # Add Crick logo at top for flavour
-        self.logo_label = QLabel()
-        logo = QPixmap(
-            str(
-                Path(__file__).parent
-                / "resources"
-                / "CRICK_Brandmark_01_transparent.png"
-            )
-        ).scaledToHeight(150)
-        self.logo_label.setPixmap(logo)
-        self.logo_label.setAlignment(qtpy.QtCore.Qt.AlignCenter)
-        self.layout().addWidget(self.logo_label)
 
         # Create radio buttons for selecting task (i.e. organelle)
         self.create_organelle_box()

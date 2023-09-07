@@ -20,7 +20,7 @@ from qtpy.QtWidgets import (
 )
 from ai_on_demand.models import MODEL_TASK_VERSIONS, MODEL_DISPLAYNAMES
 from ai_on_demand.utils import sanitise_name
-from ai_on_demand.subwidget import SubWidget
+from ai_on_demand.widget_classes import SubWidget
 
 
 class NxfWidget(SubWidget):
@@ -48,8 +48,6 @@ class NxfWidget(SubWidget):
             "inference": self.setup_inference,
             "finetuning": self.setup_finetuning,
         }
-        # Create the initial widgets/elements
-        self.create_box()
 
     def create_box(self):
         # Create a drop-down box to select the execution profile
@@ -83,10 +81,6 @@ class NxfWidget(SubWidget):
         self.layout().addWidget(self.export_masks_btn, 2, 0, 1, 1)
 
         self.widget.setLayout(self.layout())
-
-        # If given a parent at creation, add this widget to the parent's layout
-        if self.parent is not None:
-            self.parent.layout().addWidget(self.widget)
 
     def store_img_paths(self, img_paths):
         """
