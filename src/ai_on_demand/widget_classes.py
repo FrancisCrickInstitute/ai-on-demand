@@ -72,6 +72,7 @@ class SubWidget(QWidget):
         title: str,
         parent: Optional[QWidget] = None,
         layout: QLayout = QGridLayout,
+        tooltip: Optional[str] = None,
     ):
         """
         Custom widget for the AI OnDemand plugin.
@@ -89,6 +90,8 @@ class SubWidget(QWidget):
             Title of the widget to be displayed.
         layout : QLayout, optional
             Layout to use for the widget, by default QGridLayout. This is the default layout for the subwidget.
+        tooltip : Optional[str], optional
+            Tooltip to display for the widget (i.e. the GroupBox), by default None.
         """
         super().__init__()
         self.viewer = viewer
@@ -98,7 +101,8 @@ class SubWidget(QWidget):
         self.setLayout(layout())
         # Set the main widget container
         self.widget = QGroupBox(f"{title.capitalize()}:")
-
+        if tooltip is not None:
+            self.widget.setToolTip(format_tooltip(tooltip))
         # Create the initial widgets/elements
         self.create_box()
 

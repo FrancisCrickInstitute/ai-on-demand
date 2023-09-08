@@ -15,7 +15,7 @@ from qtpy.QtWidgets import (
 )
 import skimage.io
 
-from ai_on_demand.subwidget import SubWidget
+from ai_on_demand.widget_classes import SubWidget
 from ai_on_demand.utils import format_tooltip
 
 
@@ -28,24 +28,23 @@ class DataWidget(SubWidget):
         parent: Optional[QWidget] = None,
         layout: QLayout = QGridLayout,
     ):
-        super().__init__(viewer, "data", parent, layout)
+        super().__init__(
+            viewer,
+            "data",
+            parent,
+            layout,
+            tooltip="""
+Select a directory to take images from, or select individual images.
+
+Images can also be opened, or dragged into napari as normal. The selection will be updated accordingly. Note that all images loaded are additive, unless removed as a layer. The 'Reset selection' button can be used to clear all images.
+""",
+        )
 
         # Connect to the viewer to some callbacks
         self.viewer.layers.events.inserted.connect(self.on_layer_added)
         self.viewer.layers.events.removed.connect(self.on_layer_removed)
 
     def create_box(self, variant: Optional[str] = None):
-        # Set overall tooltip for this widget
-        # Black has an interesting way of formatting this...live with it
-        self.widget.setToolTip(
-            format_tooltip(
-                """
-Select a directory to take images from, or select individual images.
-
-Images can also be opened, or dragged into napari as normal. The selection will be updated accordingly. Note that all images loaded are additive, unless removed as a layer. The 'Reset selection' button can be used to clear all images.
-"""
-            )
-        )
         # Create empty counter to show image load progress
         self.load_img_counter = 0
         # Create container for image paths

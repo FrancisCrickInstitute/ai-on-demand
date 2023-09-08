@@ -32,6 +32,7 @@ class TaskWidget(SubWidget):
             title="Select Organelle to Segment",
             parent=parent,
             layout=layout,
+            tooltip="Select the organelle you want to segment. The models available will change depending on the organelle selected.",
         )
 
     def create_box(self, variant: Optional[str] = None):

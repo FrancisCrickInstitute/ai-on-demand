@@ -38,6 +38,10 @@ class NxfWidget(SubWidget):
             title="Nextflow Pipeline",
             parent=parent,
             layout=layout,
+            tooltip="""
+Allows for the Nextflow pipeline to be triggered, with different additional options depending on the main widget selected.
+The profile determines where the Nextflow pipeline (and thus the computation) is performed.
+""",
         )
 
         # Define attributes that may be useful outside of this class
@@ -51,7 +55,7 @@ class NxfWidget(SubWidget):
             "finetuning": self.setup_finetuning,
         }
 
-    def create_box(self):
+    def create_box(self, variant: Optional[str] = None):
         # Create a drop-down box to select the execution profile
         self.nxf_profile_label = QLabel("Execution profile:")
         self.nxf_profile_label.setToolTip(
@@ -119,22 +123,22 @@ class NxfWidget(SubWidget):
         else:
             config_path = parent.model_config
         # Extract the current model version selected
-        selected_model = MODEL_DISPLAYNAMES[
+        self.selected_model = MODEL_DISPLAYNAMES[
             parent.model_dropdown.currentText()
         ]
-        selected_variant = parent.model_version_dropdown.currentText()
-        selected_task = parent.selected_task
+        self.selected_variant = parent.model_version_dropdown.currentText()
+        self.selected_task = parent.selected_task
         # Construct the params to be given to Nextflow
         nxf_params = {}
         nxf_params["img_dir"] = str(self.img_list_fpath)
-        nxf_params["model"] = selected_model
+        nxf_params["model"] = self.selected_model
         nxf_params["model_config"] = config_path
-        nxf_params["model_type"] = sanitise_name(selected_variant)
-        nxf_params["task"] = selected_task
+        nxf_params["model_type"] = sanitise_name(self.selected_variant)
+        nxf_params["task"] = self.selected_task
         # Extract the model checkpoint location and location type
-        checkpoint_info = MODEL_TASK_VERSIONS[selected_model][selected_task][
-            selected_variant
-        ]
+        checkpoint_info = MODEL_TASK_VERSIONS[self.selected_model][
+            self.selected_task
+        ][self.selected_variant]
         if "url" in checkpoint_info:
             nxf_params["model_chkpt_type"] = "url"
             nxf_params["model_chkpt_loc"] = checkpoint_info["url"]
@@ -143,6 +147,8 @@ class NxfWidget(SubWidget):
             nxf_params["model_chkpt_type"] = "dir"
             nxf_params["model_chkpt_loc"] = checkpoint_info["dir"]
             nxf_params["model_chkpt_fname"] = checkpoint_info["filename"]
+        # Start the watcher for the mask files
+        self.parent.watch_mask_files()
         return nxf_cmd, nxf_params
 
     def setup_finetuning(self):
@@ -193,6 +199,15 @@ class NxfWidget(SubWidget):
         self.nxf_run_btn.setText("Running Pipeline...")
         # Run the pipeline
         _run_pipeline(nxf_cmd)
+
+    def check_masks(self):
+        """
+        Checks if the masks have been generated yet.
+        """
+        # Get the current viewer
+        viewer = self.parent.viewer if self.parent is not None else None
+        # Get all the mask layers
+        mask_layers = []
 
     def _reset_btns(self):
         """
