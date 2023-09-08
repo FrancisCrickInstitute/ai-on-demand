@@ -4,8 +4,6 @@ import yaml
 
 import napari
 from napari.qt.threading import thread_worker
-from napari.utils.notifications import show_info
-from napari.layers import Image
 import numpy as np
 from qtpy.QtWidgets import (
     QVBoxLayout,
@@ -16,12 +14,10 @@ from qtpy.QtWidgets import (
     QFileDialog,
     QLabel,
     QLineEdit,
-    QRadioButton,
     QGroupBox,
     QComboBox,
     QCheckBox,
 )
-import skimage.io
 
 from ai_on_demand.models import (
     MODEL_INFO,
@@ -29,7 +25,7 @@ from ai_on_demand.models import (
     TASK_MODELS,
     MODEL_TASK_VERSIONS,
 )
-from ai_on_demand.tasks import TASK_NAMES
+from ai_on_demand.tasks import TaskWidget
 from ai_on_demand.data_selection import DataWidget
 from ai_on_demand.nxf import NxfWidget
 from ai_on_demand.utils import sanitise_name, merge_dicts, format_tooltip
@@ -56,14 +52,13 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.colour_selected = "#F7AD6F"
 
         # Create radio buttons for selecting task (i.e. organelle)
-        self.create_organelle_box()
+        self.register_widget(TaskWidget(viewer=self.viewer, parent=self))
 
         # Create radio buttons for selecting the model to run
         # Functionality currently limited to Meta's Segment Anything Model
         self.create_model_box()
 
         # Create the box for selecting the directory, showing img count etc.
-        # self.create_dir_box()
         self.register_widget(DataWidget(viewer=self.viewer, parent=self))
 
         # Add the button for running the Nextflow pipeline
@@ -71,44 +66,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
             NxfWidget(viewer=self.viewer, parent=self, pipeline="inference")
         )
         # TODO: If I try to connect to self.viewer.layers.events.inserted, does it overwrite? Create an error?
-
-    def create_organelle_box(self):
-        """
-        Create the box for selecting the task (i.e. organelle) to segment.
-        """
-        # Define the box and layout
-        self.task_group = QGroupBox("Select organelle to segment:")
-        self.task_layout = QVBoxLayout()
-        # Define and set the buttons for the different tasks
-        # With callbacks to change other options accoridngly
-        self.task_buttons = {}
-        for name, label in TASK_NAMES.items():
-            btn = QRadioButton(label)
-            btn.setEnabled(True)
-            btn.setChecked(False)
-            btn.clicked.connect(self.on_click_task)
-            self.task_layout.addWidget(btn)
-            self.task_buttons[name] = btn
-        # Add the buttons under the overall group box
-        self.task_group.setLayout(self.task_layout)
-        # Add to main widget
-        self.layout().addWidget(self.task_group)
-
-    def on_click_task(self):
-        """
-        Callback for when a task button is clicked.
-
-        Updates the model box to show only the models available for the selected task.
-        """
-        # Find out which button was pressed
-        for task_name, task_btn in self.task_buttons.items():
-            if task_btn.isChecked():
-                self.selected_task = task_name
-        # Collapse the modify params or config widgets if open
-        # if self.model_param_btn.isChecked():
-        #     self.model_param_btn.click()
-        # Update the model box for the selected task
-        self.update_model_box(self.selected_task)
 
     def create_model_box(self):
         """
