@@ -37,7 +37,7 @@ from ai_on_demand.utils import sanitise_name, merge_dicts
 from ai_on_demand.widget_classes import MainWidget
 
 
-class AIOnDemand(MainWidget):
+class Inference(MainWidget):
     def __init__(self, napari_viewer: napari.Viewer):
         super().__init__(napari_viewer=napari_viewer, title="Inference")
         # Connect to the viewer to some callbacks
