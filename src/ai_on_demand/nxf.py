@@ -24,6 +24,8 @@ from ai_on_demand.widget_classes import SubWidget
 
 
 class NxfWidget(SubWidget):
+    _name = "nxf"
+
     def __init__(
         self,
         viewer: napari.Viewer,
@@ -151,8 +153,10 @@ class NxfWidget(SubWidget):
 
     def run_pipeline(self):
         # TODO: Add any general steps prior to running the pipeline
+        if "data" not in self.parent.subwidgets:
+            raise ValueError("Cannot run pipeline without data widget!")
         # Store the image paths
-        self.image_path_dict = self.parent.image_path_dict
+        self.image_path_dict = self.parent.subwidgets["data"].image_path_dict
         self.store_img_paths(img_paths=self.image_path_dict.values())
         # Ensure the pipeline is valid
         assert (
@@ -166,8 +170,7 @@ class NxfWidget(SubWidget):
         for param, value in nxf_params.items():
             nxf_cmd += f" --{param}={value}"
 
-        self.parent.view_images()
-        self.parent.watch_mask_files()
+        self.parent.subwidgets["data"].view_images()
 
         @thread_worker(
             connect={

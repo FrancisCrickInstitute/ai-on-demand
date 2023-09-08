@@ -16,12 +16,20 @@ import qtpy.QtCore
 
 
 class MainWidget(QWidget):
-    def __init__(self, napari_viewer: napari.Viewer, title: str):
+    def __init__(
+        self,
+        napari_viewer: napari.Viewer,
+        title: str,
+        tooltip: Optional[str] = None,
+    ):
         super().__init__()
         self.viewer = napari_viewer
 
         # Set overall layout for the widget
         self.setLayout(QVBoxLayout())
+
+        # Dictionary to contain all subwidgets
+        self.subwidgets = {}
 
         # Add a Crick logo to the widget
         self.logo_label = QLabel()
@@ -46,8 +54,14 @@ class MainWidget(QWidget):
         # self.title.adjustSize()
         self.layout().addWidget(self.title)
 
+    def register_widget(self, widget: "SubWidget"):
+        self.subwidgets[widget._name] = widget
+
 
 class SubWidget(QWidget):
+    # Define a shorthand name to be used to register the widget
+    _name: str = None
+
     def __init__(
         self,
         viewer: napari.Viewer,

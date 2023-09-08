@@ -62,11 +62,12 @@ class Inference(MainWidget):
         self.create_model_box()
 
         # Create the box for selecting the directory, showing img count etc.
-        self.create_dir_box()
+        # self.create_dir_box()
+        self.register_widget(DataWidget(viewer=self.viewer, parent=self))
 
         # Add the button for running the Nextflow pipeline
-        self.nxf_widget = NxfWidget(
-            viewer=self.viewer, parent=self, pipeline="inference"
+        self.register_widget(
+            NxfWidget(viewer=self.viewer, parent=self, pipeline="inference")
         )
 
     def on_layer_added(self, event):
@@ -755,7 +756,7 @@ class Inference(MainWidget):
         if not self.viewer.layers:
             time.sleep(0.5)
         # Create the Labels layers for each image
-        for fpath in self.image_path_dict.values():
+        for fpath in self.subwidgets["data"].image_path_dict.values():
             # If images still not loaded, add dummy array
             try:
                 img_shape = self.viewer.layers[f"{fpath.name}"].data.shape
@@ -768,9 +769,9 @@ class Inference(MainWidget):
                 np.zeros(img_shape, dtype=int), name=name, visible=False
             )
             # Move this layer to the top
-            self.viewer.layers.move(self.viewer.layers.index(name), -1)
+            self.viewer.layers.move(self.viewer.layers.index(name), 0)
         # Construct the proper mask path
-        self.mask_path = (
+        self.mask_dir_path = (
             self.mask_base_path
             / f"{self.selected_model}"
             / f"{sanitise_name(self.selected_variant)}_masks"
@@ -787,12 +788,13 @@ class Inference(MainWidget):
             # Loop and yield any changes infinitely while enabled
             while self.watcher_enabled:
                 # Get all files
-                current_files = list(self.mask_path.glob("*.npy"))
+                current_files = list(self.mask_dir_path.glob("*.npy"))
                 # Filter out files we are not running on
                 current_files = [
                     i
                     for i in current_files
-                    if Path(i).stem.split("_masks_")[0] in self.image_path_dict
+                    if Path(i).stem.split("_masks_")[0]
+                    in self.subwidgets["data"].image_path_dict
                 ]
                 if set(self.mask_fpaths) != set(current_files):
                     # Get the new files only
@@ -810,7 +812,7 @@ class Inference(MainWidget):
                     Path(i).stem[-3:] == "all" for i in current_files
                 ]
                 # Get how many complete mask files there should be
-                num_images = len(self.image_path_dict)
+                num_images = len(self.subwidgets["data"].image_path_dict)
                 # If all images have complete masks, deactivate watcher
                 if all(masks_finished) and (len(masks_finished) == num_images):
                     print("Deactivating watcher...")
