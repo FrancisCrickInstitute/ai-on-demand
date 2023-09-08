@@ -508,7 +508,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         """
         # Wait for at least one image to load as layers if not present
         if not self.viewer.layers:
-            time.sleep(0.5)
+            time.sleep(1)
         # Create the Labels layers for each image
         for fpath in self.subwidgets["data"].image_path_dict.values():
             # If images still not loaded, add dummy array
@@ -516,8 +516,8 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 img_shape = self.viewer.layers[f"{fpath.name}"].data.shape
             except KeyError:
                 img_shape = (1000, 1000)
-            # Set the name following convention
-            name = f"{fpath.stem}_masks_{self.selected_model}-{sanitise_name(self.selected_variant)}"
+            # Set the layer name for the mask following convention (i.e. the Segment-Flow pipeline output)
+            name = self._get_mask_name(fpath.stem)
             # Add a Labels layer for this file
             self.viewer.add_labels(
                 np.zeros(img_shape, dtype=int), name=name, visible=False
@@ -575,6 +575,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Call the nested function
         _watch_mask_files(self)
 
+    def _get_mask_name(self, stem: str):
+        return f"{stem}_masks_{self.selected_model}-{sanitise_name(self.selected_variant)}"
+
     def update_masks(self, new_files):
         """
         Update the masks in the napari Labels layers with the new masks found in the last scan.
@@ -586,16 +589,18 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # Check if the mask layer has been renamed
             prefix = f.stem.split("_masks_")[0]
             # Extract the relevant Labels layer
-            mask_layer_name = f"{prefix}_masks_{self.selected_model}-{sanitise_name(self.selected_variant)}"
+            mask_layer_name = self._get_mask_name(prefix)
             label_layer = self.viewer.layers[mask_layer_name]
             # Insert mask data
             label_layer.data = mask_arr
             label_layer.visible = True
             # Move this label layer and it's image layer to the top
             label_idx = self.viewer.layers.index(label_layer)
-            img_idx = self.viewer.layers.index(self.viewer.layers[prefix])
             self.viewer.layers.move(label_idx, 0)
-            self.viewer.layers.move(img_idx, 1)
+            # Have to check due to possible delay in loading
+            if prefix in self.viewer.layers:
+                img_idx = self.viewer.layers.index(self.viewer.layers[prefix])
+                self.viewer.layers.move(img_idx, 1)
             slice_num = f.stem.split("_")[-1]
             # Switch viewer to latest slice
             if slice_num == "all":
