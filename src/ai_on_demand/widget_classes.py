@@ -14,6 +14,8 @@ from qtpy.QtWidgets import (
 from qtpy.QtGui import QPixmap
 import qtpy.QtCore
 
+from ai_on_demand.utils import format_tooltip
+
 
 class MainWidget(QWidget):
     def __init__(
@@ -51,6 +53,8 @@ class MainWidget(QWidget):
         title_font.setBold(True)
         self.title.setFont(title_font)
         self.title.setAlignment(qtpy.QtCore.Qt.AlignCenter)
+        if tooltip is not None:
+            self.title.setToolTip(format_tooltip(tooltip))
         # self.title.adjustSize()
         self.layout().addWidget(self.title)
 
@@ -103,5 +107,5 @@ class SubWidget(QWidget):
             self.parent.layout().addWidget(self.widget)
 
     @abstractmethod
-    def create_box(self):
+    def create_box(self, variant: Optional[str] = None):
         raise NotImplementedError

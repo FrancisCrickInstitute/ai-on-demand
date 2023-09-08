@@ -32,18 +32,21 @@ from ai_on_demand.models import (
     MODEL_TASK_VERSIONS,
 )
 from ai_on_demand.tasks import TASK_NAMES
+from ai_on_demand.data_selection import DataWidget
 from ai_on_demand.nxf import NxfWidget
-from ai_on_demand.utils import sanitise_name, merge_dicts
+from ai_on_demand.utils import sanitise_name, merge_dicts, format_tooltip
 from ai_on_demand.widget_classes import MainWidget
 
 
 class Inference(MainWidget):
     def __init__(self, napari_viewer: napari.Viewer):
-        super().__init__(napari_viewer=napari_viewer, title="Inference")
-        # Connect to the viewer to some callbacks
-        self.viewer.layers.events.inserted.connect(self.on_layer_added)
-        self.viewer.layers.events.removed.connect(self.on_layer_removed)
-
+        super().__init__(
+            napari_viewer=napari_viewer,
+            title="Inference",
+            tooltip="""
+Run segmentation/inference on selected images using one of the available pre-trained models.
+""",
+        )
         # Handy attributes to check things
         self.selected_task = None
         self.selected_model = None
@@ -429,7 +432,8 @@ class Inference(MainWidget):
         for i, (label, model_param) in enumerate(param_dict.items()):
             # Create labels for each of the model parameters
             param_label = QLabel(f"{label}:")
-            param_label.setToolTip(model_param.tooltip)
+            print(model_param.tooltip)
+            param_label.setToolTip(format_tooltip(model_param.tooltip))
             model_layout.addWidget(param_label, i, 0)
             # Add the model parameter(s)
             param_values = model_param.values
