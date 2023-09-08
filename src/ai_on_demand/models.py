@@ -100,9 +100,9 @@ MODEL_TASK_VERSIONS = {
             "MitoNet Mini v1": {
                 "filename": "mitonet_mini_v1.pt",
                 "url": "https://zenodo.org/record/6861565/files/MitoNet_v1_mini.pth?download=1",
-            }
+            },
         }
-    }
+    },
 }
 
 # Check each model name exists
@@ -152,21 +152,54 @@ sam_params = {
 unet_params = {}
 
 mitonet_params = {
-    "Mode": Param("mode", ["2D", "3D"], str, "Specifies whether to segment each slice independently or the stack as a whole"),
-    "Downsampling": Param("downsampling", [1, 2, 4, 8, 16, 32, 64], int, "Downsampling factor for the input image"),
-    "Segmentation threshold": Param("conf_threshold", 0.5, float, "Confidence threshold for the segmentation"),
-    "Center threshold": Param("center_threshold", 0.1, float, "Confidence threshold for the center"),
-    "Minimum distance": Param("min_distance", 3, int, "Minimum distance between object centers"),
-    "Maximum objects": Param("max_objects", 1000, int, "Maximum number of objects to segment per class"),
-    "Semantic only": Param("semantic_only", False, bool, "Only run semantic segmentation for all classes"),
-    "Fine boundaries": Param("fine_boundaries", False, bool, "Finer boundaries between objects"),
+    "Mode": Param(
+        "mode",
+        ["2D", "3D"],
+        str,
+        "Specifies whether to segment each slice independently or the stack as a whole",
+    ),
+    "Downsampling": Param(
+        "downsampling",
+        [1, 2, 4, 8, 16, 32, 64],
+        int,
+        "Downsampling factor for the input image",
+    ),
+    "Segmentation threshold": Param(
+        "conf_threshold",
+        0.5,
+        float,
+        "Confidence threshold for the segmentation",
+    ),
+    "Center threshold": Param(
+        "center_threshold", 0.1, float, "Confidence threshold for the center"
+    ),
+    "Minimum distance": Param(
+        "min_distance", 3, int, "Minimum distance between object centers"
+    ),
+    "Maximum objects": Param(
+        "max_objects",
+        1000,
+        int,
+        "Maximum number of objects to segment per class",
+    ),
+    "Semantic only": Param(
+        "semantic_only",
+        False,
+        bool,
+        "Only run semantic segmentation for all classes",
+    ),
+    "Fine boundaries": Param(
+        "fine_boundaries", False, bool, "Finer boundaries between objects"
+    ),
 }
 # Assuming every model version for each task has the same set of params
 # TODO: Need a better solution long-term
 MODEL_PARAMS = {
     "sam": {v: sam_params for v in MODEL_TASK_VERSIONS["sam"].keys()},
     "unet": {v: unet_params for v in MODEL_TASK_VERSIONS["unet"].keys()},
-    "mitonet": {v: mitonet_params for v in MODEL_TASK_VERSIONS["mitonet"].keys()},
+    "mitonet": {
+        v: mitonet_params for v in MODEL_TASK_VERSIONS["mitonet"].keys()
+    },
 }
 
 # Construct final mega-dict of model info
