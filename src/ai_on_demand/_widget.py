@@ -1,8 +1,12 @@
-from collections import Counter
 from pathlib import Path
 import time
 import yaml
 
+import napari
+from napari.qt.threading import thread_worker
+from napari.utils.notifications import show_info
+from napari.layers import Image
+import numpy as np
 from qtpy.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
@@ -17,13 +21,7 @@ from qtpy.QtWidgets import (
     QComboBox,
     QCheckBox,
 )
-import numpy as np
 import skimage.io
-
-import napari
-from napari.qt.threading import thread_worker
-from napari.utils.notifications import show_info
-from napari.layers import Image
 
 from ai_on_demand.models import (
     MODEL_INFO,
@@ -72,40 +70,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.register_widget(
             NxfWidget(viewer=self.viewer, parent=self, pipeline="inference")
         )
-
-    def on_layer_added(self, event):
-        """
-        Triggered whenever there is a new layer added to the viewer.
-
-        Checks if the layer is an image, and if so, adds it to the list of images to process.
-        """
-        if isinstance(event.value, Image):
-            # Extract the underlying filepath of the image
-            img_path = event.value.source.path
-            # Insert into the overall dict of images and their paths (if path is present)
-            # This will be None when we are viewing arrays loaded separately from napari
-            if img_path is not None:
-                self.image_path_dict[Path(img_path).stem] = Path(img_path)
-            # Then update the counts of files (and their types) with the extra image
-            self.update_file_count()
-
-    def on_layer_removed(self, event):
-        """
-        Triggered whenever a layer is removed from the viewer.
-
-        Checks if the layer is an image, and if so, removes it from the list of images to process.
-        """
-        if isinstance(event.value, Image):
-            # Extract the underlying filepath of the image
-            img_path = event.value.source.path
-            # Remove from the list of images
-            if (
-                img_path is not None
-                and Path(img_path).stem in self.image_path_dict
-            ):
-                del self.image_path_dict[Path(img_path).stem]
-            # Update file count with image removed
-            self.update_file_count()
+        # TODO: If I try to connect to self.viewer.layers.events.inserted, does it overwrite? Create an error?
 
     def create_organelle_box(self):
         """
@@ -532,221 +497,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.model_config_label.setText("No model config file selected.")
         self.model_config = None
 
-    def create_dir_box(self):
-        """
-        Create the box for selecting the directory to take images from, and optionally view them.
-
-        Displays the number and types of files found in the selected directory.
-        """
-        # TODO: Simultaneously allow for drag+dropping, probably a common use pattern
-        self.dir_group = QGroupBox("Data Selection:")
-        self.dir_layout = QGridLayout()
-        self.dir_group.setToolTip(
-            "Select a directory to take images from, or select individual images.\n"
-            "Images can also be opened, or dragged into napari as normal. The selection will be updated accordingly.\n"
-            "Note that all images loaded are additive, unless removed as a layer. The 'Reset selection' button can be used to clear all images.\n"
-        )
-        # Create empty counter to show image load progress
-        self.load_img_counter = 0
-        # Create container for image paths
-        self.image_path_dict = {}
-        # Do a quick check to see if the user has added any images already
-        if self.viewer.layers:
-            for img_layer in self.viewer.layers:
-                if isinstance(img_layer, Image):
-                    try:
-                        img_path = Path(img_layer.source.path)
-                        self.image_path_dict[img_path.stem] = img_path
-                    except AttributeError:
-                        continue
-        # Create a button to select individual images from
-        self.img_btn = QPushButton("Select image files")
-        self.img_btn.clicked.connect(self.browse_imgs_files)
-        self.img_btn.setToolTip(
-            "Select individual image files to use as input to the model."
-        )
-        self.dir_layout.addWidget(self.img_btn, 0, 0)
-        # TODO: What happens if multiple directories are selected? Is this possible?
-        # Create a button to navigate to a directory to take images from
-        self.dir_btn = QPushButton("Select image directory")
-        self.dir_btn.clicked.connect(self.browse_imgs_dir)
-        self.dir_btn.setToolTip(
-            "Select folder/directory of images to use as input to the model.\n"
-            "Note that this allows for running the pipeline without having to load images into napari first.\n"
-            "Any images loaded into napari will also be used within the pipeline, however."
-        )
-        self.dir_layout.addWidget(self.dir_btn, 0, 1)
-        # Add an output to show the counts
-        self.init_file_msg = "No files selected or added to Napari."
-        self.img_counts = QLabel(self.init_file_msg)
-        self.img_counts.setWordWrap(True)
-        self.dir_layout.addWidget(self.img_counts, 1, 0, 1, 2)
-
-        # Add a button for viewing the images within napari
-        # Optional as potentially taxing, and not necessary
-        self.view_img_btn = QPushButton("View selected images")
-        self.view_img_btn.setToolTip(
-            "Load selected images into napari to view."
-        )
-        self.view_img_btn.clicked.connect(self.view_images)
-        self.dir_layout.addWidget(self.view_img_btn, 2, 0)
-        # Create a button to clear selected directory
-        self.clear_dir_btn = QPushButton("Reset selection")
-        self.clear_dir_btn.clicked.connect(self.clear_directory)
-        self.clear_dir_btn.setToolTip(
-            "Reset selection of images (clears all images in the viewer)."
-        )
-        self.dir_layout.addWidget(self.clear_dir_btn, 2, 1)
-        # Add button layout to box layout
-        # Sort out layout and add to main widget
-        self.dir_group.setLayout(self.dir_layout)
-        self.layout().addWidget(self.dir_group)
-
-    def browse_imgs_files(self):
-        fnames, _ = QFileDialog.getOpenFileNames(
-            self,
-            "Select one or more images",
-            str(Path.home()),
-            "",
-        )
-        if fnames != []:
-            self.update_file_count(paths=fnames)
-
-    def browse_imgs_dir(self):
-        """
-        Opens a dialog for selecting a directory that contains images to segment.
-        """
-        # TODO: Load multiple directories - https://stackoverflow.com/a/28548773/9963224
-        # Quite the pain, and potentially brittle if Qt backend changes
-        result = QFileDialog.getExistingDirectory(
-            self, caption="Select image directory", directory=None
-        )
-        if result != "":
-            self.update_file_count(paths=list(Path(result).glob("*")))
-
-    def clear_directory(self):
-        """
-        Clears the selected directory and resets the image counts.
-        """
-        # Reset selected images and their paths
-        self.image_path_dict = {}
-        # Reset image count text
-        self.img_counts.setText(self.init_file_msg)
-        # Reset the images loaded button text
-        self.view_img_btn.setText("View selected images")
-        # Remove Image layers from napari viewer
-        img_layers = [i for i in self.viewer.layers if isinstance(i, Image)]
-        for layer in img_layers:
-            self.viewer.layers.remove(layer)
-
-    def type_directory(self):
-        """Allow for user to type a directory?
-
-        Will require checking that the path is valid, and using the ToolTip if
-        it's not (or a similar pop-up/warning object) to raise the issue.
-        """
-        return NotImplementedError
-
-    def update_file_count(self, paths=None):
-        """
-        Function to extract all the files in a given path, and return a count
-        (broken down by extension)
-        """
-        # Reinitialise text
-        txt = "Selected "
-        # Add paths to the overall list if specific ones need adding
-        if paths is not None:
-            for img_path in paths:
-                img_path = Path(img_path)
-                self.image_path_dict[img_path.stem] = img_path
-        # If no files remaining, reset message and return
-        if len(self.image_path_dict) == 0:
-            self.img_counts.setText(self.init_file_msg)
-            return
-        # Get all the extensions in the path
-        extension_counts = Counter(
-            [i.suffix for i in self.image_path_dict.values()]
-        )
-        # Sort by highest and get the suffixes and their counts
-        ext_counts = extension_counts.most_common()
-        if len(ext_counts) > 1:
-            # Nicely format the list of files and their extensions
-            for i, (ext, count) in enumerate(ext_counts):
-                if i == (len(ext_counts) - 1):
-                    txt += f"and {count} {ext}"
-                else:
-                    txt += f"{count} {ext}, "
-        else:
-            txt += f"{ext_counts[0][1]} {ext_counts[0][0]}"
-        txt += f" file{'s' if sum(extension_counts.values()) > 1 else ''}."
-        self.img_counts.setText(txt)
-
-    def view_images(self):
-        """
-        Loads the selected images into napari for viewing (in separate threads).
-        """
-        # Return if there's nothing to show
-        if len(self.image_path_dict) == 0:
-            return
-        # Check if there are images to load that haven't been already
-        viewer_imgs = [
-            Path(i.name).stem
-            for i in self.viewer.layers
-            if isinstance(i, Image)
-        ]
-        imgs_to_load = [
-            v for k, v in self.image_path_dict.items() if k not in viewer_imgs
-        ]
-        if imgs_to_load == []:
-            return
-        self.view_img_btn.setEnabled(False)
-        # Reset counter
-        self.load_img_counter = 0
-
-        # Create separate thread worker to avoid blocking
-        @thread_worker(
-            connect={
-                "returned": self._add_image,
-                "finished": self._reset_view_btn,
-            }
-        )
-        def _load_image(fpath):
-            return skimage.io.imread(fpath), fpath
-
-        # Load each image in a separate thread
-        for fpath in imgs_to_load:
-            _load_image(fpath)
-        # NOTE: This does not work well for a directory of large images on a remote directory
-        # But that would trigger loading GBs into memory over network, which is...undesirable
-        self.view_img_btn.setText("Loading...")
-
-    def _add_image(self, res):
-        """
-        Adds an image to the viewer when loaded, using its filepath as the name.
-        """
-        img, fpath = res
-        # Add the image to the overall dict
-        self.image_path_dict[fpath.stem] = fpath
-        self.viewer.add_image(img, name=fpath.stem)
-        self.load_img_counter += 1
-        self.view_img_btn.setText(
-            f"Loading...({self.load_img_counter} image{'s' if self.load_img_counter > 1 else ''} loaded)."
-        )
-        img_layers = [i for i in self.viewer.layers if isinstance(i, Image)]
-        # Only change text when we have as many image layers as images
-        if len(img_layers) == len(self.image_path_dict):
-            self.view_img_btn.setText("All images loaded.")
-        # # Update the progress bar range (just in case the image wasn't loaded in time)
-        # if img.ndim > 2:
-        #     self.progress_bar_dict[fpath.stem].setRange(0, img.shape[-3])
-        #     self.progress_bar_dict[fpath.stem].setValue(0)
-
-    def _reset_view_btn(self):
-        """Reset the view button to be clickable again when done."""
-        self.view_img_btn.setEnabled(True)
-        # Also reset the viewer itself
-        self.viewer.reset_view()
-
     def watch_mask_files(self):
         """
         File watcher to watch for new mask files being created during the Nextflow run.
@@ -857,17 +607,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # self.progress_bar_dict[f"{f.stem.split('_masks_')[0]}"].setValue(
             #     slice_num + 1
             # )
-
-    def store_img_paths(self):
-        """
-        Write the image paths of all images to a text file for input to the Nextflow pipeline.
-        """
-        self.img_list_fpath = Path(__file__).parent / "all_img_paths.txt"
-        # Extract the paths for all the stored images
-        img_file_paths = self.image_path_dict.values()
-        # Write the image paths into a newline-separated text file
-        with open(self.img_list_fpath, "w") as output:
-            output.write("\n".join([str(i) for i in img_file_paths]))
 
     def get_model_config(self):
         # First check if there is a config file for this model
