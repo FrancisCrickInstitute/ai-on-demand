@@ -19,7 +19,7 @@ from qtpy.QtWidgets import (
     QProgressBar,
 )
 from ai_on_demand.models import MODEL_TASK_VERSIONS, MODEL_DISPLAYNAMES
-from ai_on_demand.utils import sanitise_name
+from ai_on_demand.utils import sanitise_name, format_tooltip
 from ai_on_demand.widget_classes import SubWidget
 
 
@@ -59,7 +59,7 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         # Create a drop-down box to select the execution profile
         self.nxf_profile_label = QLabel("Execution profile:")
         self.nxf_profile_label.setToolTip(
-            "Select the execution profile to use."
+            format_tooltip("Select the execution profile to use.")
         )
         self.nxf_profile_box = QComboBox()
         # Get the available profiles from config dir
@@ -72,7 +72,9 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         self.nxf_run_btn = QPushButton("Run Pipeline!")
         self.nxf_run_btn.clicked.connect(self.run_pipeline)
         self.nxf_run_btn.setToolTip(
-            "Run the pipeline with the chosen organelle(s), model, and images."
+            format_tooltip(
+                "Run the pipeline with the chosen organelle(s), model, and images."
+            )
         )
         self.layout().addWidget(self.nxf_run_btn, 1, 0, 1, 2)
 
@@ -80,7 +82,7 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         self.export_masks_btn = QPushButton("Export masks")
         self.export_masks_btn.clicked.connect(self.on_click_export)
         self.export_masks_btn.setToolTip(
-            "Export the segmentation masks to a directory."
+            format_tooltip("Export the segmentation masks to a directory.")
         )
         self.export_masks_btn.setEnabled(False)
         # TODO: Add dropdown for different formats to export to

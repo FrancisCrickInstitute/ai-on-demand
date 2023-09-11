@@ -65,7 +65,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.register_widget(
             NxfWidget(viewer=self.viewer, parent=self, pipeline="inference")
         )
-        # TODO: If I try to connect to self.viewer.layers.events.inserted, does it overwrite? Create an error?
 
     def create_model_box(self):
         """
@@ -93,8 +92,11 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Add label + dropdown for model variants/versions
         model_version_label = QLabel("Select version:")
         model_version_label.setToolTip(
-            "Select the model version to use."
-            "Versions can vary either by intended functionality, or are specifically for reproducibility."
+            format_tooltip(
+                """
+        Select the model version to use. Versions can vary either by intended functionality, or are specifically for reproducibility.
+        """
+            )
         )
         self.model_version_dropdown = QComboBox()
         self.model_version_dropdown.setSizeAdjustPolicy(
@@ -118,7 +120,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Create button for displaying model param options
         self.model_param_btn = QPushButton("Modify Params")
         self.model_param_btn.setToolTip(
-            "Open options for modifying model parameters directly in napari."
+            format_tooltip(
+                "Open options for modifying model parameters directly in napari."
+            )
         )
         self.model_param_btn.setCheckable(True)
         self.model_param_btn.setStyleSheet(
@@ -129,7 +133,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Create button for displaying model config options
         self.model_config_btn = QPushButton("Load Config")
         self.model_config_btn.setToolTip(
-            "Open options for loading a config file to pass to the model."
+            format_tooltip(
+                "Open options for loading a config file to pass to the model."
+            )
         )
         self.model_config_btn.setCheckable(True)
         self.model_config_btn.setStyleSheet(
@@ -227,15 +233,19 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.model_config_load_btn = QPushButton("Select model config file")
         self.model_config_load_btn.clicked.connect(self.select_model_config)
         self.model_config_load_btn.setToolTip(
-            "Select a config file to be used for the selected model."
-            "Note that no checking/validation is done on the config file, it is just given to the model."
+            format_tooltip(
+                """
+            Select a config file to be used for the selected model.
+            Note that no checking/validation is done on the config file, it is just given to the model.
+        """
+            )
         )
         self.model_config_layout.addWidget(self.model_config_load_btn, 0, 0)
         # Add a button for clearing the config file
         self.model_config_clear_btn = QPushButton("Clear config selection")
         self.model_config_clear_btn.clicked.connect(self.clear_model_config)
         self.model_config_clear_btn.setToolTip(
-            "Clear the selected model config file."
+            format_tooltip("Clear the selected model config file.")
         )
         self.model_config_layout.addWidget(self.model_config_clear_btn, 0, 1)
         # Add a label to display the selected config file (if any)
@@ -354,7 +364,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
         for i, (label, model_param) in enumerate(param_dict.items()):
             # Create labels for each of the model parameters
             param_label = QLabel(f"{label}:")
-            print(model_param.tooltip)
             param_label.setToolTip(format_tooltip(model_param.tooltip))
             model_layout.addWidget(param_label, i, 0)
             # Add the model parameter(s)

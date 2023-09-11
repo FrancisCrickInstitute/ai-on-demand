@@ -62,7 +62,9 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         self.img_btn = QPushButton("Select image files")
         self.img_btn.clicked.connect(self.browse_imgs_files)
         self.img_btn.setToolTip(
-            "Select individual image files to use as input to the model."
+            format_tooltip(
+                "Select individual image files to use as input to the model."
+            )
         )
         self.layout().addWidget(self.img_btn, 0, 0)
         # TODO: What happens if multiple directories are selected? Is this possible?
@@ -70,9 +72,13 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         self.dir_btn = QPushButton("Select image directory")
         self.dir_btn.clicked.connect(self.browse_imgs_dir)
         self.dir_btn.setToolTip(
-            "Select folder/directory of images to use as input to the model.\n"
-            "Note that this allows for running the pipeline without having to load images into napari first.\n"
-            "Any images loaded into napari will also be used within the pipeline, however."
+            format_tooltip(
+                """
+            Select folder/directory of images to use as input to the model.
+            Note that this allows for running the pipeline without having to load images into napari first.
+            Any images loaded into napari will also be used within the pipeline, however.
+        """
+            )
         )
         self.layout().addWidget(self.dir_btn, 0, 1)
         # Add an output to show the counts
@@ -86,7 +92,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         self.init_view_msg = "View selected images"
         self.view_img_btn = QPushButton(self.init_view_msg)
         self.view_img_btn.setToolTip(
-            "Load selected images into napari to view."
+            format_tooltip("Load selected images into napari to view.")
         )
         self.view_img_btn.clicked.connect(self.view_images)
         self.layout().addWidget(self.view_img_btn, 2, 0)
@@ -94,7 +100,9 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         self.clear_dir_btn = QPushButton("Reset selection")
         self.clear_dir_btn.clicked.connect(self.clear_directory)
         self.clear_dir_btn.setToolTip(
-            "Reset selection of images (clears all images in the viewer)."
+            format_tooltip(
+                "Reset selection of images (clears all images in the viewer)."
+            )
         )
         self.layout().addWidget(self.clear_dir_btn, 2, 1)
         # Add button layout to box layout
