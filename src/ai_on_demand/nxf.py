@@ -96,10 +96,26 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
 
         TODO: May be subject to complete rewrite with dask/zarr
         """
-        self.img_list_fpath = Path(__file__).parent / "all_img_paths.txt"
+        # Construct a list of what the mask names should be
         # Write the image paths into a newline-separated text file
         with open(self.img_list_fpath, "w") as output:
             output.write("\n".join([str(i) for i in img_paths]))
+
+    def check_inference(self):
+        """
+        Checks that all the necessary parameters are set for inference.
+
+        Checks that:
+        - A task has been selected
+        - A model has been selected
+        - Data has been selected
+        """
+        if self.parent.selected_task is None:
+            raise ValueError("No task/organelle selected!")
+        if self.parent.selected_model is None:
+            raise ValueError("No model selected!")
+        if len(self.parent.subwidgets["data"].image_path_dict) == 0:
+            raise ValueError("No data selected!")
 
     def setup_inference(self, nxf_params=None):
         """
@@ -111,6 +127,8 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
 
         NOTE: A lot of this will need to be switched when Model subwidget created.
         """
+        # First check that everything has been selected that needs to have been
+        self.check_inference()
         # nxf_cmd = f"nextflow run {self.nxf_repo} -entry inference"
         # Set the base Nextflow command
         nxf_cmd = f"nextflow run {self.nxf_repo} -r master"
