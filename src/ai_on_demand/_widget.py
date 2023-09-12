@@ -481,6 +481,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         masks_exist = [i.exists() for i in self.all_mask_files]
         proceed = not all(masks_exist)
         # Return only the image paths that don't have masks
+        # Feels more verbose than just zipping over, but it's the same thing
         img_paths = list(
             compress(
                 self.subwidgets["data"].image_path_dict.values(),
@@ -491,6 +492,42 @@ Run segmentation/inference on selected images using one of the available pre-tra
         if not proceed:
             assert len(img_paths) == 0
         return proceed, img_paths
+
+    def create_mask_layers(self, img_paths=None):
+        if img_paths is None:
+            img_paths = self.subwidgets["data"].image_path_dict.values()
+        # Construct the mask layer names
+        layer_names = [
+            self._get_mask_layer_name(Path(i).stem) for i in img_paths
+        ]
+        # Create the Labels layers for each image
+        for fpath, layer_name in zip(img_paths, layer_names):
+            # Check if the mask file already exists
+            mask_fpath = self.subwidgets[
+                "nxf"
+            ].mask_dir_path / self._get_mask_name(fpath.stem)
+            # If it does, load it
+            if mask_fpath.exists():
+                mask_data = np.load(mask_fpath)
+                # Add a Labels layer for this file
+                self.viewer.add_labels(
+                    mask_data, name=layer_name, visible=True
+                )
+            else:
+                # If the associated image is present, use its shape
+                try:
+                    img_shape = self.viewer.layers[f"{fpath.name}"].data.shape
+                # Otherwise default to 1000x1000 to avoid weird viewer
+                except KeyError:
+                    img_shape = (1000, 1000)
+                # Add a Labels layer for this file
+                self.viewer.add_labels(
+                    np.zeros(img_shape, dtype=int),
+                    name=layer_name,
+                    visible=False,
+                )
+            # Move this layer to the top
+            self.viewer.layers.move(self.viewer.layers.index(layer_name), 0)
 
     def watch_mask_files(self):
         """
@@ -505,20 +542,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         if not self.viewer.layers:
             time.sleep(1)
         # Create the Labels layers for each image
-        for fpath in self.subwidgets["data"].image_path_dict.values():
-            # If images still not loaded, add dummy array
-            try:
-                img_shape = self.viewer.layers[f"{fpath.name}"].data.shape
-            except KeyError:
-                img_shape = (1000, 1000)
-            # Set the layer name for the mask following convention (i.e. the Segment-Flow pipeline output)
-            name = self._get_mask_layer_name(fpath.stem)
-            # Add a Labels layer for this file
-            self.viewer.add_labels(
-                np.zeros(img_shape, dtype=int), name=name, visible=False
-            )
-            # Move this layer to the top
-            self.viewer.layers.move(self.viewer.layers.index(name), 0)
+        self.create_mask_layers()
 
         # NOTE: Wrapper as self/class not available at runtime
         @thread_worker(connect={"yielded": self.update_masks})
@@ -618,9 +642,14 @@ Run segmentation/inference on selected images using one of the available pre-tra
 
     def get_model_config(self):
         # First check if there is a config file for this model
-        model_task_dict = MODEL_TASK_VERSIONS[self.selected_model][
-            self.selected_task
-        ][self.selected_variant]
+        try:
+            model_task_dict = MODEL_TASK_VERSIONS[self.selected_model][
+                self.selected_task
+            ][self.selected_variant]
+        except KeyError as e:
+            raise Exception(
+                f"No config file found for {self.selected_model} ({self.selected_variant}) to segment {self.selected_task}!"
+            ) from e
         if "config" in model_task_dict:
             # Set this as the base config
             base_config = model_task_dict["config"]
@@ -648,6 +677,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Extract the model type
         self.selected_variant = self.model_version_dropdown.currentText()
         # Define save path for the model config
+        # TODO: Switch to use .nextflow?
         config_dir = Path(__file__).parent / "nextflow" / "configs"
         config_dir.mkdir(parents=True, exist_ok=True)
         model_config_fpath = (

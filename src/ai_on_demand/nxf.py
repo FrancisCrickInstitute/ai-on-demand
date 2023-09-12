@@ -201,7 +201,7 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
                     Path(img_path).stem
                 )
                 if layer_name in self.viewer.layers:
-                    self.viewer.layers[layer_name].data = None
+                    self.viewer.layers.remove(layer_name)
             # Delete current masks
             for mask_path in self.mask_dir_path.glob("*.npy"):
                 mask_path.unlink()
