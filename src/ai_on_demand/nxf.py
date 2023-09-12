@@ -17,6 +17,7 @@ from qtpy.QtWidgets import (
     QFileDialog,
     QScrollArea,
     QProgressBar,
+    QCheckBox,
 )
 from ai_on_demand.models import MODEL_TASK_VERSIONS, MODEL_DISPLAYNAMES
 from ai_on_demand.utils import sanitise_name, format_tooltip
@@ -47,6 +48,10 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         # Define attributes that may be useful outside of this class
         # or throughout it
         self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
+        # Set the basepath to store masks/checkpoints etc. in
+        self.nxf_store_dir = Path(__file__).parent / ".nextflow" / "cache"
+        # Path to store the text file containing the image paths
+        self.img_list_fpath = Path(__file__).parent / "all_img_paths.txt"
 
         self.pipeline = pipeline
         # Available pipelines and their funcs
@@ -68,6 +73,18 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         self.nxf_profile_box.addItems(avail_confs)
         self.layout().addWidget(self.nxf_profile_label, 0, 0)
         self.layout().addWidget(self.nxf_profile_box, 0, 1)
+        # Add a checkbox for overwriting existing results
+        self.overwrite_btn = QCheckBox("Overwrite existing results")
+        self.overwrite_btn.setToolTip(
+            format_tooltip(
+                """
+            Select/enable to overwrite any previous results.
+
+            Exactly what is overwritten will depend on the pipeline selected. By default, any previous results matching the current setup will be loaded if possible. This can be disabled by ticking this box.
+        """
+            )
+        )
+        self.layout().addWidget(self.overwrite_btn, 1, 0, 1, 2)
         # Create a button to navigate to a directory to take images from
         self.nxf_run_btn = QPushButton("Run Pipeline!")
         self.nxf_run_btn.clicked.connect(self.run_pipeline)
@@ -76,7 +93,7 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
                 "Run the pipeline with the chosen organelle(s), model, and images."
             )
         )
-        self.layout().addWidget(self.nxf_run_btn, 1, 0, 1, 2)
+        self.layout().addWidget(self.nxf_run_btn, 2, 0, 1, 2)
 
         # Add a button for exporting masks
         self.export_masks_btn = QPushButton("Export masks")
@@ -86,7 +103,7 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         )
         self.export_masks_btn.setEnabled(False)
         # TODO: Add dropdown for different formats to export to
-        self.layout().addWidget(self.export_masks_btn, 2, 0, 1, 1)
+        self.layout().addWidget(self.export_masks_btn, 3, 0, 1, 1)
 
         self.widget.setLayout(self.layout())
 
@@ -148,6 +165,12 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         ]
         self.selected_variant = parent.model_version_dropdown.currentText()
         self.selected_task = parent.selected_task
+        # Construct the proper mask directory path
+        self.mask_dir_path = (
+            self.nxf_store_dir
+            / f"{self.selected_model}"
+            / f"{sanitise_name(self.selected_variant)}_masks"
+        )
         # Construct the params to be given to Nextflow
         nxf_params = {}
         nxf_params["img_dir"] = str(self.img_list_fpath)
@@ -167,9 +190,33 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
             nxf_params["model_chkpt_type"] = "dir"
             nxf_params["model_chkpt_loc"] = checkpoint_info["dir"]
             nxf_params["model_chkpt_fname"] = checkpoint_info["filename"]
-        # Start the watcher for the mask files
-        self.parent.watch_mask_files()
-        return nxf_cmd, nxf_params
+        # No need to check if we are ovewriting
+        if self.overwrite_btn.isChecked():
+            proceed = True
+            img_paths = self.parent.subwidgets["data"].image_path_dict.values()
+            # Delete data in mask layers if present
+            for img_path in img_paths:
+                # Get the mask layer name
+                layer_name = self.parent._get_mask_layer_name(
+                    Path(img_path).stem
+                )
+                if layer_name in self.viewer.layers:
+                    self.viewer.layers[layer_name].data = None
+            # Delete current masks
+            for mask_path in self.mask_dir_path.glob("*.npy"):
+                mask_path.unlink()
+        # Check if we already have all the masks
+        else:
+            proceed, img_paths = self.parent.check_masks()
+        if not proceed:
+            show_info(
+                f"Masks already exist for all files for segmenting {self.selected_task} with {self.selected_model} ({self.selected_variant})!"
+            )
+            return nxf_cmd, nxf_params, proceed, img_paths
+        else:
+            # Start the watcher for the mask files
+            self.parent.watch_mask_files()
+            return nxf_cmd, nxf_params, proceed, img_paths
 
     def setup_finetuning(self):
         """
@@ -183,13 +230,19 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
             raise ValueError("Cannot run pipeline without data widget!")
         # Store the image paths
         self.image_path_dict = self.parent.subwidgets["data"].image_path_dict
-        self.store_img_paths(img_paths=self.image_path_dict.values())
         # Ensure the pipeline is valid
         assert (
             self.pipeline in self.pipelines.keys()
         ), f"Pipeline {self.pipeline} not found!"
         # Get the pipeline-specific stuff
-        nxf_cmd, nxf_params = self.pipelines[self.pipeline]()
+        nxf_cmd, nxf_params, proceed, img_paths = self.pipelines[
+            self.pipeline
+        ]()
+        # Don't run the pipeline if no green light given
+        if not proceed:
+            return
+        # Store the image paths
+        self.store_img_paths(img_paths=img_paths)
         # Add the selected profile to the command
         nxf_cmd += f" -profile {self.nxf_profile_box.currentText()}"
         # Add the parameters to the command

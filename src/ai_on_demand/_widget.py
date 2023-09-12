@@ -1,5 +1,7 @@
+from itertools import compress
 from pathlib import Path
 import time
+from typing import Optional
 import yaml
 
 import napari
@@ -44,9 +46,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Handy attributes to check things
         self.selected_task = None
         self.selected_model = None
-
-        # Set the basepath to watch for masks
-        self.mask_base_path = Path(__file__).parent / ".nextflow" / "cache"
 
         # Set selection colour
         self.colour_selected = "#F7AD6F"
@@ -463,6 +462,36 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.model_config_label.setText("No model config file selected.")
         self.model_config = None
 
+    def check_masks(self) -> bool:
+        """
+        Function to check if masks are present for the current setup.
+
+        If all are present, avoids running the Nextflow pipeline.
+        """
+        # TODO: Maybe move below to nxf.py. Then, if overwriting delete old masks to avoid watcher issue.
+        # Check if masks are present for all images
+        self.all_mask_files = [
+            (
+                self.subwidgets["nxf"].mask_dir_path
+                / self._get_mask_name(fpath.stem)
+            )
+            for fpath in self.subwidgets["data"].image_path_dict.values()
+        ]
+        # Only proceed
+        masks_exist = [i.exists() for i in self.all_mask_files]
+        proceed = not all(masks_exist)
+        # Return only the image paths that don't have masks
+        img_paths = list(
+            compress(
+                self.subwidgets["data"].image_path_dict.values(),
+                [not i for i in masks_exist],
+            )
+        )
+        # If we aren't proceeding, there should be no images without masks!
+        if not proceed:
+            assert len(img_paths) == 0
+        return proceed, img_paths
+
     def watch_mask_files(self):
         """
         File watcher to watch for new mask files being created during the Nextflow run.
@@ -483,19 +512,13 @@ Run segmentation/inference on selected images using one of the available pre-tra
             except KeyError:
                 img_shape = (1000, 1000)
             # Set the layer name for the mask following convention (i.e. the Segment-Flow pipeline output)
-            name = self._get_mask_name(fpath.stem)
+            name = self._get_mask_layer_name(fpath.stem)
             # Add a Labels layer for this file
             self.viewer.add_labels(
                 np.zeros(img_shape, dtype=int), name=name, visible=False
             )
             # Move this layer to the top
             self.viewer.layers.move(self.viewer.layers.index(name), 0)
-        # Construct the proper mask path
-        self.mask_dir_path = (
-            self.mask_base_path
-            / f"{self.selected_model}"
-            / f"{sanitise_name(self.selected_variant)}_masks"
-        )
 
         # NOTE: Wrapper as self/class not available at runtime
         @thread_worker(connect={"yielded": self.update_masks})
@@ -508,7 +531,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # Loop and yield any changes infinitely while enabled
             while self.watcher_enabled:
                 # Get all files
-                current_files = list(self.mask_dir_path.glob("*.npy"))
+                current_files = list(
+                    self.subwidgets["nxf"].mask_dir_path.glob("*.npy")
+                )
                 # Filter out files we are not running on
                 current_files = [
                     i
@@ -541,8 +566,18 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Call the nested function
         _watch_mask_files(self)
 
-    def _get_mask_name(self, stem: str):
-        return f"{stem}_masks_{self.selected_model}-{sanitise_name(self.selected_variant)}"
+    def _get_mask_layer_name(self, stem: str, extension: Optional[str] = None):
+        fname = f"{stem}_masks_{self.selected_model}-{sanitise_name(self.selected_variant)}"
+        if extension is not None:
+            fname += f".{extension}"
+        return fname
+
+    def _get_mask_name(self, stem: str, extension="npy"):
+        mask_root = self._get_mask_layer_name(stem=stem)
+        # Add the _all marker to signify all slices/completeness
+        mask_root += "_all"
+        # Add the extension
+        return f"{mask_root}.{extension}"
 
     def update_masks(self, new_files):
         """
