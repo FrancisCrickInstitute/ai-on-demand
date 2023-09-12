@@ -555,18 +555,20 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # Check if the mask layer has been renamed
             prefix = f.stem.split("_masks_")[0]
             # Extract the relevant Labels layer
-            mask_layer_name = self._get_mask_name(prefix)
+            mask_layer_name = self._get_mask_layer_name(prefix)
             label_layer = self.viewer.layers[mask_layer_name]
             # Insert mask data
             label_layer.data = mask_arr
             label_layer.visible = True
-            # Move this label layer and it's image layer to the top
-            label_idx = self.viewer.layers.index(label_layer)
-            self.viewer.layers.move(label_idx, 0)
+            # Try to rearrange the layers to get them on top
+            idxs = []
             # Have to check due to possible delay in loading
             if prefix in self.viewer.layers:
                 img_idx = self.viewer.layers.index(self.viewer.layers[prefix])
-                self.viewer.layers.move(img_idx, 1)
+                idxs.append(img_idx)
+            label_idx = self.viewer.layers.index(label_layer)
+            idxs.append(label_idx)
+            self.viewer.layers.move_multiple(idxs)
             slice_num = f.stem.split("_")[-1]
             # Switch viewer to latest slice
             if slice_num == "all":
