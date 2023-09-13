@@ -185,7 +185,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         _watch_mask_files(self)
 
     def _get_mask_layer_name(self, stem: str, extension: Optional[str] = None):
-        fname = f"{stem}_masks_{self.selected_model}-{sanitise_name(self.selected_variant)}"
+        fname = f"{stem}_masks_{self.selected_task}-{self.selected_model}-{sanitise_name(self.selected_variant)}"
         if extension is not None:
             fname += f".{extension}"
         return fname
