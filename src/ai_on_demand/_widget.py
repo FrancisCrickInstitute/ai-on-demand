@@ -95,10 +95,17 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # If it does, load it
             if mask_fpath.exists():
                 mask_data = np.load(mask_fpath)
-                # Add a Labels layer for this file
-                self.viewer.add_labels(
-                    mask_data, name=layer_name, visible=True
-                )
+                # Check if the mask layer already exists
+                if layer_name in self.viewer.layers:
+                    # If so, update the data just to make sure & ensure visible
+                    self.viewer.layers[layer_name].data = mask_data
+                    self.viewer.layers[layer_name].visible = True
+                # If not, add a Labels layer
+                else:
+                    # Add a Labels layer for this file
+                    self.viewer.add_labels(
+                        mask_data, name=layer_name, visible=True
+                    )
             else:
                 # If the associated image is present, use its shape
                 try:
