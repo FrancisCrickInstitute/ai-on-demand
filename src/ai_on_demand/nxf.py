@@ -95,6 +95,14 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         )
         self.layout().addWidget(self.nxf_run_btn, 2, 0, 1, 2)
 
+        # # Add a button for importing masks
+        # self.import_masks_btn = QPushButton("Import masks")
+        # self.import_masks_btn.clicked.connect(self.on_click_import)
+        # self.import_masks_btn.setToolTip(
+        #     format_tooltip("Import segmentation masks.")
+        # )
+        # self.import_masks_btn.setEnabled(True)
+        # self.layout().addWidget(self.import_masks_btn, 3, 0, 1, 1)
         # Add a button for exporting masks
         self.export_masks_btn = QPushButton("Export masks")
         self.export_masks_btn.clicked.connect(self.on_click_export)
@@ -205,6 +213,8 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
             show_info(
                 f"Masks already exist for all files for segmenting {parent.selected_task} with {parent.selected_model} ({parent.selected_variant})!"
             )
+            # TODO: Can use data subwidget `view_images` & `create_mask_layers` to load the masks here
+            # Otherwise, until importing is fully sorted, the user just gets a notification and that's it
             return nxf_cmd, nxf_params, proceed, img_paths
         else:
             # Start the watcher for the mask files
@@ -338,6 +348,28 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
     def update_progress_bars(self):
         raise NotImplementedError
 
+    def on_click_import(self):
+        """
+        Callback for when the import button is clicked. Opens a dialog to select mask files to import.
+
+        Expectation is that these come from the Nextflow and are therefore .npy files. For anything external, they can be added to Napari as normal.
+
+        TODO: Current disabled, as arbitrary import makes it harder to allow partial pipeline running.
+        """
+        fnames, _ = QFileDialog.getOpenFileNames(
+            self,
+            caption="Select mask files to import",
+            directory=str(Path.home()),
+            filter="Numpy files (*.npy)",
+        )
+        for fname in fnames:
+            mask_arr = np.load(fname)
+            self.viewer.add_labels(
+                mask_arr,
+                name=Path(fname).stem.replace("_all", ""),
+                visible=True,
+            )
+
     def on_click_export(self):
         """
         Callback for when the export button is clicked. Opens a dialog to select a directory to save the masks to.
@@ -355,6 +387,7 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
             if layer_name in viewer.layers:
                 mask_layers.append(viewer.layers[layer_name])
         # Extract the data from each of the layers, and save the result in the given folder
+        # NOTE: Will also need adjusting for the dask/zarr rewrite
         for mask_layer in mask_layers:
             np.save(
                 Path(export_dir) / f"{mask_layer.name}.npy", mask_layer.data

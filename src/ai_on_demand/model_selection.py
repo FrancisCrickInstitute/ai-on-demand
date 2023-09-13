@@ -328,13 +328,6 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             self.model_param_widgets_dict[
                 model_task_version
             ] = self.curr_model_param_widget
-        # # Set the collapsible box to contain the params for this model
-        # self.model_param_layout.addWidget(self.curr_model_param_widget)
-        # # Ensure it's visible if the params button is pressed
-        # if self.model_param_btn.isChecked():
-        #     self.curr_model_param_widget.setVisible(True)
-        # else:
-        #     self.curr_model_param_widget.setVisible(False)
         # Set the current model param widget
         self.set_model_param_widget()
 
