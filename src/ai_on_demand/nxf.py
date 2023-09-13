@@ -154,34 +154,27 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
             return nxf_cmd, nxf_params
         # Construct the Nextflow params if not given
         parent = self.parent
-        if parent.model_config is None:
-            # TODO: Switch to Model widget
-            config_path = parent.get_model_config()
+        if parent.subwidgets["model"].model_config is None:
+            config_path = parent.subwidgets["model"].get_model_config()
         else:
-            config_path = parent.model_config
-        # Extract the current model version selected
-        self.selected_model = MODEL_DISPLAYNAMES[
-            parent.model_dropdown.currentText()
-        ]
-        self.selected_variant = parent.model_version_dropdown.currentText()
-        self.selected_task = parent.selected_task
+            config_path = parent.subwidgets["model"].model_config
         # Construct the proper mask directory path
         self.mask_dir_path = (
             self.nxf_store_dir
-            / f"{self.selected_model}"
-            / f"{sanitise_name(self.selected_variant)}_masks"
+            / f"{parent.selected_model}"
+            / f"{sanitise_name(parent.selected_variant)}_masks"
         )
         # Construct the params to be given to Nextflow
         nxf_params = {}
         nxf_params["img_dir"] = str(self.img_list_fpath)
-        nxf_params["model"] = self.selected_model
+        nxf_params["model"] = parent.selected_model
         nxf_params["model_config"] = config_path
-        nxf_params["model_type"] = sanitise_name(self.selected_variant)
-        nxf_params["task"] = self.selected_task
+        nxf_params["model_type"] = sanitise_name(parent.selected_variant)
+        nxf_params["task"] = parent.selected_task
         # Extract the model checkpoint location and location type
-        checkpoint_info = MODEL_TASK_VERSIONS[self.selected_model][
-            self.selected_task
-        ][self.selected_variant]
+        checkpoint_info = MODEL_TASK_VERSIONS[parent.selected_model][
+            parent.selected_task
+        ][parent.selected_variant]
         if "url" in checkpoint_info:
             nxf_params["model_chkpt_type"] = "url"
             nxf_params["model_chkpt_loc"] = checkpoint_info["url"]
@@ -210,7 +203,7 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
             proceed, img_paths = self.parent.check_masks()
         if not proceed:
             show_info(
-                f"Masks already exist for all files for segmenting {self.selected_task} with {self.selected_model} ({self.selected_variant})!"
+                f"Masks already exist for all files for segmenting {parent.selected_task} with {parent.selected_model} ({parent.selected_variant})!"
             )
             return nxf_cmd, nxf_params, proceed, img_paths
         else:

@@ -61,7 +61,8 @@ class TaskWidget(SubWidget):
         # Find out which button was pressed
         for task_name, task_btn in self.task_buttons.items():
             if task_btn.isChecked():
-                # TODO: Temporary patch, maybe not best approach as this should be self-contained and interfaced
                 self.parent.selected_task = task_name
         # Update the model box for the selected task
-        self.parent.update_model_box(self.parent.selected_task)
+        self.parent.subwidgets["model"].update_model_box(
+            self.parent.selected_task
+        )
