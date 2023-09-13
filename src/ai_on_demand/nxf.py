@@ -218,7 +218,6 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         raise NotImplementedError
 
     def run_pipeline(self):
-        # TODO: Add any general steps prior to running the pipeline
         if "data" not in self.parent.subwidgets:
             raise ValueError("Cannot run pipeline without data widget!")
         # Store the image paths
@@ -259,7 +258,7 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         # Modify buttons during run
         self.export_masks_btn.setEnabled(False)
         # Disable the button to avoid issues
-        # TODO: Enable multiple job execution, may require -bg flag
+        # TODO: Enable multiple job execution, may require -bg flag?
         self.nxf_run_btn.setEnabled(False)
         # Update the button to signify it's running
         self.nxf_run_btn.setText("Running Pipeline...")
@@ -348,10 +347,9 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         )
         # Get the current viewer
         viewer = self.parent.viewer if self.parent is not None else None
-        # FIXME: How to handle if parent doesn't exist? Will this ever happen?
+        # TODO: How to handle if parent doesn't exist? Will this ever happen?
         # Get all the mask layers
         mask_layers = []
-        # FIXME: self.parent will be replaced when all widgets become modular
         for img_name in self.image_path_dict:
             layer_name = f"{img_name}_masks_{self.parent.selected_model}-{sanitise_name(self.parent.selected_variant)}"
             if layer_name in viewer.layers:

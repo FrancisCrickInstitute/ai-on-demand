@@ -55,6 +55,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         If all are present, avoids running the Nextflow pipeline.
         """
         # TODO: Maybe move below to nxf.py. Then, if overwriting delete old masks to avoid watcher issue.
+        # If mask stuff is in nxf.py, then this script becomes very empty...
         # Check if masks are present for all images
         self.all_mask_files = [
             (

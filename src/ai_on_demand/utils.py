@@ -13,8 +13,6 @@ def merge_dicts(d1, d2):
     Merge two dictionaries recursively. d2 will overwrite d1 where specified.
 
     Assumes both dicts have same structure/keys.
-
-    TODO: Move to utils.
     """
     for k, v in d2.items():
         if isinstance(v, dict):

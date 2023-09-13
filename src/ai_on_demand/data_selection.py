@@ -67,7 +67,6 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             )
         )
         self.layout().addWidget(self.img_btn, 0, 0)
-        # TODO: What happens if multiple directories are selected? Is this possible?
         # Create a button to navigate to a directory to take images from
         self.dir_btn = QPushButton("Select image directory")
         self.dir_btn.clicked.connect(self.browse_imgs_dir)
@@ -148,7 +147,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         Opens a dialog for selecting images to segment.
         """
         # TODO: Implement a cache that stores the last directory used?
-        # TODO: Should this cache persist across sessions, or is that invasive?
+            # Should this cache persist across sessions, or is that invasive?
         fnames, _ = QFileDialog.getOpenFileNames(
             self,
             "Select one or more images",
