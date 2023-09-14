@@ -2,9 +2,10 @@ name: ai-on-demand
 display_name: AI OnDemand
 contributions:
   commands:
-    - id: ai-on-demand.make_qwidget
-      python_name: ai_on_demand._widget:AIOnDemand
-      title: Run AI OnDemand for segmentation
+    - id: ai-on-demand.inference
+      python_name: ai_on_demand._widget:Inference
+      title: Segment using pre-trained models
+      short_title: Inference
   widgets:
-    - command: ai-on-demand.make_qwidget
-      display_name: AI OnDemand
+    - command: ai-on-demand.inference
+      display_name: AIoD Inference
