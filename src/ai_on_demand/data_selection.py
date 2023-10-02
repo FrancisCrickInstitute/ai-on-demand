@@ -34,9 +34,9 @@ class DataWidget(SubWidget):
             parent,
             layout,
             tooltip="""
-Select a directory to take images from, or select individual images.
+Select data to be used as input to the model.
 
-Images can also be opened, or dragged into napari as normal. The selection will be updated accordingly. Note that all images loaded are additive, unless removed as a layer. The 'Reset selection' button can be used to clear all images.
+Images can also be opened, or dragged into napari as normal. The selection will be updated accordingly. The 'Reset selection' button can be used to clear all images.
 """,
         )
 
@@ -72,11 +72,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         self.dir_btn.clicked.connect(self.browse_imgs_dir)
         self.dir_btn.setToolTip(
             format_tooltip(
-                """
-            Select folder/directory of images to use as input to the model.
-            Note that this allows for running the pipeline without having to load images into napari first.
-            Any images loaded into napari will also be used within the pipeline, however.
-        """
+                "Select folder/directory of images to use as input to the model."
             )
         )
         self.layout().addWidget(self.dir_btn, 0, 1)
@@ -147,7 +143,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         Opens a dialog for selecting images to segment.
         """
         # TODO: Implement a cache that stores the last directory used?
-            # Should this cache persist across sessions, or is that invasive?
+        # Should this cache persist across sessions, or is that invasive?
         fnames, _ = QFileDialog.getOpenFileNames(
             self,
             "Select one or more images",
