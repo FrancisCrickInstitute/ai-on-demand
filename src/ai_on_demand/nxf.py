@@ -52,6 +52,9 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         self.nxf_store_dir = Path(__file__).parent / ".nextflow" / "cache"
         # Path to store the text file containing the image paths
         self.img_list_fpath = Path(__file__).parent / "all_img_paths.txt"
+        # Whether all images have been loaded
+        # Needed to properly extract metadata
+        self.all_loaded = False
 
         self.pipeline = pipeline
         # Available pipelines and their funcs
@@ -78,9 +81,9 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         self.overwrite_btn.setToolTip(
             format_tooltip(
                 """
-            Select/enable to overwrite any previous results.
+Select/enable to overwrite any previous results.
 
-            Exactly what is overwritten will depend on the pipeline selected. By default, any previous results matching the current setup will be loaded if possible. This can be disabled by ticking this box.
+Exactly what is overwritten will depend on the pipeline selected. By default, any previous results matching the current setup will be loaded if possible. This can be disabled by ticking this box.
         """
             )
         )
@@ -236,6 +239,9 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         assert (
             self.pipeline in self.pipelines.keys()
         ), f"Pipeline {self.pipeline} not found!"
+        if self.all_loaded is False:
+            show_info("Not all images have loaded, please wait...")
+            return
         # Get the pipeline-specific stuff
         nxf_cmd, nxf_params, proceed, img_paths = self.pipelines[
             self.pipeline
@@ -243,15 +249,14 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         # Don't run the pipeline if no green light given
         if not proceed:
             return
-        # Store the image paths
-        self.store_img_paths(img_paths=img_paths)
         # Add the selected profile to the command
         nxf_cmd += f" -profile {self.nxf_profile_box.currentText()}"
         # Add the parameters to the command
         for param, value in nxf_params.items():
             nxf_cmd += f" --{param}={value}"
 
-        self.parent.subwidgets["data"].view_images()
+        # Store the image paths
+        self.store_img_paths(img_paths=img_paths)
 
         @thread_worker(
             connect={
