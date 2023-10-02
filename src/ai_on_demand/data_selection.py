@@ -59,7 +59,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
                     except AttributeError:
                         continue
         # Create a button to select individual images from
-        self.img_btn = QPushButton("Select image files")
+        self.img_btn = QPushButton("Select image\nfiles")
         self.img_btn.clicked.connect(self.browse_imgs_files)
         self.img_btn.setToolTip(
             format_tooltip(
@@ -68,7 +68,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         )
         self.layout().addWidget(self.img_btn, 0, 0)
         # Create a button to navigate to a directory to take images from
-        self.dir_btn = QPushButton("Select image directory")
+        self.dir_btn = QPushButton("Select image\ndirectory")
         self.dir_btn.clicked.connect(self.browse_imgs_dir)
         self.dir_btn.setToolTip(
             format_tooltip(
@@ -76,30 +76,21 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             )
         )
         self.layout().addWidget(self.dir_btn, 0, 1)
-        # Add an output to show the counts
-        self.init_file_msg = "No files selected or added to Napari."
-        self.img_counts = QLabel(self.init_file_msg)
-        self.img_counts.setWordWrap(True)
-        self.layout().addWidget(self.img_counts, 1, 0, 1, 2)
-
-        # Add a button for viewing the images within napari
-        # Optional as potentially taxing, and not necessary
-        self.init_view_msg = "View selected images"
-        self.view_img_btn = QPushButton(self.init_view_msg)
-        self.view_img_btn.setToolTip(
-            format_tooltip("Load selected images into napari to view.")
-        )
-        self.view_img_btn.clicked.connect(self.view_images)
-        self.layout().addWidget(self.view_img_btn, 2, 0)
         # Create a button to clear selected directory
-        self.clear_dir_btn = QPushButton("Reset selection")
+        self.clear_dir_btn = QPushButton("Reset\nselection")
         self.clear_dir_btn.clicked.connect(self.clear_directory)
         self.clear_dir_btn.setToolTip(
             format_tooltip(
                 "Reset selection of images (clears all images in the viewer)."
             )
         )
-        self.layout().addWidget(self.clear_dir_btn, 2, 1)
+        self.layout().addWidget(self.clear_dir_btn, 0, 2)
+        # Add an output to show the counts
+        self.init_file_msg = "No files selected or added to Napari."
+        self.img_counts = QLabel(self.init_file_msg)
+        self.img_counts.setWordWrap(True)
+        self.layout().addWidget(self.img_counts, 1, 0, 1, 3)
+
         # Add button layout to box layout
         # Sort out layout and add to main widget
         self.widget.setLayout(self.layout())
@@ -152,6 +143,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         )
         if fnames != []:
             self.update_file_count(paths=fnames)
+            self.view_images(imgs_to_load=fnames)
 
     def browse_imgs_dir(self):
         """
@@ -163,27 +155,43 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             self, caption="Select image directory", directory=None
         )
         if result != "":
-            self.update_file_count(paths=list(Path(result).glob("*")))
+            all_paths = list(Path(result).glob("*"))
+            self.update_file_count(paths=all_paths)
+            self.view_images(imgs_to_load=all_paths)
 
-    def view_images(self):
+    def view_images(
+        self, imgs_to_load: Optional[list[Union[Path, str]]] = None
+    ):
         """
         Loads the selected images into napari for viewing (in separate threads).
         """
         # Return if there's nothing to show
         if len(self.image_path_dict) == 0:
             return
-        # Check if there are images to load that haven't been already
-        viewer_imgs = [
-            Path(i.name).stem
-            for i in self.viewer.layers
-            if isinstance(i, Image)
-        ]
-        imgs_to_load = [
-            v for k, v in self.image_path_dict.items() if k not in viewer_imgs
-        ]
-        if imgs_to_load == []:
+        if imgs_to_load is None:
+            # Check if there are images to load that haven't been already
+            viewer_imgs = [
+                Path(i.name).stem
+                for i in self.viewer.layers
+                if isinstance(i, Image)
+            ]
+            imgs_to_load = [
+                v
+                for k, v in self.image_path_dict.items()
+                if k not in viewer_imgs
+            ]
+        # If giving paths, double-check they aren't already loaded somehow
+        elif imgs_to_load:
+            remove_fnames = []
+            for fname in imgs_to_load:
+                if Path(fname).stem in self.viewer.layers:
+                    remove_fnames.append(fname)
+            imgs_to_load = [i for i in imgs_to_load if i not in remove_fnames]
+        # Selecting no images will cause imgs_to_load=False, I think?
+        else:
             return
-        self.view_img_btn.setEnabled(False)
+        if len(imgs_to_load) == 0:
+            return
         # Reset counter
         self.load_img_counter = 0
 
@@ -191,18 +199,19 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         @thread_worker(
             connect={
                 "returned": self._add_image,
-                "finished": self._reset_view_btn,
+                "finished": self._finished_loading,
             }
         )
         def _load_image(fpath):
-            return skimage.io.imread(fpath), fpath
+            return skimage.io.imread(fpath), Path(fpath)
 
         # Load each image in a separate thread
         for fpath in imgs_to_load:
             _load_image(fpath)
         # NOTE: This does not work well for a directory of large images on a remote directory
         # But that would trigger loading GBs into memory over network, which is...undesirable
-        self.view_img_btn.setText("Loading...")
+        self.loading_txt = f" (loading {len(imgs_to_load)} image{'s' if len(imgs_to_load) > 1 else ''}...)"
+        self.img_counts.setText(self.img_counts.text() + self.loading_txt)
 
     def _add_image(self, res):
         """
@@ -212,24 +221,21 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         # Add the image to the overall dict
         self.image_path_dict[fpath.stem] = fpath
         self.viewer.add_image(img, name=fpath.stem)
-        self.load_img_counter += 1
-        self.view_img_btn.setText(
-            f"Loading...({self.load_img_counter} image{'s' if self.load_img_counter > 1 else ''} loaded)."
-        )
-        img_layers = [i for i in self.viewer.layers if isinstance(i, Image)]
-        # Only change text when we have as many image layers as images
-        if len(img_layers) == len(self.image_path_dict):
-            self.view_img_btn.setText("All images loaded.")
         # # Update the progress bar range (just in case the image wasn't loaded in time)
         # if img.ndim > 2:
         #     self.progress_bar_dict[fpath.stem].setRange(0, img.shape[-3])
         #     self.progress_bar_dict[fpath.stem].setValue(0)
 
-    def _reset_view_btn(self):
-        """Reset the view button to be clickable again when done."""
-        self.view_img_btn.setEnabled(True)
-        self.view_img_btn.setText("All images loaded.")
-        # Also reset the viewer itself
+    def _finished_loading(self):
+        """Signify to user that all images have been loaded."""
+        self.img_counts.setText(
+            self.img_counts.text().replace(
+                self.loading_txt, " (all images loaded)."
+            )
+        )
+        # Ensure Nextflow subwidget knows everything is loaded to extract metadata
+        self.parent.subwidgets["nxf"].all_loaded = True
+        # Also reset the viewer itself to ensure images are visible
         self.viewer.reset_view()
 
     def update_file_count(
@@ -265,10 +271,8 @@ Images can also be opened, or dragged into napari as normal. The selection will 
                     txt += f"{count} {ext}, "
         else:
             txt += f"{ext_counts[0][1]} {ext_counts[0][0]}"
-        txt += f" file{'s' if sum(extension_counts.values()) > 1 else ''}."
+        txt += f" file{'s' if sum(extension_counts.values()) > 1 else ''}"
         self.img_counts.setText(txt)
-        # Reset the images loaded button text
-        self.view_img_btn.setText(self.init_view_msg)
 
     def clear_directory(self):
         """
@@ -278,8 +282,6 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         self.image_path_dict = {}
         # Reset image count text
         self.img_counts.setText(self.init_file_msg)
-        # Reset the images loaded button text
-        self.view_img_btn.setText(self.init_view_msg)
         # Remove Image layers from napari viewer
         img_layers = [i for i in self.viewer.layers if isinstance(i, Image)]
         for layer in img_layers:
