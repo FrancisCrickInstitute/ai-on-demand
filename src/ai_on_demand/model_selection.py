@@ -97,7 +97,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.params_config_widget = QWidget()
         self.params_config_layout = QHBoxLayout()
         # Create button for displaying model param options
-        self.model_param_btn = QPushButton("Modify Params")
+        self.model_param_btn = QPushButton("Modify Parameters")
         self.model_param_btn.setToolTip(
             format_tooltip(
                 "Open options for modifying model parameters directly in napari."
@@ -110,7 +110,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_param_btn.clicked.connect(self.on_click_model_params)
         self.params_config_layout.addWidget(self.model_param_btn)
         # Create button for displaying model config options
-        self.model_config_btn = QPushButton("Load Config")
+        self.model_config_btn = QPushButton("Load/Save Config File")
         self.model_config_btn.setToolTip(
             format_tooltip(
                 "Open options for loading a config file to pass to the model."
@@ -211,7 +211,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_config_layout = QGridLayout()
 
         # Add the button for loading a config file
-        self.model_config_load_btn = QPushButton("Select model config file")
+        self.model_config_load_btn = QPushButton("Select model config")
         self.model_config_load_btn.clicked.connect(self.select_model_config)
         self.model_config_load_btn.setToolTip(
             format_tooltip(
