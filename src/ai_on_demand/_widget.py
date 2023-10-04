@@ -230,7 +230,14 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Iterate over each new files and add the mask to the appropriate image
         for f in new_files:
             # Load the numpy array
-            mask_arr = np.load(f)
+            try:
+                mask_arr = np.load(f)
+            # NOTE: This is a temporary fix, and only occurs with fast models and a good GPU
+            except FileNotFoundError:
+                print(
+                    f"File {f} not found, may have already been deleted. Skipping..."
+                )
+                continue
             # Check if the mask layer has been renamed
             prefix = f.stem.split("_masks_")[0]
             # Extract the relevant Labels layer
