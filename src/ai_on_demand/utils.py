@@ -29,3 +29,16 @@ def format_tooltip(text, width: int = 70):
     Necessary because Qt only automatically wordwraps rich text, which has it's own issues.
     """
     return textwrap.fill(text.strip(), width=width, drop_whitespace=True)
+
+
+def filter_empty_dict(d):
+    """
+    Filter out empty dicts from a nested dict.
+    """
+    new_dict = {}
+    for k, v in d.items():
+        if isinstance(v, dict):
+            v = filter_empty_dict(v)
+        if v not in (None, {}):
+            new_dict[k] = v
+    return new_dict

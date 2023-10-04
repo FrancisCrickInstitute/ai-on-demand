@@ -1,6 +1,8 @@
 from collections import namedtuple, defaultdict
+from pathlib import Path
 
 from ai_on_demand.tasks import TASK_NAMES
+from ai_on_demand.utils import filter_empty_dict
 
 # Define model shorthand and display names
 MODEL_NAMES = {
@@ -8,39 +10,6 @@ MODEL_NAMES = {
     "unet": "U-Net",
     "mitonet": "MitoNet",
 }
-# Reverse dict for convenience
-MODEL_DISPLAYNAMES = {v: k for k, v in MODEL_NAMES.items()}
-
-# # Checker function so that all models have definitons below
-# def check_model_names(d):
-#     return all([k in MODEL_NAMES for k in d.keys()])
-
-# # Define the available versions of each model
-# MODEL_VERSIONS = {
-#     "sam": ["default", "vit_l", "vit_b", "MedSAM"],
-#     "unet": ["U-Net", "Attention U-Net"],
-# }
-# assert check_model_names(MODEL_VERSIONS)
-
-
-# # Checker function so that all model tasks are valid
-# def check_model_tasks(d):
-#     return all([task in TASK_NAMES for tasks in d.values() for task in tasks])
-
-
-# # Define the tasks each model can perform (at the meta-level)
-# # Each model may have variants that can only do one task, which is fine, but
-# # full capability is listed here
-# MODEL_TASKS = {
-#     "sam": ["everything"],
-#     "unet": ["mito", "er", "ne"],
-# }
-# check_model_tasks(MODEL_TASKS)
-# # Create the reverse dict to check available models per task
-# TASK_MODELS = defaultdict(list)
-# for model, tasks in MODEL_TASKS.items():
-#     for task in tasks:
-#         TASK_MODELS[task].append(model)
 
 MODEL_TASK_VERSIONS = {
     "sam": {
@@ -116,11 +85,24 @@ assert all(
     ]
 )
 # Check each model version has a filename, and url or local path
-for model_dict in MODEL_TASK_VERSIONS.values():
-    for task_dict in model_dict.values():
-        for version_dict in task_dict.values():
+# If a local path, check whether it is accessible
+invalid_models = []
+for model_name, model_dict in MODEL_TASK_VERSIONS.items():
+    for task_name, task_dict in model_dict.items():
+        for version_name, version_dict in task_dict.items():
             assert "filename" in version_dict
             assert "url" in version_dict or "dir" in version_dict
+            if "dir" in version_dict:
+                if not Path(version_dict["dir"]).exists():
+                    invalid_models.append(
+                        (model_name, task_name, version_name)
+                    )
+# Filter out models that are not available so they do not show in the UI
+if len(invalid_models) > 0:
+    for model_name, task_name, version_name in invalid_models:
+        del MODEL_TASK_VERSIONS[model_name][task_name][version_name]
+# This can lead to nested empty dicts, so filter them out
+MODEL_TASK_VERSIONS = filter_empty_dict(MODEL_TASK_VERSIONS)
 
 TASK_MODELS = defaultdict(list)
 for model, task_dict in MODEL_TASK_VERSIONS.items():
@@ -149,8 +131,9 @@ sam_params = {
     ),
     "Min mask region area": Param("min_mask_region_area", 0, float, ""),
 }
+# Internal U-Net doesn't really take in params, so leave empty for now
 unet_params = {}
-
+# Empanada/MitoNet params
 mitonet_params = {
     "Mode": Param(
         "mode",
@@ -192,22 +175,36 @@ mitonet_params = {
         "fine_boundaries", False, bool, "Finer boundaries between objects"
     ),
 }
+MODEL_PARAMS_DICT = {
+    "sam": sam_params,
+    "unet": unet_params,
+    "mitonet": mitonet_params,
+}
+
+# Filter down to only the models that have at least one task available
+VALID_MODEL_NAMES = {
+    k: v for k, v in MODEL_NAMES.items() if k in MODEL_TASK_VERSIONS
+}
+# Reverse dict for convenience
+MODEL_DISPLAYNAMES = {v: k for k, v in VALID_MODEL_NAMES.items()}
+
 # Assuming every model version for each task has the same set of params
 # TODO: Need a better solution long-term
-MODEL_PARAMS = {
-    "sam": {v: sam_params for v in MODEL_TASK_VERSIONS["sam"].keys()},
-    "unet": {v: unet_params for v in MODEL_TASK_VERSIONS["unet"].keys()},
-    "mitonet": {
-        v: mitonet_params for v in MODEL_TASK_VERSIONS["mitonet"].keys()
-    },
-}
+MODEL_PARAMS = {}
+for model_name, param_dict in MODEL_PARAMS_DICT.items():
+    if model_name not in VALID_MODEL_NAMES:
+        continue
+    else:
+        MODEL_PARAMS[model_name] = {
+            v: param_dict for v in MODEL_TASK_VERSIONS[model_name].keys()
+        }
 
 # Construct final mega-dict of model info
 MODEL_INFO = {}
 
-for model_name in MODEL_NAMES:
+for model_name in VALID_MODEL_NAMES:
     MODEL_INFO[model_name] = {
-        "display_name": MODEL_NAMES[model_name],
+        "display_name": VALID_MODEL_NAMES[model_name],
         "tasks": list(MODEL_TASK_VERSIONS[model_name].keys()),
         "versions": {
             task: list(task_dict.keys())
