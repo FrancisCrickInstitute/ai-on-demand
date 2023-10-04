@@ -1,3 +1,4 @@
+from collections import defaultdict
 from pathlib import Path
 import subprocess
 from typing import Optional
@@ -6,6 +7,7 @@ import napari
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 import numpy as np
+import pandas as pd
 from qtpy.QtWidgets import (
     QWidget,
     QLayout,
@@ -51,7 +53,7 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         # Set the basepath to store masks/checkpoints etc. in
         self.nxf_store_dir = Path(__file__).parent / ".nextflow" / "cache"
         # Path to store the text file containing the image paths
-        self.img_list_fpath = Path(__file__).parent / "all_img_paths.txt"
+        self.img_list_fpath = Path(__file__).parent / "all_img_paths.csv"
         # Whether all images have been loaded
         # Needed to properly extract metadata
         self.all_loaded = False
@@ -124,10 +126,37 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
 
         TODO: May be subject to complete rewrite with dask/zarr
         """
-        # Construct a list of what the mask names should be
-        # Write the image paths into a newline-separated text file
-        with open(self.img_list_fpath, "w") as output:
-            output.write("\n".join([str(i) for i in img_paths]))
+        # Create container for metadata
+        output = defaultdict(list)
+        # Extract info from each image
+        for img_path in img_paths:
+            # Get the mask layer name
+            layer = self.parent.viewer.layers[img_path.stem]
+            # Get the number of slices, channels, height, and width
+            arr = layer.data.squeeze()
+            if layer.rgb:
+                res = arr.shape[:-1]
+                channels = arr.shape[-1]
+            else:
+                res = arr.shape
+                channels = 1
+            if arr.ndim == 2:
+                num_slices = 1
+                H, W = res
+            elif arr.ndim == 3:
+                num_slices, H, W = res
+            else:
+                raise ValueError(
+                    f"Unexpected number of dimensions for image {img_path}!"
+                )
+            output["img_path"].append(str(img_path))
+            output["num_slices"].append(num_slices)
+            output["height"].append(H)
+            output["width"].append(W)
+            output["channels"].append(channels)
+        # Convert to a DataFrame and save
+        df = pd.DataFrame(output)
+        df.to_csv(self.img_list_fpath, index=False)
 
     def check_inference(self):
         """
