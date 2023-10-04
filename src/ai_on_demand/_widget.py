@@ -143,7 +143,12 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.create_mask_layers()
 
         # NOTE: Wrapper as self/class not available at runtime
-        @thread_worker(connect={"yielded": self.update_masks})
+        @thread_worker(
+            connect={
+                "yielded": self.update_masks,
+                "returned": self._reset_viewer,
+            }
+        )
         def _watch_mask_files(self):
             # Enable the watcher
             print("Activating watcher...")
@@ -209,6 +214,14 @@ Run segmentation/inference on selected images using one of the available pre-tra
         mask_root += "_all"
         # Add the extension
         return f"{mask_root}.{extension}"
+
+    def _reset_viewer(self):
+        """
+        Should help alleviate rendering issue where masks are mis-aligned.
+
+        Need to do it here as interacting with the viewer in the thread_worker causes issues.
+        """
+        self.viewer.dims.set_point(0, 0)
 
     def update_masks(self, new_files):
         """
