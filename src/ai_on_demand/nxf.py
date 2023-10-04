@@ -152,11 +152,13 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         `nxf_params` is a dict containing everything that Nextflow needs at the command line.
 
         `parent` is a parent widget, which is expected to contain the necessary info to construct `nxf_params`.
-
-        NOTE: A lot of this will need to be switched when Model subwidget created.
         """
         # First check that everything has been selected that needs to have been
         self.check_inference()
+        # Store the selected task, model, and variant for execution
+        self.parent.executed_task = self.parent.selected_task
+        self.parent.executed_model = self.parent.selected_model
+        self.parent.executed_variant = self.parent.selected_variant
         # nxf_cmd = f"nextflow run {self.nxf_repo} -entry inference"
         # Set the base Nextflow command
         nxf_cmd = f"nextflow run {self.nxf_repo} -r master"
@@ -246,6 +248,8 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         nxf_cmd, nxf_params, proceed, img_paths = self.pipelines[
             self.pipeline
         ]()
+        # Store the image paths
+        self.store_img_paths(img_paths=img_paths)
         # Don't run the pipeline if no green light given
         if not proceed:
             return
@@ -255,8 +259,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         for param, value in nxf_params.items():
             nxf_cmd += f" --{param}={value}"
 
-        # Store the image paths
-        self.store_img_paths(img_paths=img_paths)
+        # TODO: Add -work-dir if provided
 
         @thread_worker(
             connect={
@@ -279,15 +282,6 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.nxf_run_btn.setText("Running Pipeline...")
         # Run the pipeline
         _run_pipeline(nxf_cmd)
-
-    def check_masks(self):
-        """
-        Checks if the masks have been generated yet.
-        """
-        # Get the current viewer
-        viewer = self.parent.viewer if self.parent is not None else None
-        # Get all the mask layers
-        mask_layers = []
 
     def _reset_btns(self):
         """

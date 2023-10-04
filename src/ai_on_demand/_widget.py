@@ -29,6 +29,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.selected_task = None
         self.selected_model = None
         self.selected_variant = None
+        self.executed_task = None
+        self.executed_model = None
+        self.executed_variant = None
 
         # Set selection colour
         self.colour_selected = "#F7AD6F"
@@ -60,7 +63,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.all_mask_files = [
             (
                 self.subwidgets["nxf"].mask_dir_path
-                / self._get_mask_name(fpath.stem)
+                / self._get_mask_name(fpath.stem, executed=True)
             )
             for fpath in self.subwidgets["data"].image_path_dict.values()
         ]
@@ -85,14 +88,15 @@ Run segmentation/inference on selected images using one of the available pre-tra
             img_paths = self.subwidgets["data"].image_path_dict.values()
         # Construct the mask layer names
         layer_names = [
-            self._get_mask_layer_name(Path(i).stem) for i in img_paths
+            self._get_mask_layer_name(Path(i).stem, executed=True)
+            for i in img_paths
         ]
         # Create the Labels layers for each image
         for fpath, layer_name in zip(img_paths, layer_names):
             # Check if the mask file already exists
             mask_fpath = self.subwidgets[
                 "nxf"
-            ].mask_dir_path / self._get_mask_name(fpath.stem)
+            ].mask_dir_path / self._get_mask_name(fpath.stem, executed=True)
             # If it does, load it
             if mask_fpath.exists():
                 mask_data = np.load(mask_fpath)
@@ -184,14 +188,23 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Call the nested function
         _watch_mask_files(self)
 
-    def _get_mask_layer_name(self, stem: str, extension: Optional[str] = None):
-        fname = f"{stem}_masks_{self.selected_task}-{self.selected_model}-{sanitise_name(self.selected_variant)}"
+    def _get_mask_layer_name(
+        self,
+        stem: str,
+        extension: Optional[str] = None,
+        executed: bool = False,
+    ):
+        # If executed, use the executed attributes in case the user has changed the selection since running the pipeline
+        if executed:
+            fname = f"{stem}_masks_{self.executed_task}-{self.executed_model}-{sanitise_name(self.executed_variant)}"
+        else:
+            fname = f"{stem}_masks_{self.selected_task}-{self.selected_model}-{sanitise_name(self.selected_variant)}"
         if extension is not None:
             fname += f".{extension}"
         return fname
 
-    def _get_mask_name(self, stem: str, extension="npy"):
-        mask_root = self._get_mask_layer_name(stem=stem)
+    def _get_mask_name(self, stem: str, extension="npy", executed=False):
+        mask_root = self._get_mask_layer_name(stem=stem, executed=executed)
         # Add the _all marker to signify all slices/completeness
         mask_root += "_all"
         # Add the extension
@@ -208,7 +221,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # Check if the mask layer has been renamed
             prefix = f.stem.split("_masks_")[0]
             # Extract the relevant Labels layer
-            mask_layer_name = self._get_mask_layer_name(prefix)
+            mask_layer_name = self._get_mask_layer_name(prefix, executed=True)
             label_layer = self.viewer.layers[mask_layer_name]
             # Insert mask data
             label_layer.data = mask_arr
