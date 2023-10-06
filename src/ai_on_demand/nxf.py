@@ -57,6 +57,10 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         # Whether all images have been loaded
         # Needed to properly extract metadata
         self.all_loaded = False
+        # Working directory for Nextflow
+        self.nxf_work_dir = None
+        # Dictionary to monitor progress of each image
+        self.progress_dict = {}
 
         self.pipeline = pipeline
         # Available pipelines and their funcs
@@ -118,6 +122,14 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # TODO: Add dropdown for different formats to export to
         self.layout().addWidget(self.export_masks_btn, 3, 0, 1, 1)
 
+        # Add progress bar
+        self.pbar = QProgressBar()
+        # Create the label associated with the progress bar
+        pbar_label = QLabel("Progress:")
+        # Add the label and progress bar to the layout
+        self.layout().addWidget(pbar_label, 4, 0)
+        self.layout().addWidget(self.pbar, 4, 1)
+
         self.widget.setLayout(self.layout())
 
     def store_img_paths(self, img_paths):
@@ -157,6 +169,8 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # Convert to a DataFrame and save
         df = pd.DataFrame(output)
         df.to_csv(self.img_list_fpath, index=False)
+        # Store the total number of slices for progress bar
+        self.total_slices = df["num_slices"].sum()
 
     def check_inference(self):
         """
@@ -309,6 +323,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.nxf_run_btn.setEnabled(False)
         # Update the button to signify it's running
         self.nxf_run_btn.setText("Running Pipeline...")
+        self.init_progress_bar()
         # Run the pipeline
         _run_pipeline(nxf_cmd)
 
@@ -330,51 +345,13 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         print(exc)
         self._reset_btns()
 
-    def create_progress_bars(self):
-        print("Making progress bars")
-        # Create the overall widget
-        self.progress_bar_widget = QGroupBox("Progress Bars:")
-        # progress_widget_layout = QVBoxLayout()
+    def init_progress_bar(self):
+        self.pbar.setRange(0, self.total_slices)
+        self.pbar.setValue(0)
 
-        progress_bar_layout = QGridLayout()
-
-        # If only 2D images are present, then max slice for all will be 1
-        if self.viewer.dims.ndim == 2:
-            max_slice = 1
-        # Construct a progress bar for each model
-        self.progress_bar_dict = {}
-        for row_num, img_name in enumerate(self.image_path_dict):
-            # Extract the number of slices
-            if self.viewer.dims.ndim > 2:
-                try:
-                    # Assumes ([C], D, H, W) ordering
-                    max_slice = self.viewer.layers[img_name].data.shape[-3]
-                # If the image hasn't loaded yet, set to 0 and fill in later
-                except KeyError:
-                    max_slice = 0
-            # Create the pbar and set the range
-            pbar = QProgressBar()
-            pbar.setRange(0, max_slice)
-            pbar.setValue(0)
-            # Create the label associated with the progress bar
-            pbar_label = QLabel(f"{img_name}:")
-
-            progress_bar_layout.addWidget(pbar_label, row_num, 0)
-            progress_bar_layout.addWidget(pbar, row_num, 1)
-
-            self.progress_bar_dict[img_name] = pbar
-
-        # Scroll area
-        # scroll_area = QScrollArea()
-        # scroll_area.setWidget(self.progress_bar_widget)
-        # progress_widget_layout.addWidget(scroll_area)
-        # progress_widget_layout.addLayout(progress_bar_layout)
-        self.progress_bar_widget.setLayout(progress_bar_layout)
-
-        # self.layout().addWidget(self.progress_bar_widget)
-
-    def update_progress_bars(self):
-        raise NotImplementedError
+    def update_progress_bar(self):
+        # Update the progress bar to the current number of slices
+        self.pbar.setValue(sum(self.progress_dict.values()))
 
     def on_click_import(self):
         """
