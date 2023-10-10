@@ -21,6 +21,7 @@ from qtpy.QtWidgets import (
     QProgressBar,
     QCheckBox,
 )
+import tqdm
 from ai_on_demand.models import MODEL_TASK_VERSIONS, MODEL_DISPLAYNAMES
 from ai_on_demand.utils import sanitise_name, format_tooltip
 from ai_on_demand.widget_classes import SubWidget
@@ -125,11 +126,16 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # Add progress bar
         self.pbar = QProgressBar()
         # Create the label associated with the progress bar
-        pbar_label = QLabel("Progress:")
+        self.pbar_label = QLabel("Progress: [--:--]")
+        self.pbar_label.setToolTip(
+            format_tooltip("Shows [elapsed<remaining] time for current run.")
+        )
         # Add the label and progress bar to the layout
-        self.layout().addWidget(pbar_label, 4, 0)
+        self.layout().addWidget(self.pbar_label, 4, 0)
         self.layout().addWidget(self.pbar, 4, 1)
-
+        # TQDM progress bar to monitor completion time
+        self.tqdm_pbar = None
+        # Add the layout to the main layout
         self.widget.setLayout(self.layout())
 
     def store_img_paths(self, img_paths):
@@ -346,12 +352,27 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self._reset_btns()
 
     def init_progress_bar(self):
+        # Set the values of the Qt progress bar
         self.pbar.setRange(0, self.total_slices)
         self.pbar.setValue(0)
+        # Initialise the tqdm progress bar to monitor time
+        self.tqdm_pbar = tqdm.tqdm(total=self.total_slices)
+        # Reset the label
+        self.pbar_label.setText("Progress: [--:--]")
 
     def update_progress_bar(self):
         # Update the progress bar to the current number of slices
-        self.pbar.setValue(sum(self.progress_dict.values()))
+        curr_slices = sum(self.progress_dict.values())
+        self.pbar.setValue(curr_slices)
+        self.tqdm_pbar.update(curr_slices - self.tqdm_pbar.n)
+        # Update the label
+        elapsed = self.tqdm_pbar.format_dict["elapsed"]
+        remaining = (
+            self.tqdm_pbar.total - self.tqdm_pbar.n
+        ) / self.tqdm_pbar.format_dict["rate"]
+        self.pbar_label.setText(
+            f"Progress: [{self.tqdm_pbar.format_interval(elapsed)}<{self.tqdm_pbar.format_interval(remaining)}]"
+        )
 
     def on_click_import(self):
         """
