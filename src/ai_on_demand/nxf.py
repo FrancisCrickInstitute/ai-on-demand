@@ -147,6 +147,8 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         """
         # Create container for metadata
         output = defaultdict(list)
+        # Create container for knowing what images to track progress of
+        self.progress_dict = {}
         # Extract info from each image
         for img_path in img_paths:
             # Get the mask layer name
@@ -168,6 +170,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
                 raise ValueError(
                     f"Unexpected number of dimensions for image {img_path}!"
                 )
+            self.progress_dict[img_path.stem] = 0
             output["img_path"].append(str(img_path))
             output["num_slices"].append(num_slices)
             output["height"].append(H)
@@ -372,9 +375,12 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.tqdm_pbar.update(curr_slices - self.tqdm_pbar.n)
         # Update the label
         elapsed = self.tqdm_pbar.format_dict["elapsed"]
-        remaining = (
-            self.tqdm_pbar.total - self.tqdm_pbar.n
-        ) / self.tqdm_pbar.format_dict["rate"]
+        rate = (
+            self.tqdm_pbar.format_dict["rate"]
+            if self.tqdm_pbar.format_dict["rate"]
+            else 1
+        )
+        remaining = (self.tqdm_pbar.total - self.tqdm_pbar.n) / rate
         self.pbar_label.setText(
             f"Progress: [{self.tqdm_pbar.format_interval(elapsed)}<{self.tqdm_pbar.format_interval(remaining)}]"
         )

@@ -276,8 +276,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 slice_num = int(slice_num)
             self.viewer.dims.set_point(0, slice_num)
             # Insert the slice number into tracker for the progress bar
-            self.subwidgets["nxf"].progress_dict[
-                f"{f.stem.split('_masks_')[0]}"
-            ] = (slice_num + 1)
+            if prefix in self.subwidgets["nxf"].progress_dict:
+                self.subwidgets["nxf"].progress_dict[prefix] = slice_num + 1
         # Now update the total progress bar
         self.subwidgets["nxf"].update_progress_bar()
