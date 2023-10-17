@@ -78,10 +78,16 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 [not i for i in masks_exist],
             )
         )
+        load_paths = list(
+            compress(
+                self.subwidgets["data"].image_path_dict.values(),
+                [i for i in masks_exist],
+            )
+        )
         # If we aren't proceeding, there should be no images without masks!
         if not proceed:
             assert len(img_paths) == 0
-        return proceed, img_paths
+        return proceed, img_paths, load_paths
 
     def create_mask_layers(self, img_paths=None):
         if img_paths is None:
@@ -125,7 +131,12 @@ Run segmentation/inference on selected images using one of the available pre-tra
                     visible=False,
                 )
             # Move this layer to the top
-            self.viewer.layers.move(self.viewer.layers.index(layer_name), 0)
+            self.viewer.layers.move_multiple(
+                [
+                    self.viewer.layers.index(Path(fpath).stem),
+                    self.viewer.layers.index(layer_name),
+                ]
+            )
 
     def watch_mask_files(self):
         """

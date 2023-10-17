@@ -22,7 +22,8 @@ from qtpy.QtWidgets import (
     QCheckBox,
 )
 import tqdm
-from ai_on_demand.models import MODEL_TASK_VERSIONS, MODEL_DISPLAYNAMES
+from ai_on_demand.models import MODEL_TASK_VERSIONS
+from ai_on_demand.tasks import TASK_NAMES
 from ai_on_demand.utils import sanitise_name, format_tooltip
 from ai_on_demand.widget_classes import SubWidget
 
@@ -262,12 +263,15 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
                 mask_path.unlink()
         # Check if we already have all the masks
         else:
-            proceed, img_paths = self.parent.check_masks()
+            proceed, img_paths, load_paths = self.parent.check_masks()
+        # If some masks need loading, load them
+        if load_paths:
+            self.parent.create_mask_layers(img_paths=load_paths)
+        # If we already have all the masks, don't run the pipeline
         if not proceed:
             show_info(
-                f"Masks already exist for all files for segmenting {parent.selected_task} with {parent.selected_model} ({parent.selected_variant})!"
+                f"Masks already exist for all files for segmenting {TASK_NAMES[parent.selected_task]} with {parent.selected_model} ({parent.selected_variant})!"
             )
-            # TODO: Can use data subwidget `view_images` & `create_mask_layers` to load the masks here
             # Otherwise, until importing is fully sorted, the user just gets a notification and that's it
             return nxf_cmd, nxf_params, proceed, img_paths
         else:
@@ -297,11 +301,11 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         nxf_cmd, nxf_params, proceed, img_paths = self.pipelines[
             self.pipeline
         ]()
-        # Store the image paths
-        self.store_img_paths(img_paths=img_paths)
         # Don't run the pipeline if no green light given
         if not proceed:
             return
+        # Store the image paths
+        self.store_img_paths(img_paths=img_paths)
         # Add the selected profile to the command
         nxf_cmd += f" -profile {self.nxf_profile_box.currentText()}"
         # Add the parameters to the command
