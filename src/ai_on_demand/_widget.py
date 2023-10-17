@@ -53,37 +53,39 @@ Run segmentation/inference on selected images using one of the available pre-tra
 
     def check_masks(self) -> bool:
         """
-        Function to check if masks are present for the current setup.
+        Function to check if masks are present for the current setup, either
+        already imported or in the Nextflow output directory.
 
         If all are present, avoids running the Nextflow pipeline.
         """
-        # TODO: Maybe move below to nxf.py. Then, if overwriting delete old masks to avoid watcher issue.
-        # If mask stuff is in nxf.py, then this script becomes very empty...
-        # Check if masks are present for all images
-        self.all_mask_files = [
-            (
+        # List of booleans for whether masks exist for each image
+        masks_exist = []
+        # List of image paths to load masks for
+        load_paths = []
+        # List of image paths to pass to Nextflow
+        img_paths = []
+        for img_name, img_fpath in self.subwidgets[
+            "data"
+        ].image_path_dict.items():
+            mask_layer_name = self._get_mask_layer_name(
+                img_name, executed=True
+            )
+            # Check if this mask has been imported already
+            if mask_layer_name in self.viewer.layers:
+                masks_exist.append(True)
+            # Check if the mask exists from a previous run to load in
+            elif (
                 self.subwidgets["nxf"].mask_dir_path
-                / self._get_mask_name(fpath.stem, executed=True)
-            )
-            for fpath in self.subwidgets["data"].image_path_dict.values()
-        ]
-        # Only proceed
-        masks_exist = [i.exists() for i in self.all_mask_files]
+                / self._get_mask_name(img_name, executed=True)
+            ).exists():
+                masks_exist.append(True)
+                load_paths.append(img_fpath)
+            # Otherwise, we need to run the pipeline
+            else:
+                masks_exist.append(False)
+                img_paths.append(img_fpath)
+        # Proceed to run the pipeline if any masks are missing
         proceed = not all(masks_exist)
-        # Return only the image paths that don't have masks
-        # Feels more verbose than just zipping over, but it's the same thing
-        img_paths = list(
-            compress(
-                self.subwidgets["data"].image_path_dict.values(),
-                [not i for i in masks_exist],
-            )
-        )
-        load_paths = list(
-            compress(
-                self.subwidgets["data"].image_path_dict.values(),
-                [i for i in masks_exist],
-            )
-        )
         # If we aren't proceeding, there should be no images without masks!
         if not proceed:
             assert len(img_paths) == 0

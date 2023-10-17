@@ -107,13 +107,13 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.layout().addWidget(self.nxf_run_btn, 2, 0, 1, 2)
 
         # # Add a button for importing masks
-        # self.import_masks_btn = QPushButton("Import masks")
-        # self.import_masks_btn.clicked.connect(self.on_click_import)
-        # self.import_masks_btn.setToolTip(
-        #     format_tooltip("Import segmentation masks.")
-        # )
-        # self.import_masks_btn.setEnabled(True)
-        # self.layout().addWidget(self.import_masks_btn, 3, 0, 1, 1)
+        self.import_masks_btn = QPushButton("Import masks")
+        self.import_masks_btn.clicked.connect(self.on_click_import)
+        self.import_masks_btn.setToolTip(
+            format_tooltip("Import segmentation masks.")
+        )
+        self.import_masks_btn.setEnabled(True)
+        self.layout().addWidget(self.import_masks_btn, 3, 0)
         # Add a button for exporting masks
         self.export_masks_btn = QPushButton("Export masks")
         self.export_masks_btn.clicked.connect(self.on_click_export)
@@ -122,7 +122,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         )
         self.export_masks_btn.setEnabled(False)
         # TODO: Add dropdown for different formats to export to
-        self.layout().addWidget(self.export_masks_btn, 3, 0, 1, 1)
+        self.layout().addWidget(self.export_masks_btn, 3, 1)
 
         # Add progress bar
         self.pbar = QProgressBar()
@@ -249,6 +249,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # No need to check if we are ovewriting
         if self.overwrite_btn.isChecked():
             proceed = True
+            load_paths = []
             img_paths = self.parent.subwidgets["data"].image_path_dict.values()
             # Delete data in mask layers if present
             for img_path in img_paths:
