@@ -413,12 +413,19 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # Get all the mask layers
         mask_layers = []
         for img_name in self.image_path_dict:
-            layer_name = f"{img_name}_masks_{self.parent.selected_model}-{sanitise_name(self.parent.selected_variant)}"
+            layer_name = self.parent._get_mask_layer_name(img_name)
             if layer_name in viewer.layers:
                 mask_layers.append(viewer.layers[layer_name])
         # Extract the data from each of the layers, and save the result in the given folder
         # NOTE: Will also need adjusting for the dask/zarr rewrite
-        for mask_layer in mask_layers:
-            np.save(
-                Path(export_dir) / f"{mask_layer.name}.npy", mask_layer.data
-            )
+        if mask_layers:
+            count = 0
+            for mask_layer in mask_layers:
+                np.save(
+                    Path(export_dir) / f"{mask_layer.name}.npy",
+                    mask_layer.data,
+                )
+                count += 1
+            show_info(f"Exported {count} mask files to {export_dir}!")
+        else:
+            show_info("No mask layers found!")
