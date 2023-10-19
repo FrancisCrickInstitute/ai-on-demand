@@ -54,6 +54,7 @@ class MainWidget(QWidget):
         self.title.setFont(title_font)
         self.title.setAlignment(qtpy.QtCore.Qt.AlignCenter)
         if tooltip is not None:
+            self.tooltip = tooltip
             self.title.setToolTip(format_tooltip(tooltip))
         # self.title.adjustSize()
         self.layout().addWidget(self.title)

@@ -54,6 +54,9 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
         # Set the basepath to store masks/checkpoints etc. in
         self.nxf_store_dir = Path.home() / ".nextflow" / "cache"
+        # Set the base Nextflow command
+        # Ensures logs are stored in the right place (must be before run)
+        self.nxf_base_cmd = "nextflow -log $HOME/.nextflow/aiod/nextflow.log "
         # Path to store the text file containing the image paths
         self.img_list_fpath = Path(__file__).parent / "all_img_paths.csv"
         # Whether all images have been loaded
