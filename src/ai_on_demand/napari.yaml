@@ -6,6 +6,12 @@ contributions:
       python_name: ai_on_demand._widget:Inference
       title: Segment using pre-trained models
       short_title: Inference
+    - id: ai-on-demand.evaluation
+      python_name: ai_on_demand.evaluation_widget:Evaluation
+      title: Evaluate segmentations
+      short_title: Evaluation
   widgets:
     - command: ai-on-demand.inference
-      display_name: AIoD Inference
+      display_name: Inference
+    - command: ai-on-demand.evaluation
+      display_name: Segmentation Evaluation
