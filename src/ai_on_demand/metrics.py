@@ -31,26 +31,3 @@ def recall(preds: np.ndarray, labels: np.ndarray):
 def labelled_to_binary(masks: np.ndarray):
     # Convert labelled instance masks to a flat binary mask
     return (masks > 0).astype(int)
-
-
-if __name__ == "__main__":
-    masks1_fpath = "/Users/shandc/Documents/ai_ondemand/example_files/example_stack_masks_mito-mitonet-MitoNet-v1.npy"
-    masks2_fpath = "/Users/shandc/Documents/ai_ondemand/example_files/example_stack2_masks_mito-mitonet-MitoNet-v1.npy"
-
-    masks1 = np.load(masks1_fpath)
-    masks2 = np.load(masks2_fpath)
-
-    # Convert to binary masks
-    masks1_bin = labelled_to_binary(masks1)
-    masks2_bin = labelled_to_binary(masks2)
-
-    # Calculate metrics
-    dice_score = dice(masks1_bin, masks2_bin)
-    iou_score = iou(masks1_bin, masks2_bin)
-    precision_score = precision(masks1_bin, masks2_bin)
-    recall_score = recall(masks1_bin, masks2_bin)
-
-    print(
-        f"Dice: {dice_score}\nIoU: {iou_score}\nPrecision: {precision_score}\nRecall: {recall_score}"
-    )
-    breakpoint()
