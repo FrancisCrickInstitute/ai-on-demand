@@ -484,7 +484,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         )
         # Define save path for the model config
         # TODO: Switch to use .nextflow?
-        config_dir = Path(__file__).parent / "nextflow" / "configs"
+        config_dir = Path.home() / ".nextflow" / "cache" / "configs"
         config_dir.mkdir(parents=True, exist_ok=True)
         model_config_fpath = (
             config_dir
