@@ -148,6 +148,10 @@ class EvalWidget(SubWidget):
         self.base_metrics = {
             "Dice": aiod_metrics.dice,
             "IoU": aiod_metrics.iou,
+            "Hausdorff": aiod_metrics.hausdorff_dist,
+            "Hausdorff (modified)": partial(
+                aiod_metrics.hausdorff_dist, method="modified"
+            ),
         }
 
         self.layout().addWidget(

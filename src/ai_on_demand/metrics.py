@@ -1,4 +1,5 @@
 import numpy as np
+from skimage.metrics import hausdorff_distance
 
 
 def dice(masks1: np.ndarray, masks2: np.ndarray):
@@ -26,6 +27,13 @@ def recall(preds: np.ndarray, labels: np.ndarray):
     tp = np.sum(np.logical_and(preds, labels))
     fn = np.sum(np.logical_and(preds == 0, labels == 1))
     return tp / (tp + fn)
+
+
+def hausdorff_dist(
+    masks1: np.ndarray, masks2: np.ndarray, method: str = "standard"
+):
+    """Hausdorff distance between two masks."""
+    return hausdorff_distance(masks1, masks2, method=method)
 
 
 def labelled_to_binary(masks: np.ndarray):
