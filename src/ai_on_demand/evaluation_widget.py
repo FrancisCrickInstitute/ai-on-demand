@@ -1,12 +1,11 @@
 from collections import defaultdict
-from pathlib import Path
-from typing import Optional, Union
+from functools import partial
+from typing import Optional
 
 import napari
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 from napari.layers import Image, Labels
-import numpy as np
 import pandas as pd
 from qtpy.QtWidgets import (
     QWidget,
