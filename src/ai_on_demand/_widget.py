@@ -137,7 +137,8 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 [
                     self.viewer.layers.index(Path(fpath).stem),
                     self.viewer.layers.index(layer_name),
-                ]
+                ],
+                -1,
             )
 
     def watch_mask_files(self):
@@ -267,7 +268,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 idxs.append(img_idx)
             label_idx = self.viewer.layers.index(label_layer)
             idxs.append(label_idx)
-            self.viewer.layers.move_multiple(idxs)
+            self.viewer.layers.move_multiple(idxs, -1)
             slice_num = f.stem.split("_")[-1]
             # Switch viewer to latest slice
             if slice_num == "all":
