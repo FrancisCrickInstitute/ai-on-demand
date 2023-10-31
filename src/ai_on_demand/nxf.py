@@ -11,13 +11,11 @@ import pandas as pd
 from qtpy.QtWidgets import (
     QWidget,
     QLayout,
-    QGroupBox,
     QGridLayout,
     QLabel,
     QComboBox,
     QPushButton,
     QFileDialog,
-    QScrollArea,
     QProgressBar,
     QCheckBox,
 )
@@ -53,17 +51,23 @@ The profile determines where the Nextflow pipeline (and thus the computation) is
         # or throughout it
         self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
         # Set the basepath to store masks/checkpoints etc. in
-        self.nxf_store_dir = Path.home() / ".nextflow" / "cache"
+        self.nxf_base_dir = Path.home() / ".nextflow" / "aiod"
+        self.nxf_base_dir.mkdir(parents=True, exist_ok=True)
+        self.nxf_store_dir = self.nxf_base_dir / "cache"
+        self.nxf_store_dir.mkdir(parents=True, exist_ok=True)
         # Set the base Nextflow command
         # Ensures logs are stored in the right place (must be before run)
-        self.nxf_base_cmd = "nextflow -log $HOME/.nextflow/aiod/nextflow.log "
+        self.nxf_base_cmd = (
+            f"nextflow -log {str(self.nxf_base_dir / 'nextflow.log')} "
+        )
         # Path to store the text file containing the image paths
         self.img_list_fpath = self.nxf_store_dir / "all_img_paths.csv"
         # Whether all images have been loaded
         # Needed to properly extract metadata
         self.all_loaded = False
         # Working directory for Nextflow
-        self.nxf_work_dir = None
+        self.nxf_work_dir = self.nxf_base_dir / "work"
+        self.nxf_work_dir.mkdir(parents=True, exist_ok=True)
         # Dictionary to monitor progress of each image
         self.progress_dict = {}
 
@@ -313,13 +317,14 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             return
         # Store the image paths
         self.store_img_paths(img_paths=img_paths)
+        # Add custom work directory
+        if self.nxf_work_dir is not None:
+            nxf_cmd += f" -w {self.nxf_work_dir}"
         # Add the selected profile to the command
         nxf_cmd += f" -profile {self.nxf_profile_box.currentText()}"
         # Add the parameters to the command
         for param, value in nxf_params.items():
             nxf_cmd += f" --{param}={value}"
-
-        # TODO: Add -work-dir if provided
 
         @thread_worker(
             connect={

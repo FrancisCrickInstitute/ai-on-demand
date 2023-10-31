@@ -483,8 +483,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             self.model_version_dropdown.currentText()
         )
         # Define save path for the model config
-        # TODO: Switch to use .nextflow?
-        config_dir = Path.home() / ".nextflow" / "cache" / "configs"
+        config_dir = self.parent.subwidgets["nxf"].nxf_base_dir / "configs"
         config_dir.mkdir(parents=True, exist_ok=True)
         model_config_fpath = (
             config_dir
