@@ -121,11 +121,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                     )
             else:
                 # If the associated image is present, use its shape
-                try:
-                    img_shape = self.viewer.layers[f"{fpath.name}"].data.shape
-                # Otherwise default to 1000x1000 to avoid weird viewer
-                except KeyError:
-                    img_shape = (1000, 1000)
+                img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape
                 # Add a Labels layer for this file
                 self.viewer.add_labels(
                     np.zeros(img_shape, dtype=int),
@@ -193,14 +189,11 @@ Run segmentation/inference on selected images using one of the available pre-tra
                         yield new_files
                 # Sleep until next check
                 time.sleep(2)
-                # Check all masks contain data for all slices
-                masks_finished = [
-                    Path(i).stem[-3:] == "all" for i in current_files
-                ]
-                # Get how many complete mask files there should be
-                num_images = len(self.subwidgets["data"].image_path_dict)
-                # If all images have complete masks, deactivate watcher
-                if all(masks_finished) and (len(masks_finished) == num_images):
+                # If we have as many slices as the total, we are done
+                if (
+                    sum(self.subwidgets["nxf"].progress_dict.values())
+                    == self.subwidgets["nxf"].total_slices
+                ):
                     print("Deactivating watcher...")
                     self.watcher_enabled = False
 
@@ -253,12 +246,16 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 )
                 continue
             # Check if the mask layer has been renamed
-            prefix = f.stem.split("_masks_")[0]
+            prefix, suffix = f.stem.split("_masks_")
+            curr_idx, start_idx = suffix.split("_")[-2:]
+            curr_idx, start_idx = int(curr_idx), int(start_idx)
             # Extract the relevant Labels layer
             mask_layer_name = self._get_mask_layer_name(prefix, executed=True)
             label_layer = self.viewer.layers[mask_layer_name]
             # Insert mask data
-            label_layer.data = mask_arr
+            label_layer.data[start_idx : start_idx + curr_idx] = mask_arr[
+                :curr_idx
+            ]
             label_layer.visible = True
             # Try to rearrange the layers to get them on top
             idxs = []
@@ -269,15 +266,11 @@ Run segmentation/inference on selected images using one of the available pre-tra
             label_idx = self.viewer.layers.index(label_layer)
             idxs.append(label_idx)
             self.viewer.layers.move_multiple(idxs, -1)
-            slice_num = f.stem.split("_")[-1]
             # Switch viewer to latest slice
-            if slice_num == "all":
-                slice_num = label_layer.data.shape[0] - 1
-            else:
-                slice_num = int(slice_num)
-            self.viewer.dims.set_point(0, slice_num)
+            self.viewer.dims.set_point(0, (start_idx + curr_idx) - 1)
             # Insert the slice number into tracker for the progress bar
-            if prefix in self.subwidgets["nxf"].progress_dict:
-                self.subwidgets["nxf"].progress_dict[prefix] = slice_num + 1
+            self.subwidgets["nxf"].progress_dict[
+                f"{prefix}_{start_idx}"
+            ] = curr_idx
         # Now update the total progress bar
         self.subwidgets["nxf"].update_progress_bar()

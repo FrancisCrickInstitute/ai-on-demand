@@ -177,7 +177,6 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
                 raise ValueError(
                     f"Unexpected number of dimensions for image {img_path}!"
                 )
-            self.progress_dict[img_path.stem] = 0
             output["img_path"].append(str(img_path))
             output["num_slices"].append(num_slices)
             output["height"].append(H)
@@ -220,7 +219,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.parent.executed_model = self.parent.selected_model
         self.parent.executed_variant = self.parent.selected_variant
         # Set the starting Nextflow command
-        nxf_cmd = self.nxf_base_cmd + f"run {self.nxf_repo} -r master"
+        nxf_cmd = self.nxf_base_cmd + f"run {self.nxf_repo} -latest"
         # nxf_params can only be given when used standalone, which is rare
         if nxf_params is not None:
             return nxf_cmd, nxf_params
