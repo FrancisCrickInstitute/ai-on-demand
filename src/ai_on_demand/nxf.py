@@ -333,9 +333,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         )
         def _run_pipeline(nxf_cmd: str):
             # Run the command
-            subprocess.run(
-                nxf_cmd, shell=True, cwd=Path(__file__).parent, check=True
-            )
+            subprocess.run(nxf_cmd, shell=True, cwd=Path.home(), check=True)
 
         # Modify buttons during run
         self.export_masks_btn.setEnabled(False)
