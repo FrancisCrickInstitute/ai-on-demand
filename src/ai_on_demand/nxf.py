@@ -219,9 +219,8 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.parent.executed_task = self.parent.selected_task
         self.parent.executed_model = self.parent.selected_model
         self.parent.executed_variant = self.parent.selected_variant
-        # nxf_cmd = f"nextflow run {self.nxf_repo} -entry inference"
-        # Set the base Nextflow command
-        nxf_cmd = f"nextflow run {self.nxf_repo} -r master"
+        # Set the starting Nextflow command
+        nxf_cmd = self.nxf_base_cmd + f"run {self.nxf_repo} -r master"
         # nxf_params can only be given when used standalone, which is rare
         if nxf_params is not None:
             return nxf_cmd, nxf_params
