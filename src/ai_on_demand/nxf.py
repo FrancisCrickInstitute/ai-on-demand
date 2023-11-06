@@ -38,12 +38,12 @@ class NxfWidget(SubWidget):
     ):
         super().__init__(
             viewer=viewer,
-            title="Nextflow Pipeline",
+            title="Execution",
             parent=parent,
             layout=layout,
             tooltip="""
-Allows for the Nextflow pipeline to be triggered, with different additional options depending on the main widget selected.
-The profile determines where the Nextflow pipeline (and thus the computation) is performed.
+Allows for the computational pipeline to be triggered, with different additional options depending on the main widget selected.
+The profile determines where the pipeline is run.
 """,
         )
 

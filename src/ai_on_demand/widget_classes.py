@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from pathlib import Path
+import string
 from typing import Optional
 
 import napari
@@ -101,7 +102,7 @@ class SubWidget(QWidget):
         # Set the layout
         self.setLayout(layout())
         # Set the main widget container
-        self.widget = QGroupBox(f"{title.capitalize()}:")
+        self.widget = QGroupBox(f"{string.capwords(title)}:")
         if tooltip is not None:
             self.widget.setToolTip(format_tooltip(tooltip))
         # Create the initial widgets/elements
