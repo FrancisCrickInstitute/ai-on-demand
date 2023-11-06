@@ -15,4 +15,5 @@ dependencies:
   - pip
   - pip:
     - pandas
+    - tabulate
     - git+https://github.com/FrancisCrickInstitute/ai-on-demand.git
