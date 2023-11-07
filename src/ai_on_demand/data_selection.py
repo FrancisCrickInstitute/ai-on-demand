@@ -5,6 +5,7 @@ from typing import Optional, Union
 import napari
 from napari.layers import Image
 from napari.qt.threading import thread_worker
+from napari.utils.notifications import show_info
 from qtpy.QtWidgets import (
     QWidget,
     QLayout,
@@ -238,10 +239,6 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         # Add the image to the overall dict
         self.image_path_dict[fpath.stem] = fpath
         self.viewer.add_image(img, name=fpath.stem)
-        # # Update the progress bar range (just in case the image wasn't loaded in time)
-        # if img.ndim > 2:
-        #     self.progress_bar_dict[fpath.stem].setRange(0, img.shape[-3])
-        #     self.progress_bar_dict[fpath.stem].setValue(0)
 
     def _finished_loading(self):
         """Signify to user that all images have been loaded."""
