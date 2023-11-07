@@ -110,6 +110,9 @@ Images can also be opened, or dragged into napari as normal. The selection will 
                 self.image_path_dict[Path(img_path).stem] = Path(img_path)
             # Then update the counts of files (and their types) with the extra image
             self.update_file_count()
+            # Switch flag to signify the image has been loaded
+            # Adding via drag+drop blocks the UI, so it's fine to do here and not when adding begins
+            self.parent.subwidgets["nxf"].all_loaded = True
 
     def on_layer_removed(self, event):
         """
