@@ -91,6 +91,9 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         self.img_counts.setWordWrap(True)
         self.layout().addWidget(self.img_counts, 1, 0, 1, 3)
 
+        # Run the file counter if there are images already loaded
+        if len(self.image_path_dict) > 0:
+            self.update_file_count()
         # Add button layout to box layout
         # Sort out layout and add to main widget
         self.widget.setLayout(self.layout())
