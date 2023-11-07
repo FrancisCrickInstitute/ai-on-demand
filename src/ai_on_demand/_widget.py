@@ -171,6 +171,10 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 current_files = list(
                     self.subwidgets["nxf"].mask_dir_path.glob("*.npy")
                 )
+                # Filter out any _all files, can occur when process is too fast (i.e. single image)
+                current_files = [
+                    i for i in current_files if Path(i).stem[-4:] != "_all"
+                ]
                 # Filter out files we are not running on
                 current_files = [
                     i
