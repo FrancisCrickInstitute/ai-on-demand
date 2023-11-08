@@ -107,7 +107,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
             ].mask_dir_path / self._get_mask_name(fpath.stem, executed=True)
             # If it does, load it
             if mask_fpath.exists():
-                mask_data = np.load(mask_fpath)
+                mask_data = np.load(mask_fpath, allow_pickle=True)
                 # Check if the mask layer already exists
                 if layer_name in self.viewer.layers:
                     # If so, update the data just to make sure & ensure visible
@@ -242,7 +242,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         for f in new_files:
             # Load the numpy array
             try:
-                mask_arr = np.load(f)
+                mask_arr = np.load(f, allow_pickle=True)
             # NOTE: This is a temporary fix, and only occurs with fast models and a good GPU
             except FileNotFoundError:
                 print(

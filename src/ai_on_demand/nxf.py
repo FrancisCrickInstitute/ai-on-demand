@@ -401,10 +401,10 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             self,
             caption="Select mask files to import",
             directory=str(Path.home()),
-            filter="Numpy files (*.npy)",
+            filter="Numpy files (*.npy)",  # NOTE: Will need to change when moving away from numpy
         )
         for fname in fnames:
-            mask_arr = np.load(fname)
+            mask_arr = np.load(fname, allow_pickle=True)
             self.viewer.add_labels(
                 mask_arr,
                 name=Path(fname).stem.replace("_all", ""),
