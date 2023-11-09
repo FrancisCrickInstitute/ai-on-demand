@@ -131,17 +131,9 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             if img_path is not None:
                 if Path(img_path).stem in self.image_path_dict:
                     del self.image_path_dict[Path(img_path).stem]
-                else:
-                    show_info(
-                        f"{Path(img_path).stem} not found in {self.image_path_dict}"
-                    )
             else:
                 if event.value.name in self.image_path_dict:
                     del self.image_path_dict[event.value.name]
-                else:
-                    show_info(
-                        f"{event.value.name} not found in {self.image_path_dict}"
-                    )
             # Update file count with image removed
             self.update_file_count()
 
