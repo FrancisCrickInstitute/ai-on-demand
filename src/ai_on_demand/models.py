@@ -92,11 +92,19 @@ for model_name, model_dict in MODEL_TASK_VERSIONS.items():
         for version_name, version_dict in task_dict.items():
             assert "filename" in version_dict
             assert "url" in version_dict or "dir" in version_dict
-            if "dir" in version_dict:
-                if not Path(version_dict["dir"]).exists():
-                    invalid_models.append(
-                        (model_name, task_name, version_name)
-                    )
+            # Permissions errors can occur, but can occur as
+            # a RuntimeError, not OSError, so just catch all
+            try:
+                if "dir" in version_dict:
+                    if not Path(version_dict["dir"]).exists():
+                        invalid_models.append(
+                            (model_name, task_name, version_name)
+                        )
+            except Exception as e:
+                print(
+                    f"Error found with {(model_name, task_name, version_name)}: {e}"
+                )
+                invalid_models.append((model_name, task_name, version_name))
 # Filter out models that are not available so they do not show in the UI
 if len(invalid_models) > 0:
     for model_name, task_name, version_name in invalid_models:
