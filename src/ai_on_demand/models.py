@@ -54,9 +54,9 @@ MODEL_TASK_VERSIONS = {
         "ne": {
             "Attention U-Net": {
                 "filename": "Attention_HUNet_NE.best.368.pt",
-                # "dir": "/nemo/stp/ddt/working/shandc/aiod_models/",
+                "dir": "/nemo/stp/ddt/working/shandc/aiod_models/",
                 "config": "Attention_HUNet_NE.yml",
-                "dir": "/Volumes/ddt/working/shandc/aiod_models/",
+                # "dir": "/Volumes/ddt/working/shandc/aiod_models/",
             }
         },
     },
