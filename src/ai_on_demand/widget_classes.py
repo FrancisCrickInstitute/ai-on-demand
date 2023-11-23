@@ -63,9 +63,6 @@ class MainWidget(QWidget):
 
         self.content_widget = QWidget()
         self.content_widget.setLayout(QVBoxLayout())
-        self.scroll.setHorizontalScrollBarPolicy(
-            qtpy.QtCore.Qt.ScrollBarAlwaysOff
-        )
         self.scroll.setWidgetResizable(True)
         self.content_widget.setSizePolicy(
             qtpy.QtWidgets.QSizePolicy.Minimum,
