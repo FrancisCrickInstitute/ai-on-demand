@@ -6,6 +6,7 @@ from typing import Optional
 import napari
 from qtpy.QtWidgets import (
     QWidget,
+    QScrollArea,
     QLayout,
     QGridLayout,
     QGroupBox,
@@ -27,6 +28,7 @@ class MainWidget(QWidget):
     ):
         super().__init__()
         self.viewer = napari_viewer
+        self.scroll = QScrollArea()
 
         # Set overall layout for the widget
         self.setLayout(QVBoxLayout())
@@ -57,8 +59,20 @@ class MainWidget(QWidget):
         if tooltip is not None:
             self.tooltip = tooltip
             self.title.setToolTip(format_tooltip(tooltip))
-        # self.title.adjustSize()
         self.layout().addWidget(self.title)
+
+        self.content_widget = QWidget()
+        self.content_widget.setLayout(QVBoxLayout())
+        self.scroll.setHorizontalScrollBarPolicy(
+            qtpy.QtCore.Qt.ScrollBarAlwaysOff
+        )
+        self.scroll.setWidgetResizable(True)
+        self.content_widget.setSizePolicy(
+            qtpy.QtWidgets.QSizePolicy.Minimum,
+            qtpy.QtWidgets.QSizePolicy.Fixed,
+        )
+        self.scroll.setWidget(self.content_widget)
+        self.layout().addWidget(self.scroll)
 
     def register_widget(self, widget: "SubWidget"):
         self.subwidgets[widget._name] = widget
@@ -110,7 +124,7 @@ class SubWidget(QWidget):
 
         # If given a parent at creation, add this widget to the parent's layout
         if self.parent is not None:
-            self.parent.layout().addWidget(self.widget)
+            self.parent.content_widget.layout().addWidget(self.widget)
 
     @abstractmethod
     def create_box(self, variant: Optional[str] = None):
