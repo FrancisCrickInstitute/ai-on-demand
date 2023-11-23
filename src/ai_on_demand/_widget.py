@@ -1,4 +1,3 @@
-from itertools import compress
 from pathlib import Path
 import time
 from typing import Optional
@@ -51,7 +50,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
             NxfWidget(viewer=self.viewer, parent=self, pipeline="inference")
         )
 
-    def check_masks(self) -> bool:
+    def check_masks(self) -> tuple[bool, list, list]:
         """
         Function to check if masks are present for the current setup, either
         already imported or in the Nextflow output directory.
@@ -144,7 +143,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         This is used to update the napari Labels layers with the new masks.
 
         Currently expects that the slices are stored as .npy files. Deactivates
-        when it sees each image has an associated "*_all.npy" file.
+        when it sees each image has the expected number of slices completed.
         """
         # Wait for at least one image to load as layers if not present
         if not self.viewer.layers:
@@ -281,3 +280,34 @@ Run segmentation/inference on selected images using one of the available pre-tra
             ] = curr_idx
         # Now update the total progress bar
         self.subwidgets["nxf"].update_progress_bar()
+
+    def insert_final_masks(self):
+        """
+        Insert the final masks into the napari Labels layers.
+
+        This is used to update the napari Labels layers with the final masks
+        after the Nextflow pipeline has completed.
+        """
+
+        # Loop over each image and insert the final mask
+        for img_name, img_fpath in self.subwidgets[
+            "data"
+        ].image_path_dict.items():
+            # Get the mask layer name
+            mask_layer_name = self._get_mask_layer_name(
+                img_name, executed=True
+            )
+            # Load the numpy array
+            mask_arr = np.load(
+                self.subwidgets["nxf"].mask_dir_path
+                / self._get_mask_name(img_fpath.stem, executed=True),
+                allow_pickle=True,
+            )
+            # Insert mask data
+            self.viewer.layers[mask_layer_name].data = mask_arr
+            self.viewer.layers[mask_layer_name].visible = True
+        # Now ensure that the progress bar is 100%
+        # Remote edge-case can occur when this doesn't happen, so force it
+        self.subwidgets["nxf"].pbar.setValue(
+            self.subwidgets["nxf"].total_slices
+        )

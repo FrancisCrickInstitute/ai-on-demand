@@ -388,6 +388,8 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.widget.layout().addWidget(
             self.nxf_run_btn, row, col, rowspan, self.orig_colspan
         )
+        # When finished, insert all '_all' masks to ensure everything is correct
+        self.parent.insert_final_masks()
 
     def _pipeline_fail(self, exc):
         show_info("Pipeline failed! See terminal for details")
