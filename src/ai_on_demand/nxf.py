@@ -323,25 +323,22 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # Add the parameters to the command
         for param, value in nxf_params.items():
             nxf_cmd += f" --{param}={value}"
+        print(nxf_cmd)
 
         @thread_worker(
             connect={
+                "started": self._pipeline_start,
                 "returned": self._pipeline_finish,
                 "errored": self._pipeline_fail,
             }
         )
         def _run_pipeline(nxf_cmd: str):
             # Run the command
-            subprocess.run(nxf_cmd, shell=True, cwd=Path.home(), check=True)
+            self.process = subprocess.Popen(
+                nxf_cmd, shell=True, cwd=Path.home()
+            )
+            self.process.wait()
 
-        # Modify buttons during run
-        self.export_masks_btn.setEnabled(False)
-        # Disable the button to avoid issues
-        # TODO: Enable multiple job execution, may require -bg flag?
-        self.nxf_run_btn.setEnabled(False)
-        # Update the button to signify it's running
-        self.nxf_run_btn.setText("Running Pipeline...")
-        self.init_progress_bar()
         # Run the pipeline
         _run_pipeline(nxf_cmd)
 
@@ -353,10 +350,44 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.nxf_run_btn.setEnabled(True)
         self.export_masks_btn.setEnabled(True)
 
+    def _pipeline_start(self):
+        # Add a notification that the pipeline has started
+        show_info("Pipeline started!")
+        # Modify buttons during run
+        self.export_masks_btn.setEnabled(False)
+        # Disable the button to avoid issues
+        # TODO: Enable multiple job execution, may require -bg flag?
+        self.nxf_run_btn.setEnabled(False)
+        # Update the button to signify it's running
+        self.nxf_run_btn.setText("Running Pipeline...")
+        self.init_progress_bar()
+        # Add a cancel pipeline button
+        idx = self.widget.layout().indexOf(self.nxf_run_btn)
+        row, col, rowspan, colspan = self.widget.layout().getItemPosition(idx)
+        self.orig_colspan = colspan
+        self.cancel_btn = QPushButton("Cancel Pipeline")
+        self.cancel_btn.clicked.connect(self.cancel_pipeline)
+        self.cancel_btn.setToolTip("Cancel the currently running pipeline.")
+        new_colspan = colspan // 2 if colspan > 1 else 1
+        self.widget.layout().addWidget(
+            self.nxf_run_btn, row, col, rowspan, new_colspan
+        )
+        self.widget.layout().addWidget(
+            self.cancel_btn, row, col + new_colspan, rowspan, new_colspan
+        )
+
     def _pipeline_finish(self):
         # Add a notification that the pipeline has finished
         show_info("Pipeline finished!")
         self._reset_btns()
+        # Remove the cancel pipeline button
+        self.widget.layout().removeWidget(self.cancel_btn)
+        self.cancel_btn.deleteLater()
+        idx = self.widget.layout().indexOf(self.nxf_run_btn)
+        row, col, rowspan, _ = self.widget.layout().getItemPosition(idx)
+        self.widget.layout().addWidget(
+            self.nxf_run_btn, row, col, rowspan, self.orig_colspan
+        )
 
     def _pipeline_fail(self, exc):
         show_info("Pipeline failed! See terminal for details")
@@ -388,6 +419,12 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.pbar_label.setText(
             f"Progress: [{self.tqdm_pbar.format_interval(elapsed)}<{self.tqdm_pbar.format_interval(remaining)}]"
         )
+
+    def reset_progress_bar(self):
+        # Set the values of the Qt progress bar
+        self.pbar.setValue(0)
+        # Reset the label
+        self.pbar_label.setText("Progress: [--:--]")
 
     def on_click_import(self):
         """
@@ -440,3 +477,9 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             show_info(f"Exported {count} mask files to {export_dir}!")
         else:
             show_info("No mask layers found!")
+
+    def cancel_pipeline(self):
+        # Trigger Nextflow to cancel the pipeline
+        self.process.send_signal(subprocess.signal.SIGTERM)
+        # Reset the progress bar
+        self.reset_progress_bar()
