@@ -249,6 +249,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
                     f"File {f} not found, may have already been deleted. Skipping..."
                 )
                 continue
+            except ValueError as e:
+                print(f)
+                print(e)
             # Check if the mask layer has been renamed
             prefix, suffix = f.stem.split("_masks_")
             curr_idx, start_idx = suffix.split("_")[-2:]
