@@ -338,6 +338,9 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
                 nxf_cmd, shell=True, cwd=Path.home()
             )
             self.process.wait()
+            # Check if the process was successful
+            if self.process.returncode != 0:
+                raise RuntimeError
 
         # Run the pipeline
         _run_pipeline(nxf_cmd)
