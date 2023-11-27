@@ -44,7 +44,7 @@ class MainWidget(QWidget):
                 / "resources"
                 / "CRICK_Brandmark_01_transparent.png"
             )
-        ).scaledToHeight(125, mode=qtpy.QtCore.Qt.SmoothTransformation)
+        ).scaledToHeight(100, mode=qtpy.QtCore.Qt.SmoothTransformation)
         self.logo_label.setPixmap(logo)
         self.logo_label.setAlignment(qtpy.QtCore.Qt.AlignCenter)
         self.layout().addWidget(self.logo_label)
@@ -61,9 +61,12 @@ class MainWidget(QWidget):
             self.title.setToolTip(format_tooltip(tooltip))
         self.layout().addWidget(self.title)
 
+        # Create the widget that will be used to add subwidgets to
+        # This is then the widget for the scroll area, to the logo/title is excluded from scrolling
         self.content_widget = QWidget()
         self.content_widget.setLayout(QVBoxLayout())
         self.scroll.setWidgetResizable(True)
+        # This is needed to avoid unnecessary spacing when in the ScrollArea
         self.content_widget.setSizePolicy(
             qtpy.QtWidgets.QSizePolicy.Minimum,
             qtpy.QtWidgets.QSizePolicy.Fixed,
@@ -121,8 +124,12 @@ class SubWidget(QWidget):
 
         # If given a parent at creation, add this widget to the parent's layout
         if self.parent is not None:
+            # Add to the content widget (i.e. scrollable able)
             self.parent.content_widget.layout().addWidget(self.widget)
 
     @abstractmethod
     def create_box(self, variant: Optional[str] = None):
+        """
+        Create the box for the subwidget, i.e. all UI elements.
+        """
         raise NotImplementedError
