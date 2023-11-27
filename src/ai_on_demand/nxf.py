@@ -209,8 +209,6 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         Runs the inference pipeline in Nextflow.
 
         `nxf_params` is a dict containing everything that Nextflow needs at the command line.
-
-        `parent` is a parent widget, which is expected to contain the necessary info to construct `nxf_params`.
         """
         # First check that everything has been selected that needs to have been
         self.check_inference()
@@ -352,6 +350,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.nxf_run_btn.setText("Run Pipeline!")
         self.nxf_run_btn.setEnabled(True)
         self.export_masks_btn.setEnabled(True)
+        self._remove_cancel_btn()
 
     def _pipeline_start(self):
         # Add a notification that the pipeline has started
@@ -383,6 +382,15 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # Add a notification that the pipeline has finished
         show_info("Pipeline finished!")
         self._reset_btns()
+        # When finished, insert all '_all' masks to ensure everything is correct
+        self.parent.insert_final_masks()
+
+    def _pipeline_fail(self, exc):
+        show_info("Pipeline failed! See terminal for details")
+        print(exc)
+        self._reset_btns()
+
+    def _remove_cancel_btn(self):
         # Remove the cancel pipeline button
         self.widget.layout().removeWidget(self.cancel_btn)
         self.cancel_btn.deleteLater()
@@ -391,13 +399,6 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.widget.layout().addWidget(
             self.nxf_run_btn, row, col, rowspan, self.orig_colspan
         )
-        # When finished, insert all '_all' masks to ensure everything is correct
-        self.parent.insert_final_masks()
-
-    def _pipeline_fail(self, exc):
-        show_info("Pipeline failed! See terminal for details")
-        print(exc)
-        self._reset_btns()
 
     def init_progress_bar(self):
         # Set the values of the Qt progress bar
@@ -428,6 +429,8 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
     def reset_progress_bar(self):
         # Set the values of the Qt progress bar
         self.pbar.setValue(0)
+        # Close the tqdm progress bar
+        self.tqdm_pbar.close()
         # Reset the label
         self.pbar_label.setText("Progress: [--:--]")
 
