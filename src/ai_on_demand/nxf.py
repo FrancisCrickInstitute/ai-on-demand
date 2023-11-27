@@ -302,8 +302,13 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             self.pipeline in self.pipelines.keys()
         ), f"Pipeline {self.pipeline} not found!"
         if self.all_loaded is False:
-            show_info("Not all images have loaded, please wait...")
-            return
+            # Check whether layers already existed when plugin started, and if all were loaded
+            if not (
+                len(self.image_path_dict) > 0
+                and self.parent.subwidgets["data"].existing_loaded
+            ):
+                show_info("Not all images have loaded, please wait...")
+                return
         # Get the pipeline-specific stuff
         nxf_cmd, nxf_params, proceed, img_paths = self.pipelines[
             self.pipeline

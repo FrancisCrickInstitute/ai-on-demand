@@ -51,14 +51,24 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         # Create container for image paths
         self.image_path_dict = {}
         # Do a quick check to see if the user has added any images already
+        counter = 0
         if self.viewer.layers:
             for img_layer in self.viewer.layers:
                 if isinstance(img_layer, Image):
                     try:
                         img_path = Path(img_layer.source.path)
                         self.image_path_dict[img_path.stem] = img_path
+                        counter += 1
                     except AttributeError:
+                        show_info(
+                            f"Cannot extract path for image layer {img_layer}. Please add manually using the buttons."
+                        )
                         continue
+        # If all pre-existing image layers have been added, set loaded flag
+        if len(self.image_path_dict) == counter:
+            self.existing_loaded = True
+        else:
+            self.existing_loaded = False
         # Create a button to select individual images from
         self.img_btn = QPushButton("Select image\nfiles")
         self.img_btn.clicked.connect(self.browse_imgs_files)
