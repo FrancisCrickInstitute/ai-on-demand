@@ -51,6 +51,43 @@ Select the model and model variant to use for inference.
 Parameters can be modified if setup properly, otherwise a config file can be loaded in whatever format the model takes!
         """,
         )
+        # Extract the model info from all manifests
+        self.extract_model_info()
+
+    def extract_model_info(self):
+        # Initialise model-related attributes
+        # Easy access to the display name for each model
+        self.base_to_display = {}
+        self.display_to_base = {}
+        # Dict of available models, and model versions, for each task
+        self.versions_per_task = {}
+        # Dict of model params for each model version, specific to each task
+        self.model_version_tasks = {}
+
+        # Extract the model info from all manifests
+        for model_manifest in self.parent.all_manifests:
+            # Get the short and display names
+            base_name = model_manifest.short_name
+            self.base_to_display[base_name] = model_manifest.name
+            self.display_to_base[model_manifest.name] = base_name
+            # Get each version
+            for version_name, version in model_manifest.versions.items():
+                # Get the tasks for this version
+                for task_name, task in version.tasks.items():
+                    # Add this task if not yet seen
+                    if task_name not in self.versions_per_task:
+                        self.versions_per_task[task_name] = {}
+                    # Add this base model if not yet seen for this task
+                    if base_name not in self.versions_per_task[task_name]:
+                        self.versions_per_task[task_name][base_name] = []
+                    # Add this version, for this base model, under this task
+                    self.versions_per_task[task_name][base_name].append(
+                        version_name
+                    )
+                    # Store this model-version-task for easy access to params and config
+                    self.model_version_tasks[
+                        (base_name, version_name, task_name)
+                    ] = task
 
     def create_box(self, variant: Optional[str] = None):
         # TODO: This will have to become a variant for e.g. fine-tuning
