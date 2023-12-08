@@ -3,6 +3,7 @@ from pathlib import Path
 import subprocess
 from typing import Optional
 
+from aiod_registry import TASK_NAMES
 import napari
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
@@ -20,8 +21,6 @@ from qtpy.QtWidgets import (
     QCheckBox,
 )
 import tqdm
-from ai_on_demand.models import MODEL_TASK_VERSIONS
-from ai_on_demand.tasks import TASK_NAMES
 from ai_on_demand.utils import sanitise_name, format_tooltip
 from ai_on_demand.widget_classes import SubWidget
 
