@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -18,13 +19,7 @@ from qtpy.QtWidgets import (
 import yaml
 
 from ai_on_demand.widget_classes import SubWidget
-from ai_on_demand.models import (
-    MODEL_INFO,
-    MODEL_DISPLAYNAMES,
-    TASK_MODELS,
-    MODEL_TASK_VERSIONS,
-)
-from ai_on_demand.utils import format_tooltip, sanitise_name, merge_dicts
+from ai_on_demand.utils import format_tooltip, sanitise_name
 
 
 class ModelWidget(SubWidget):
@@ -190,11 +185,13 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             self.model_version_dropdown.clear()
             self.model_version_dropdown.addItems([self.model_name_unavail])
             return
-        self.parent.selected_model = MODEL_DISPLAYNAMES[model_name]
+        # Get the shorthand name from the model display name
+        self.parent.selected_model = self.display_to_base[model_name]
         # Update the dropdown for the model variants
         self.model_version_dropdown.clear()
-        model_versions = MODEL_INFO[self.parent.selected_model]["versions"][
-            self.parent.selected_task
+        # Extract the model versions for this model for this task
+        model_versions = self.versions_per_task[self.parent.selected_task][
+            self.parent.selected_model
         ]
         self.model_version_dropdown.addItems(model_versions)
         self.parent.selected_variant = (
@@ -325,50 +322,45 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         Updates the model param widget for a specific model
         """
         # Skip if initial message is still showing and clicked
-        if model_name not in MODEL_INFO:
+        # TODO: Figure out when this occurs, and why it isn't model_name == model_name_init, or model_name == model_name_unavail
+        if model_name not in self.base_to_display:
             return
         # Remove the current model param widget
         self.clear_model_param_widget()
-        # Extract the default parameters
-        try:
-            param_dict = MODEL_INFO[model_name]["params"][
-                self.parent.selected_task
-            ]
-            # Check if there is a version-specific set of params
-            if model_version in param_dict:
-                param_dict = param_dict[model_version]
-        except KeyError as e:
-            raise e("Default model parameters not found!")
         # Construct the unique tuple for this widget
+        model_version_task = (
+            model_name,
+            model_version,
+            self.parent.selected_task,
+        )
+        # Extract the default parameters for this model-version-task
+        param_list = self.model_version_tasks[model_version_task].params
         # NOTE: Likely to create a lot of redundant widgets, but should be light on memory
         # and is the most extendable
-        model_task_version = (
-            model_name,
-            self.parent.selected_task,
-            model_version,
-        )
         # Retrieve the widget for this model if already created
-        if model_task_version in self.model_param_widgets_dict:
+        if model_version_task in self.model_param_widgets_dict:
             self.curr_model_param_widget = self.model_param_widgets_dict[
-                model_task_version
+                model_version_task
             ]
         # If no parameters, use the no_param widget
-        elif not param_dict:
+        elif param_list is None:
             self.curr_model_param_widget = self.model_param_widgets_dict[
                 "no_param"
             ]
-        # Otherwise construct it
+        # Otherwise, construct it
         else:
             self.curr_model_param_widget = self._create_model_params_widget(
-                model_task_version, param_dict
+                model_version_task, param_list
             )
             self.model_param_widgets_dict[
-                model_task_version
+                model_version_task
             ] = self.curr_model_param_widget
         # Set the current model param widget
         self.set_model_param_widget()
 
-    def _create_model_params_widget(self, model_task_version, param_dict):
+    def _create_model_params_widget(
+        self, model_version_task: tuple[str, str, str], param_list: list
+    ):
         """
         Creates the widget for a specific model's parameters to swap in and out
         """
@@ -376,19 +368,20 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         model_widget = QWidget()
         model_layout = QGridLayout()
         # Create container for model parameters
-        self.model_param_dict[model_task_version] = {}
+        self.model_param_dict[model_version_task] = {}
         # Add the default model parameters
-        for i, (label, model_param) in enumerate(param_dict.items()):
+        for i, model_param in enumerate(param_list):
             # Create labels for each of the model parameters
-            param_label = QLabel(f"{label}:")
+            param_label = QLabel(f"{model_param.name}:")
             param_label.setToolTip(format_tooltip(model_param.tooltip))
             model_layout.addWidget(param_label, i, 0)
             # Add the model parameter(s)
-            param_values = model_param.values
+            param_values = model_param.value
             # Widget added depends on the input
             # True/False -> Checkbox
             if param_values is True or param_values is False:
                 param_val_widget = QCheckBox()
+                # Checked if default param value is True, unchecked if False
                 if param_values:
                     param_val_widget.setChecked(True)
                 else:
@@ -397,17 +390,18 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             elif isinstance(param_values, list):
                 param_val_widget = QComboBox()
                 param_val_widget.addItems([str(i) for i in param_values])
-            # Int/float -> LineEdit
+            # Int/float/str -> LineEdit
             elif isinstance(param_values, (int, float, str)):
                 param_val_widget = QLineEdit()
                 param_val_widget.setText(str(param_values))
             else:
+                # Should be handled on the Pydantic side
                 raise ValueError(
-                    f"Model parameter {label} has invalid type {type(param_values)}"
+                    f"Model parameter {model_param.name} has invalid type {type(param_values)}"
                 )
             model_layout.addWidget(param_val_widget, i, 1)
             # Store for later retrieval when saving the config
-            self.model_param_dict[model_task_version][label] = {
+            self.model_param_dict[model_version_task][model_param.name] = {
                 "label": param_label,
                 "value": param_val_widget,
             }
@@ -421,10 +415,10 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_param_layout.removeWidget(self.curr_model_param_widget)
         self.curr_model_param_widget.setParent(None)
 
-    def set_model_param_widget(self, model_task_version=None):
-        if model_task_version is not None:
+    def set_model_param_widget(self, model_version_task=None):
+        if model_version_task is not None:
             self.curr_model_param_widget = self.model_param_widgets_dict[
-                model_task_version
+                model_version_task
             ]
         # Set the collapsible box to contain the params for this model
         self.model_param_layout.addWidget(self.curr_model_param_widget)
@@ -438,11 +432,11 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         """The model box updates according to what's defined for each task."""
         # Clear and set available models in dropdown
         self.model_dropdown.clear()
-        # Check that there is a model available for this task (always should be...)
-        if task_name in TASK_MODELS:
+        # Check that there is a model available for this task
+        if task_name in self.versions_per_task:
             model_names = [
-                MODEL_INFO[model]["display_name"]
-                for model in TASK_MODELS[task_name]
+                self.base_to_display[i]
+                for i in self.versions_per_task[task_name].keys()
             ]
         else:
             model_names = [self.model_name_unavail]
@@ -482,33 +476,37 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
 
     def get_model_config(self):
         # First check if there is a config file for this model
-        try:
-            model_task_dict = MODEL_TASK_VERSIONS[self.parent.selected_model][
-                self.parent.selected_task
-            ][self.parent.selected_variant]
-        except KeyError as e:
-            raise Exception(
-                f"No config file found for {self.parent.selected_model} ({self.parent.selected_variant}) to segment {self.parent.selected_task}!"
-            ) from e
-        if "config" in model_task_dict:
+        model_task_version = (
+            self.parent.selected_model,
+            self.parent.selected_variant,
+            self.parent.selected_task,
+        )
+        model_version = self.model_version_tasks[model_task_version]
+        if model_version.config_path is not None:
             # Set this as the base config
-            base_config = model_task_dict["config"]
-            # Load this config
-            with open(Path(model_task_dict["dir"]) / base_config, "r") as f:
-                model_dict = yaml.safe_load(f)
+            base_config = Path(model_version.config_path)
+            # Check whether config is YAML or JSON and load accordingly
+            with open(Path(base_config), "r") as f:
+                if base_config.suffix == ".json":
+                    model_dict = json.load(f)
+                elif base_config.suffix in (".yaml", ".yml"):
+                    model_dict = yaml.safe_load(f)
+                else:
+                    raise ValueError(
+                        f"Config file (path: {base_config}) is not JSON or YAML!"
+                    )
             # If there are parameters to overwrite, insert them into the base
             # NOTE: This requires that the base parameters come from this config!
-            # NOTE: This currently does not happen
-            default_params = MODEL_INFO[self.parent.selected_model]["params"][
-                self.parent.selected_task
-            ]
-            if default_params:
-                model_params = self.create_config_params()
-                # TODO: Need to test this
-                model_dict = merge_dicts(model_dict, model_params)
+            # TODO: This currently does not happen, need to figure a proper way to do this
+            # if default_params:
+            #     model_params = self.create_config_params()
+            #     # TODO: Need to test this
+            #     model_dict = merge_dicts(model_dict, model_params)
         # Otherwise, just extract from the parameters
         else:
-            model_dict = self.create_config_params()
+            model_dict = self.create_config_params(
+                model_task_version=model_task_version
+            )
         # Save the model config
         model_config_fpath = self.save_model_config(model_dict)
         return model_config_fpath
@@ -531,29 +529,28 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             yaml.dump(model_dict, f)
         return model_config_fpath
 
-    def create_config_params(self):
+    def create_config_params(self, model_task_version: Optional[tuple] = None):
         """
         Construct the model config from the parameter widgets.
         """
         # Get the current dictionary of widgets for selected model
-        model_dict_orig = self.model_param_dict[
-            (
+        if model_task_version is None:
+            model_task_version = (
                 self.parent.selected_model,
-                self.parent.selected_task,
                 self.parent.selected_variant,
+                self.parent.selected_task,
             )
-        ]
+        model_dict_orig = self.model_param_dict[model_task_version]
         # Get the relevant default params for this model
-        default_params = MODEL_INFO[self.parent.selected_model]["params"][
-            self.parent.selected_task
-        ]
-        # Check if there is a version-specific set of params
-        if self.parent.selected_variant in default_params:
-            default_params = default_params[self.parent.selected_variant]
+        default_params = self.model_version_tasks[model_task_version].params
         # Reformat the dict to pipe into downstream model run scripts
         model_dict = {}
         # Extract params from model param widgets
-        for param_name, sub_dict in model_dict_orig.items():
+        for orig_param, (param_name, sub_dict) in zip(
+            default_params, model_dict_orig.items()
+        ):
+            # Dicts maintain insertion order, so this should be fine, but double-check
+            assert orig_param.name == param_name
             if isinstance(sub_dict["value"], QLineEdit):
                 param_value = sub_dict["value"].text()
             elif isinstance(sub_dict["value"], QComboBox):
@@ -563,8 +560,5 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             else:
                 raise NotImplementedError
             # Extract the original/intended dtype and cast what's in the box
-            orig_dtype = default_params[param_name].dtype
-            model_dict[default_params[param_name].arg] = orig_dtype(
-                param_value
-            )
+            model_dict[orig_param.arg_name] = orig_param._dtype(param_value)
         return model_dict
