@@ -14,6 +14,7 @@ from qtpy.QtWidgets import (
     QWidget,
     QLayout,
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QComboBox,
     QPushButton,
@@ -21,6 +22,7 @@ from qtpy.QtWidgets import (
     QProgressBar,
     QCheckBox,
 )
+import skimage.io
 import tqdm
 from ai_on_demand.utils import sanitise_name, format_tooltip
 from ai_on_demand.widget_classes import SubWidget
@@ -102,7 +104,16 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         """
             )
         )
-        self.layout().addWidget(self.overwrite_btn, 1, 0, 1, 2)
+        self.layout().addWidget(self.overwrite_btn, 1, 0, 1, 1)
+        # Add a button for importing masks
+        self.import_masks_btn = QPushButton("Import masks")
+        self.import_masks_btn.clicked.connect(self.on_click_import)
+        self.import_masks_btn.setToolTip(
+            format_tooltip("Import segmentation masks.")
+        )
+        self.import_masks_btn.setEnabled(True)
+        self.layout().addWidget(self.import_masks_btn, 1, 1, 1, 1)
+
         # Create a button to navigate to a directory to take images from
         self.nxf_run_btn = QPushButton("Run Pipeline!")
         self.nxf_run_btn.clicked.connect(self.run_pipeline)
@@ -113,24 +124,31 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         )
         self.layout().addWidget(self.nxf_run_btn, 2, 0, 1, 2)
 
-        # # Add a button for importing masks
-        self.import_masks_btn = QPushButton("Import masks")
-        self.import_masks_btn.clicked.connect(self.on_click_import)
-        self.import_masks_btn.setToolTip(
-            format_tooltip("Import segmentation masks.")
-        )
-        self.import_masks_btn.setEnabled(True)
-        self.layout().addWidget(self.import_masks_btn, 3, 0)
-        # Add a button for exporting masks
+        # Add a button for exporting masks, with a dropdown for different formats
+        # and checkbox for binarising
+        export_layout = QHBoxLayout()
         self.export_masks_btn = QPushButton("Export masks")
         self.export_masks_btn.clicked.connect(self.on_click_export)
         self.export_masks_btn.setToolTip(
             format_tooltip("Export the segmentation masks to a directory.")
         )
         self.export_masks_btn.setEnabled(False)
-        # TODO: Add dropdown for different formats to export to
-        self.layout().addWidget(self.export_masks_btn, 3, 1)
+        export_layout.addWidget(self.export_masks_btn)
 
+        self.export_format_dropdown = QComboBox()
+        self.export_format_dropdown.addItems([".npy", ".tiff"])
+        export_layout.addWidget(self.export_format_dropdown)
+
+        self.export_binary_check = QCheckBox("Binarise masks?")
+        self.export_binary_check.setToolTip(
+            format_tooltip(
+                "Binarise the masks before exporting (i.e. black background, white masks)."
+            )
+        )
+        export_layout.addWidget(self.export_binary_check)
+        self.layout().addLayout(export_layout, 4, 0, 1, 2)
+
+        pbar_layout = QHBoxLayout()
         # Add progress bar
         self.pbar = QProgressBar()
         # Create the label associated with the progress bar
@@ -139,8 +157,9 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             format_tooltip("Shows [elapsed<remaining] time for current run.")
         )
         # Add the label and progress bar to the layout
-        self.layout().addWidget(self.pbar_label, 4, 0)
-        self.layout().addWidget(self.pbar, 4, 1)
+        pbar_layout.addWidget(self.pbar_label)
+        pbar_layout.addWidget(self.pbar)
+        self.layout().addLayout(pbar_layout, 5, 0, 1, 2)
         # TQDM progress bar to monitor completion time
         self.tqdm_pbar = None
         # Add the layout to the main layout
@@ -284,6 +303,8 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             show_info(
                 f"Masks already exist for all files for segmenting {TASK_NAMES[parent.selected_task]} with {parent.selected_model} ({parent.selected_variant})!"
             )
+            # Enable the export button as all masks available
+            self.export_masks_btn.setEnabled(True)
             # Otherwise, until importing is fully sorted, the user just gets a notification and that's it
             return nxf_cmd, nxf_params, proceed, img_paths
         else:
@@ -487,10 +508,28 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         if mask_layers:
             count = 0
             for mask_layer in mask_layers:
-                np.save(
-                    Path(export_dir) / f"{mask_layer.name}.npy",
-                    mask_layer.data,
-                )
+                # Get the name of the mask layer as root for the filename
+                fname = f"{mask_layer.name}"
+                # Check if we are binarising
+                if self.export_binary_check.isChecked():
+                    mask_data = self._binarise_mask(mask_layer)
+                    fname += "_binarised"
+                else:
+                    mask_data = mask_layer.data
+                # Get the extension & add to fname
+                ext = self.export_format_dropdown.currentText().strip(".")
+                fname += f".{ext}"
+                if ext == "npy":
+                    np.save(
+                        Path(export_dir) / fname,
+                        mask_data,
+                    )
+                elif ext == "tiff":
+                    skimage.io.imsave(
+                        Path(export_dir) / fname,
+                        mask_data,
+                        plugin="tifffile",
+                    )
                 count += 1
             show_info(f"Exported {count} mask files to {export_dir}!")
         else:
@@ -501,3 +540,9 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.process.send_signal(subprocess.signal.SIGTERM)
         # Reset the progress bar
         self.reset_progress_bar()
+
+    def _binarise_mask(self, mask_layer):
+        """
+        Binarises the given mask layer.
+        """
+        return (mask_layer.data).astype(bool).astype(np.uint8) * 255
