@@ -187,10 +187,10 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             else:
                 res = arr.shape
                 channels = 1
-            if arr.ndim == 2:
+            if len(res) == 2:
                 num_slices = 1
                 H, W = res
-            elif arr.ndim == 3:
+            elif len(res) == 3:
                 num_slices, H, W = res
             else:
                 raise ValueError(
