@@ -259,9 +259,14 @@ Run segmentation/inference on selected images using one of the available pre-tra
             mask_layer_name = self._get_mask_layer_name(prefix, executed=True)
             label_layer = self.viewer.layers[mask_layer_name]
             # Insert mask data
-            label_layer.data[start_idx : start_idx + curr_idx] = mask_arr[
-                :curr_idx
-            ]
+            # If 2 dims (i.e. 2D), just insert without slicing
+            if label_layer.ndim == 2:
+                assert mask_arr.ndim == 2, "Mask should be 2D if the image is!"
+                label_layer.data = mask_arr
+            else:
+                label_layer.data[start_idx : start_idx + curr_idx] = mask_arr[
+                    :curr_idx
+                ]
             label_layer.visible = True
             # Try to rearrange the layers to get them on top
             idxs = []
