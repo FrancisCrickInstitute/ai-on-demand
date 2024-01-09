@@ -301,7 +301,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             if model_version in param_dict:
                 param_dict = param_dict[model_version]
         except KeyError as e:
-            raise e("Default model parameters not found!")
+            raise Exception("Default model parameters not found!") from e
         # Construct the unique tuple for this widget
         # NOTE: Likely to create a lot of redundant widgets, but should be light on memory
         # and is the most extendable
