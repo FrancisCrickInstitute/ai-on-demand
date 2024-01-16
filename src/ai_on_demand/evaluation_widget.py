@@ -117,7 +117,7 @@ class EvalWidget(SubWidget):
         self.calculate_btn = QPushButton("Calculate!")
         self.calculate_btn.clicked.connect(self.calculate_metrics)
         self.calculate_btn.setEnabled(True)
-        self.layout().addWidget(self.calculate_btn, row, 1, 1, 2)
+        self.layout().addWidget(self.calculate_btn, row, 0, 1, 4)
         # Output box
         self.output_box = QTextBrowser()
         font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
@@ -244,6 +244,22 @@ class EvalWidget(SubWidget):
             )
 
     def calculate_metrics(self):
+        # Check that we have layers selected!
+        # Get the mask layer
+        self.mask_layer_name = self.mask_layer_dropdown.currentText()
+        if self.mask_layer_name == "":
+            show_info("No mask layer selected!")
+            return
+        else:
+            mask_layer = self.viewer.layers[self.mask_layer_name]
+        # Get the other/ground truth layer
+        self.other_layer_name = self.gt_layer_dropdown.currentText()
+        # NOTE: This is probably impossible to reach due to auto-population of dropdown
+        if self.other_layer_name == "":
+            show_info("No other layer selected!")
+            return
+        else:
+            other_layer = self.viewer.layers[self.other_layer_name]
         # Disable the calculate button
         self.calculate_btn.setText("Calculating...")
         self.calculate_btn.setEnabled(False)
@@ -255,14 +271,9 @@ class EvalWidget(SubWidget):
         for name, checkbox in self.gt_metric_widgets.items():
             if checkbox.isChecked():
                 selected_metrics.append((name, self.gt_metrics[name]))
-        # Get the mask layer
-        self.mask_layer_name = self.mask_layer_dropdown.currentText()
-        mask_layer = self.viewer.layers[self.mask_layer_name]
+        # Extract mask layer data
         masks1 = mask_layer.data
         masks1_bin = aiod_metrics.labelled_to_binary(masks1)
-        # Get the other/ground truth layer
-        self.other_layer_name = self.gt_layer_dropdown.currentText()
-        other_layer = self.viewer.layers[self.other_layer_name]
         masks2 = other_layer.data
         masks2_bin = aiod_metrics.labelled_to_binary(masks2)
 
