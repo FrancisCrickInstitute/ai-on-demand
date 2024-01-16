@@ -116,6 +116,7 @@ class EvalWidget(SubWidget):
         # Calculate button
         self.calculate_btn = QPushButton("Calculate!")
         self.calculate_btn.clicked.connect(self.calculate_metrics)
+        self.calculate_btn.setEnabled(True)
         self.layout().addWidget(self.calculate_btn, row, 1, 1, 2)
         # Output box
         self.output_box = QTextBrowser()
@@ -243,6 +244,9 @@ class EvalWidget(SubWidget):
             )
 
     def calculate_metrics(self):
+        # Disable the calculate button
+        self.calculate_btn.setText("Calculating...")
+        self.calculate_btn.setEnabled(False)
         # Identify all selected metrics
         selected_metrics = []
         for name, checkbox in self.base_metric_widgets.items():
@@ -271,6 +275,9 @@ class EvalWidget(SubWidget):
             return results
 
         _calc_metrics(self, selected_metrics, masks1_bin, masks2_bin)
+
+        # Reset the calculate button
+        self.reset_calculate_btn()
 
     def display_results(self, results):
         # Convert results into a DataFrame for easier display and export
@@ -321,6 +328,10 @@ class EvalWidget(SubWidget):
         new_results.to_csv(fname, index=False)
         # Pop-up
         show_info(f"Results appended to {fname}!")
+
+    def reset_calculate_btn(self):
+        self.calculate_btn.setText("Calculate!")
+        self.calculate_btn.setEnabled(True)
 
 
 """
