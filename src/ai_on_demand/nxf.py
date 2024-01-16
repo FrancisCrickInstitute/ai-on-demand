@@ -38,6 +38,11 @@ class NxfWidget(SubWidget):
         parent: Optional[QWidget] = None,
         layout: QLayout = QGridLayout,
     ):
+        # Define attributes that may be useful outside of this class
+        # or throughout it
+        self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
+        # Set the base Nextflow command
+        self.setup_nxf_dir_cmd()
         super().__init__(
             viewer=viewer,
             title="Execution",
@@ -48,28 +53,9 @@ Allows for the computational pipeline to be triggered, with different additional
 The profile determines where the pipeline is run.
 """,
         )
-
-        # Define attributes that may be useful outside of this class
-        # or throughout it
-        self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
-        # Set the basepath to store masks/checkpoints etc. in
-        self.nxf_base_dir = Path.home() / ".nextflow" / "aiod"
-        self.nxf_base_dir.mkdir(parents=True, exist_ok=True)
-        self.nxf_store_dir = self.nxf_base_dir / "cache"
-        self.nxf_store_dir.mkdir(parents=True, exist_ok=True)
-        # Set the base Nextflow command
-        # Ensures logs are stored in the right place (must be before run)
-        self.nxf_base_cmd = (
-            f"nextflow -log {str(self.nxf_base_dir / 'nextflow.log')} "
-        )
-        # Path to store the text file containing the image paths
-        self.img_list_fpath = self.nxf_store_dir / "all_img_paths.csv"
         # Whether all images have been loaded
         # Needed to properly extract metadata
         self.all_loaded = False
-        # Working directory for Nextflow
-        self.nxf_work_dir = self.nxf_base_dir / "work"
-        self.nxf_work_dir.mkdir(parents=True, exist_ok=True)
         # Dictionary to monitor progress of each image
         self.progress_dict = {}
 
@@ -79,6 +65,26 @@ The profile determines where the pipeline is run.
             "inference": self.setup_inference,
             "finetuning": self.setup_finetuning,
         }
+
+    def setup_nxf_dir_cmd(self, base_dir: Optional[Path] = None):
+        # Set the basepath to store masks/checkpoints etc. in
+        if base_dir is not None:
+            self.nxf_base_dir = base_dir
+        else:
+            self.nxf_base_dir = Path.home() / ".nextflow" / "aiod"
+        self.nxf_base_dir.mkdir(parents=True, exist_ok=True)
+        self.nxf_store_dir = self.nxf_base_dir / "aiod_cache"
+        self.nxf_store_dir.mkdir(parents=True, exist_ok=True)
+        # Set the base Nextflow command
+        # Ensures logs are stored in the right place (must be before run)
+        self.nxf_base_cmd = (
+            f"nextflow -log {str(self.nxf_base_dir / 'nextflow.log')} "
+        )
+        # Path to store the text file containing the image paths
+        self.img_list_fpath = self.nxf_store_dir / "all_img_paths.csv"
+        # Working directory for Nextflow
+        self.nxf_work_dir = self.nxf_base_dir / "work"
+        self.nxf_work_dir.mkdir(parents=True, exist_ok=True)
 
     def create_box(self, variant: Optional[str] = None):
         # Create a drop-down box to select the execution profile
@@ -93,6 +99,27 @@ The profile determines where the pipeline is run.
         self.nxf_profile_box.addItems(avail_confs)
         self.layout().addWidget(self.nxf_profile_label, 0, 0)
         self.layout().addWidget(self.nxf_profile_box, 0, 1)
+
+        # Create the option for selecting base directory
+        base_dir_layout = QGridLayout()
+        self.nxf_dir_label = QLabel("Base directory:")
+        base_dir_tooltip = "Select the base directory to store the Nextflow cache (i.e. all models & results) in."
+        self.nxf_dir_label.setToolTip(format_tooltip(base_dir_tooltip))
+        self.nxf_dir_text = QLabel(str(self.nxf_base_dir))
+        self.nxf_dir_text.setWordWrap(True)
+        self.nxf_dir_text.setToolTip(
+            format_tooltip("The selected base directory.")
+        )
+        self.nxf_dir_text.setMaximumWidth(400)
+        self.nxf_dir_btn = QPushButton("Change")
+        self.nxf_dir_btn.clicked.connect(self.on_click_base_dir)
+        self.nxf_dir_btn.setToolTip(format_tooltip(base_dir_tooltip))
+
+        base_dir_layout.addWidget(self.nxf_dir_label, 0, 0, 1, 2)
+        base_dir_layout.addWidget(self.nxf_dir_text, 0, 2, 1, 4)
+        base_dir_layout.addWidget(self.nxf_dir_btn, 0, 6, 1, 1)
+        self.layout().addLayout(base_dir_layout, 1, 0, 1, 2)
+
         # Add a checkbox for overwriting existing results
         self.overwrite_btn = QCheckBox("Overwrite existing results")
         self.overwrite_btn.setToolTip(
@@ -104,7 +131,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         """
             )
         )
-        self.layout().addWidget(self.overwrite_btn, 1, 0, 1, 1)
+        self.layout().addWidget(self.overwrite_btn, 2, 0, 1, 1)
         # Add a button for importing masks
         self.import_masks_btn = QPushButton("Import masks")
         self.import_masks_btn.clicked.connect(self.on_click_import)
@@ -112,7 +139,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             format_tooltip("Import segmentation masks.")
         )
         self.import_masks_btn.setEnabled(True)
-        self.layout().addWidget(self.import_masks_btn, 1, 1, 1, 1)
+        self.layout().addWidget(self.import_masks_btn, 2, 1, 1, 1)
 
         # Create a button to navigate to a directory to take images from
         self.nxf_run_btn = QPushButton("Run Pipeline!")
@@ -122,7 +149,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
                 "Run the pipeline with the chosen organelle(s), model, and images."
             )
         )
-        self.layout().addWidget(self.nxf_run_btn, 2, 0, 1, 2)
+        self.layout().addWidget(self.nxf_run_btn, 3, 0, 1, 2)
 
         # Add a button for exporting masks, with a dropdown for different formats
         # and checkbox for binarising
@@ -239,7 +266,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         nxf_cmd = self.nxf_base_cmd + f"run {self.nxf_repo} -latest"
         # nxf_params can only be given when used standalone, which is rare
         if nxf_params is not None:
-            return nxf_cmd, nxf_params
+            return nxf_cmd, nxf_params  # FIXME: Returns diff number variables
         # Construct the Nextflow params if not given
         parent = self.parent
         if parent.subwidgets["model"].model_config is None:
@@ -254,6 +281,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         )
         # Construct the params to be given to Nextflow
         nxf_params = {}
+        nxf_params["root_dir"] = str(self.nxf_base_dir)
         nxf_params["img_dir"] = str(self.img_list_fpath)
         nxf_params["model"] = parent.selected_model
         nxf_params["model_config"] = config_path
@@ -430,6 +458,21 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.widget.layout().addWidget(
             self.nxf_run_btn, row, col, rowspan, self.orig_colspan
         )
+
+    def on_click_base_dir(self):
+        """
+        Callback for when the base directory button is clicked. Opens a dialog to select a directory to save the masks to.
+        """
+        base_dir = QFileDialog.getExistingDirectory(
+            self, caption="Select directory to store cache", directory=None
+        )
+        # Skip if no directory selected
+        if base_dir == "":
+            return
+        # Update the text
+        self.nxf_dir_text.setText(base_dir)
+        # Update the base directory and Nextflow command
+        self.setup_nxf_dir_cmd(base_dir=Path(base_dir))
 
     def init_progress_bar(self):
         # Set the values of the Qt progress bar
