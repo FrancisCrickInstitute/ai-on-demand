@@ -299,7 +299,9 @@ class EvalWidget(SubWidget):
         res = self.df_results.T.copy()
         res.index.name = "Metric"
         res.columns = ["Value"]
-        self.output_box.append(res.to_markdown(index=True, tablefmt="simple"))
+        self.output_box.append(
+            res.to_markdown(index=True, tablefmt="simple", floatfmt=".4f")
+        )
         # Insert mask layer name & ground truth layer name
         self.df_results.loc[:, "mask_layer"] = self.mask_layer_name
         self.df_results.loc[:, "other_layer"] = self.other_layer_name
