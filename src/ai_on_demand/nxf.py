@@ -66,6 +66,39 @@ The profile determines where the pipeline is run.
             "inference": self.setup_inference,
             "finetuning": self.setup_finetuning,
         }
+        # Connect viewer to callbacks on events
+        self.viewer.layers.selection.events.changed.connect(
+            self.on_select_change
+        )
+
+    def on_select_change(self, event):
+        layers_selected = event.source
+        # If nothing selected, reset the mask layers
+        if len(layers_selected) == 0:
+            # Filter mask layers to ensure they are from AIoD outputs and not external
+            self.selected_mask_layers = self.parent.subwidgets[
+                "data"
+            ].get_mask_layers()
+            # Reset text on export button
+            self.export_masks_btn.setText("Export all masks")
+            # self.export_masks_btn
+        else:
+            # Filter mask layers to ensure they are from AIoD outputs and not external
+            self.selected_mask_layers = self.parent.subwidgets[
+                "data"
+            ].get_mask_layers(layer_list=layers_selected)
+            num_selected = len(self.selected_mask_layers)
+            # In case non-Labels layers are selected, reset
+            if num_selected == 0:
+                self.selected_mask_layers = self.parent.subwidgets[
+                    "data"
+                ].get_mask_layers()
+                self.export_masks_btn.setText("Export all masks")
+            else:
+                self.export_masks_btn.setText(
+                    f"Export {num_selected} mask{'s' if num_selected > 1 else ''}"
+                )
+        return
 
     def setup_nxf_dir_cmd(self, base_dir: Optional[Path] = None):
         # Set the basepath to store masks/checkpoints etc. in
@@ -155,10 +188,12 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # Add a button for exporting masks, with a dropdown for different formats
         # and checkbox for binarising
         export_layout = QHBoxLayout()
-        self.export_masks_btn = QPushButton("Export masks")
+        self.export_masks_btn = QPushButton("Export all masks")
         self.export_masks_btn.clicked.connect(self.on_click_export)
         self.export_masks_btn.setToolTip(
-            format_tooltip("Export the segmentation masks to a directory.")
+            format_tooltip(
+                "Export the output segmentation masks to a directory. Exports all masks by default, or only the selected masks (if any)."
+            )
         )
         self.export_masks_btn.setEnabled(False)
         export_layout.addWidget(self.export_masks_btn)
@@ -533,20 +568,11 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         export_dir = QFileDialog.getExistingDirectory(
             self, caption="Select directory to save masks", directory=None
         )
-        # Get the current viewer
-        viewer = self.parent.viewer if self.parent is not None else None
-        # TODO: How to handle if parent doesn't exist? Will this ever happen?
-        # Get all the mask layers
-        mask_layers = []
-        for img_name in self.image_path_dict:
-            layer_name = self.parent._get_mask_layer_name(img_name)
-            if layer_name in viewer.layers:
-                mask_layers.append(viewer.layers[layer_name])
         # Extract the data from each of the layers, and save the result in the given folder
         # NOTE: Will also need adjusting for the dask/zarr rewrite
-        if mask_layers:
+        if self.selected_mask_layers:
             count = 0
-            for mask_layer in mask_layers:
+            for mask_layer in self.selected_mask_layers:
                 # Get the name of the mask layer as root for the filename
                 fname = f"{mask_layer.name}"
                 # Check if we are binarising
