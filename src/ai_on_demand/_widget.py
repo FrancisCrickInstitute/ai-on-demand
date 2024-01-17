@@ -123,7 +123,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape
                 # Add a Labels layer for this file
                 self.viewer.add_labels(
-                    np.zeros(img_shape, dtype=int),
+                    np.zeros(img_shape, dtype=np.uint32),
                     name=layer_name,
                     visible=False,
                 )

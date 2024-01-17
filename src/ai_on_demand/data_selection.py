@@ -311,3 +311,27 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         May require napari-ome-zarr plugin.
         """
         raise NotImplementedError
+
+    def get_mask_layers(
+        self, layer_list: Optional[napari.components.LayerList] = None
+    ):
+        """
+        Return all the mask layers in the viewer.
+
+        This is used to get the masks to evaluate against.
+        """
+        # If no layer list given, use all layers in the Napari viewer
+        if layer_list is None:
+            layer_list = self.viewer.layers
+        # Filter the layers by:
+        # Being a Labels layer
+        # Having a name that contains "_masks_"
+        # Having a name that is in the list of images
+        valid_mask_layers = [
+            layer
+            for layer in layer_list
+            if isinstance(layer, napari.layers.Labels)
+            if "_masks_" in layer.name
+            if layer.name.split("_masks_")[0] in self.image_path_dict
+        ]
+        return valid_mask_layers
