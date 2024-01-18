@@ -274,12 +274,14 @@ Run segmentation/inference on selected images using one of the available pre-tra
             if prefix in self.viewer.layers:
                 img_idx = self.viewer.layers.index(self.viewer.layers[prefix])
                 idxs.append(img_idx)
+            # We create the mask layer, so it will always exist
             label_idx = self.viewer.layers.index(label_layer)
             idxs.append(label_idx)
             self.viewer.layers.move_multiple(idxs, -1)
             # Switch viewer to latest slice
             self.viewer.dims.set_point(0, (start_idx + curr_idx) - 1)
             # Insert the slice number into tracker for the progress bar
+            print(prefix, start_idx, curr_idx)
             self.subwidgets["nxf"].progress_dict[
                 f"{prefix}_{start_idx}"
             ] = curr_idx
