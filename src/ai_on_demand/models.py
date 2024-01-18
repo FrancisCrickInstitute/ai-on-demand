@@ -40,13 +40,13 @@ MODEL_TASK_VERSIONS = {
         "mito": {
             "U-Net": {
                 "filename": "mito_5nm_intensity_augs_warp.best.969.pt",
-                "dir": "/nemo/stp/ddt/working/shandc/aiod_models/",
+                "dir": "/nemo/stp/ddt/outputs/aiod_models/",
                 "config": "mito_5nm_intensity_augs_warp.yml",
                 # "dir": "/Volumes/ddt/working/shandc/aiod_models/",
             },
             "Attention U-Net": {
                 "filename": "Attention_HUNet_3e5_Adam_restart_12_16.best.1266.pt",
-                "dir": "/nemo/stp/ddt/working/shandc/aiod_models/",
+                "dir": "/nemo/stp/ddt/outputs/aiod_models/",
                 "config": "Attention_HUNet_3e5_Adam_restart_12_16.yml",
                 # "dir": "/Volumes/ddt/working/shandc/aiod_models/",
             },
@@ -54,7 +54,7 @@ MODEL_TASK_VERSIONS = {
         "ne": {
             "Attention U-Net": {
                 "filename": "Attention_HUNet_NE.best.368.pt",
-                "dir": "/nemo/stp/ddt/working/shandc/aiod_models/",
+                "dir": "/nemo/stp/ddt/outputs/aiod_models/",
                 "config": "Attention_HUNet_NE.yml",
                 # "dir": "/Volumes/ddt/working/shandc/aiod_models/",
             }
