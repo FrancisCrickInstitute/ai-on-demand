@@ -65,7 +65,10 @@ Images can also be opened, or dragged into napari as normal. The selection will 
                         )
                         continue
         # If all pre-existing image layers have been added, set loaded flag
-        if len(self.image_path_dict) == counter:
+        # Set to False if no images, to avoid overriding the all_loaded flag
+        if len(self.image_path_dict) == 0:
+            self.existing_loaded = False
+        elif len(self.image_path_dict) == counter:
             self.existing_loaded = True
         else:
             self.existing_loaded = False
