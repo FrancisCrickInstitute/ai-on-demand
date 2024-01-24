@@ -259,9 +259,12 @@ Run segmentation/inference on selected images using one of the available pre-tra
             mask_layer_name = self._get_mask_layer_name(prefix, executed=True)
             label_layer = self.viewer.layers[mask_layer_name]
             # Insert mask data
-            # If 2 dims (i.e. 2D), just insert without slicing
-            if label_layer.ndim == 2:
-                assert mask_arr.ndim == 2, "Mask should be 2D if the image is!"
+            # Check if dims match
+            if label_layer.ndim != mask_arr.ndim:
+                mask_arr = np.squeeze(mask_arr)
+                assert (
+                    label_layer.ndim == mask_arr.ndim
+                ), f"Mask appears to be {mask_arr.ndim}D (after squeezing), but layer is {label_layer.ndim}D"
                 label_layer.data = mask_arr
             else:
                 label_layer.data[start_idx : start_idx + curr_idx] = mask_arr[
@@ -281,7 +284,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # Switch viewer to latest slice
             self.viewer.dims.set_point(0, (start_idx + curr_idx) - 1)
             # Insert the slice number into tracker for the progress bar
-            print(prefix, start_idx, curr_idx)
             self.subwidgets["nxf"].progress_dict[
                 f"{prefix}_{start_idx}"
             ] = curr_idx
