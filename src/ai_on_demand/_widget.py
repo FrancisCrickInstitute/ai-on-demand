@@ -297,7 +297,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
         This is used to update the napari Labels layers with the final masks
         after the Nextflow pipeline has completed.
         """
-
         # Loop over each image and insert the final mask
         for img_name, img_fpath in self.subwidgets[
             "data"
@@ -305,6 +304,10 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # Get the mask layer name
             mask_layer_name = self._get_mask_layer_name(
                 img_name, executed=True
+            )
+            # Clear the current mask layer of data (to free up memory??)
+            self.viewer.layers[mask_layer_name].data = np.zeros_like(
+                self.viewer.layers[mask_layer_name].data
             )
             # Load the numpy array
             mask_arr = np.load(
@@ -315,8 +318,3 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # Insert mask data
             self.viewer.layers[mask_layer_name].data = mask_arr
             self.viewer.layers[mask_layer_name].visible = True
-        # Now ensure that the progress bar is 100%
-        # Remote edge-case can occur when this doesn't happen, so force it
-        self.subwidgets["nxf"].pbar.setValue(
-            self.subwidgets["nxf"].total_slices
-        )
