@@ -473,7 +473,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         show_info("Pipeline finished!")
         self._reset_btns()
         # When finished, insert all '_all' masks to ensure everything is correct
-        # self.parent.insert_final_masks()
+        self.parent.insert_final_masks()
         # Ensure progress bar is at 100%
         self.pbar.setValue(self.total_slices)
 
