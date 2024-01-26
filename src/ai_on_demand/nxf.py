@@ -561,6 +561,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
                 mask_arr,
                 name=Path(fname).stem.replace("_all", ""),
                 visible=True,
+                opacity=0.5,
             )
 
     def on_click_export(self):

@@ -116,7 +116,10 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 else:
                     # Add a Labels layer for this file
                     self.viewer.add_labels(
-                        mask_data, name=layer_name, visible=True
+                        mask_data,
+                        name=layer_name,
+                        visible=True,
+                        opacity=0.5,
                     )
             else:
                 # If the associated image is present, use its shape
@@ -126,6 +129,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                     np.zeros(img_shape, dtype=np.uint32),
                     name=layer_name,
                     visible=False,
+                    opacity=0.5,
                 )
             # Move this layer to the top
             self.viewer.layers.move_multiple(
