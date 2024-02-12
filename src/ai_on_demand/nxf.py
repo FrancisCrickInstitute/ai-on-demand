@@ -331,8 +331,10 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
                 parent.selected_task,
             )
         ]
+        # Location type determined from registry schema
         nxf_params["model_chkpt_type"] = model_task.location_type
         if model_task.location_type == "url":
+            # This parses the URL to get the root filename which we'll use
             res = urlparse(model_task.location)
             nxf_params["model_chkpt_loc"] = model_task.location
             nxf_params["model_chkpt_fname"] = Path(res.path).name
@@ -413,6 +415,9 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             nxf_cmd += f" -w {self.nxf_work_dir}"
         # Add the selected profile to the command
         nxf_cmd += f" -profile {self.nxf_profile_box.currentText()}"
+        # Add postprocessing flag
+        if self.parent.subwidgets["model"].postprocess_btn.isChecked():
+            nxf_cmd += " --postprocess"
         # Add the parameters to the command
         for param, value in nxf_params.items():
             nxf_cmd += f" --{param}={value}"
