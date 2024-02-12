@@ -6,7 +6,7 @@ channels:
 dependencies:
   - python=3.9
   - pyqt
-  - napari
+  - napari>=0.4.19
   - numpy
   - scipy
   - scikit-image
@@ -17,3 +17,4 @@ dependencies:
     - pandas
     - tabulate
     - git+https://github.com/FrancisCrickInstitute/ai-on-demand.git
+    - git+https://github.com/FrancisCrickInstitute/AIoD-Model-Registry.git

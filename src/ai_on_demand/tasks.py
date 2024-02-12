@@ -1,5 +1,6 @@
 from typing import Optional
 
+from aiod_registry import TASK_NAMES
 import napari
 from qtpy.QtWidgets import (
     QWidget,
@@ -9,13 +10,6 @@ from qtpy.QtWidgets import (
 )
 
 from ai_on_demand.widget_classes import SubWidget
-
-TASK_NAMES = {
-    "mito": "Mitochondria",
-    "er": "Endoplasmic Reticulum",
-    "ne": "Nuclear Envelope",
-    "everything": "Everything!",
-}
 
 
 class TaskWidget(SubWidget):

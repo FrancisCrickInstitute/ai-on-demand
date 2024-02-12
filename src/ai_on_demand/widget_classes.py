@@ -4,6 +4,7 @@ import string
 from typing import Optional
 
 import napari
+from npe2 import PluginManager
 from qtpy.QtWidgets import (
     QWidget,
     QScrollArea,
@@ -27,6 +28,9 @@ class MainWidget(QWidget):
         tooltip: Optional[str] = None,
     ):
         super().__init__()
+        pm = PluginManager.instance()
+        self.all_manifests = pm.commands.execute("ai-on-demand.get_manifests")
+
         self.viewer = napari_viewer
         self.scroll = QScrollArea()
 

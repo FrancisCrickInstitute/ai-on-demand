@@ -2,7 +2,9 @@ from collections import defaultdict
 from pathlib import Path
 import subprocess
 from typing import Optional
+from urllib.parse import urlparse
 
+from aiod_registry import TASK_NAMES
 import napari
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
@@ -22,9 +24,6 @@ from qtpy.QtWidgets import (
 )
 import skimage.io
 import tqdm
-
-from ai_on_demand.models import MODEL_TASK_VERSIONS
-from ai_on_demand.tasks import TASK_NAMES
 from ai_on_demand.utils import sanitise_name, format_tooltip
 from ai_on_demand.widget_classes import SubWidget
 
@@ -325,17 +324,22 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         nxf_params["model_type"] = sanitise_name(parent.selected_variant)
         nxf_params["task"] = parent.selected_task
         # Extract the model checkpoint location and location type
-        checkpoint_info = MODEL_TASK_VERSIONS[parent.selected_model][
-            parent.selected_task
-        ][parent.selected_variant]
-        if "url" in checkpoint_info:
-            nxf_params["model_chkpt_type"] = "url"
-            nxf_params["model_chkpt_loc"] = checkpoint_info["url"]
-            nxf_params["model_chkpt_fname"] = checkpoint_info["filename"]
-        elif "dir" in checkpoint_info:
-            nxf_params["model_chkpt_type"] = "dir"
-            nxf_params["model_chkpt_loc"] = checkpoint_info["dir"]
-            nxf_params["model_chkpt_fname"] = checkpoint_info["filename"]
+        model_task = parent.subwidgets["model"].model_version_tasks[
+            (
+                parent.selected_model,
+                parent.selected_variant,
+                parent.selected_task,
+            )
+        ]
+        nxf_params["model_chkpt_type"] = model_task.location_type
+        if model_task.location_type == "url":
+            res = urlparse(model_task.location)
+            nxf_params["model_chkpt_loc"] = model_task.location
+            nxf_params["model_chkpt_fname"] = Path(res.path).name
+        elif model_task.location_type == "file":
+            res = Path(model_task.location)
+            nxf_params["model_chkpt_loc"] = res.parent
+            nxf_params["model_chkpt_fname"] = res.name
         # No need to check if we are ovewriting
         if self.overwrite_btn.isChecked():
             proceed = True

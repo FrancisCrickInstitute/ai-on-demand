@@ -1,5 +1,6 @@
 name: ai-on-demand
 display_name: AI OnDemand
+on_activate: ai_on_demand.load_manifests:activate_plugin
 contributions:
   commands:
     - id: ai-on-demand.inference
