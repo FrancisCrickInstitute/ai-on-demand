@@ -165,7 +165,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         """
             )
         )
-        self.layout().addWidget(self.overwrite_btn, 1, 0, 1, 1)
+        self.layout().addWidget(self.overwrite_btn, 2, 0, 1, 1)
         # Add a button for importing masks
         self.import_masks_btn = QPushButton("Import masks")
         self.import_masks_btn.clicked.connect(self.on_click_import)
@@ -173,7 +173,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             format_tooltip("Import segmentation masks.")
         )
         self.import_masks_btn.setEnabled(True)
-        self.layout().addWidget(self.import_masks_btn, 1, 1, 1, 1)
+        self.layout().addWidget(self.import_masks_btn, 2, 1, 1, 1)
 
         # Create a button to navigate to a directory to take images from
         self.nxf_run_btn = QPushButton("Run Pipeline!")
@@ -188,7 +188,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # Add a button for exporting masks, with a dropdown for different formats
         # and checkbox for binarising
         export_layout = QHBoxLayout()
-        self.export_masks_btn = QPushButton("Export masks")
+        self.export_masks_btn = QPushButton("Export all masks")
         self.export_masks_btn.clicked.connect(self.on_click_export)
         self.export_masks_btn.setToolTip(
             format_tooltip(
