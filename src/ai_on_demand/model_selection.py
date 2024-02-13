@@ -19,7 +19,7 @@ from qtpy.QtWidgets import (
 import yaml
 
 from ai_on_demand.widget_classes import SubWidget
-from ai_on_demand.utils import format_tooltip, sanitise_name
+from ai_on_demand.utils import format_tooltip, sanitise_name, merge_dicts
 
 
 class ModelWidget(SubWidget):
@@ -48,6 +48,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         )
         # Extract the model info from all manifests
         self.extract_model_info()
+
+        # Track whether the model defaults have been changed
+        self.changed_defaults = False
 
     def extract_model_info(self):
         # Initialise model-related attributes
@@ -398,14 +401,19 @@ If checked, the model output will be re-labelled using connected components to c
                     param_val_widget.setChecked(True)
                 else:
                     param_val_widget.setChecked(False)
+                param_val_widget.stateChanged.connect(self.on_param_changed)
             # List -> ComboBox
             elif isinstance(param_values, list):
                 param_val_widget = QComboBox()
                 param_val_widget.addItems([str(i) for i in param_values])
+                param_val_widget.currentIndexChanged.connect(
+                    self.on_param_changed
+                )
             # Int/float/str -> LineEdit
             elif isinstance(param_values, (int, float, str)):
                 param_val_widget = QLineEdit()
                 param_val_widget.setText(str(param_values))
+                param_val_widget.textChanged.connect(self.on_param_changed)
             else:
                 # Should be handled on the Pydantic side
                 raise ValueError(
@@ -421,6 +429,10 @@ If checked, the model output will be re-labelled using connected components to c
         model_layout.setContentsMargins(0, 0, 0, 0)
         model_widget.setLayout(model_layout)
         return model_widget
+
+    def on_param_changed(self):
+        print("Default changed")
+        self.changed_defaults = True
 
     def clear_model_param_widget(self):
         # Remove the current model param widget
@@ -507,13 +519,13 @@ If checked, the model output will be re-labelled using connected components to c
                     raise ValueError(
                         f"Config file (path: {base_config}) is not JSON or YAML!"
                     )
-            # If there are parameters to overwrite, insert them into the base
-            # NOTE: This requires that the base parameters come from this config!
-            # TODO: This currently does not happen, need to figure a proper way to do this
-            # if default_params:
-            #     model_params = self.create_config_params()
-            #     # TODO: Need to test this
-            #     model_dict = merge_dicts(model_dict, model_params)
+            # If the user has changed one of the parameters, ensure that the defaults are updated
+            if self.changed_defaults:
+                print("Changing defaults")
+                # Extract the model params
+                model_params = self.create_config_params(model_task_version)
+                # Merge into the base config to ensure completeness
+                model_dict = merge_dicts(model_dict, model_params)
         # Otherwise, just extract from the parameters
         else:
             model_dict = self.create_config_params(
