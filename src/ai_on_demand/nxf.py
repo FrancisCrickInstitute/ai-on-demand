@@ -62,8 +62,14 @@ The profile determines where the pipeline is run.
         self.pipeline = pipeline
         # Available pipelines and their funcs
         self.pipelines = {
-            "inference": self.setup_inference,
-            "finetuning": self.setup_finetuning,
+            "inference": {
+                "check": self.check_inference,
+                "setup": self.setup_inference,
+            },
+            "finetuning": {
+                "check": None,
+                "setup": self.setup_finetuning,
+            },
         }
         # Connect viewer to callbacks on events
         self.viewer.layers.selection.events.changed.connect(
@@ -292,8 +298,6 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
 
         `nxf_params` is a dict containing everything that Nextflow needs at the command line.
         """
-        # First check that everything has been selected that needs to have been
-        self.check_inference()
         # Store the selected task, model, and variant for execution
         self.parent.executed_task = self.parent.selected_task
         self.parent.executed_model = self.parent.selected_model
@@ -391,6 +395,13 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         assert (
             self.pipeline in self.pipelines.keys()
         ), f"Pipeline {self.pipeline} not found!"
+        # Do the initial checks
+        if self.pipelines[self.pipeline]["check"] is not None:
+            self.pipelines[self.pipeline]["check"]()
+        else:
+            raise NotImplementedError(
+                f"Pipeline {self.pipeline} check function not implemented!"
+            )
         if self.all_loaded is False:
             # Check whether layers already existed when plugin started, and if all were loaded
             if not (
@@ -402,7 +413,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # Get the pipeline-specific stuff
         nxf_cmd, nxf_params, proceed, img_paths = self.pipelines[
             self.pipeline
-        ]()
+        ]["setup"]()
         # Don't run the pipeline if no green light given
         if not proceed:
             return
