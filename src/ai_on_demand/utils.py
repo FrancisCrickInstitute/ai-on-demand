@@ -1,6 +1,9 @@
 import hashlib
 import json
+from pathlib import Path
 import textwrap
+from typing import Optional
+import yaml
 
 
 def sanitise_name(name):
@@ -10,12 +13,16 @@ def sanitise_name(name):
     return name.replace(" ", "-")
 
 
-def merge_dicts(d1, d2):
+def merge_dicts(d1: dict, d2: Optional[dict] = None) -> dict:
     """
     Merge two dictionaries recursively. d2 will overwrite d1 where specified.
 
     Assumes both dicts have same structure/keys.
     """
+    # Short-circuit if d2 is None
+    if d2 is None:
+        return d1
+    # Otherwise recursively merge
     for k, v in d2.items():
         if isinstance(v, dict):
             d1[k] = merge_dicts(d1[k], v)
