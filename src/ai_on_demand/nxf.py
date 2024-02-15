@@ -305,15 +305,13 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             return nxf_cmd, nxf_params  # FIXME: Returns diff number variables
         # Construct the Nextflow params if not given
         parent = self.parent
-        if parent.subwidgets["model"].model_config is None:
-            config_path = parent.subwidgets["model"].get_model_config()
-        else:
-            config_path = parent.subwidgets["model"].model_config
+        # Get the model config path
+        config_path = parent.subwidgets["model"].get_model_config()
         # Construct the proper mask directory path
         self.mask_dir_path = (
             self.nxf_store_dir
-            / f"{parent.selected_model}"
-            / f"{sanitise_name(parent.selected_variant)}_masks"
+            / f"{parent.executed_model}"
+            / f"{sanitise_name(parent.executed_variant)}_masks"
         )
         # Construct the params to be given to Nextflow
         nxf_params = {}
@@ -321,14 +319,14 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         nxf_params["img_dir"] = str(self.img_list_fpath)
         nxf_params["model"] = parent.selected_model
         nxf_params["model_config"] = config_path
-        nxf_params["model_type"] = sanitise_name(parent.selected_variant)
-        nxf_params["task"] = parent.selected_task
+        nxf_params["model_type"] = sanitise_name(parent.executed_variant)
+        nxf_params["task"] = parent.executed_task
         # Extract the model checkpoint location and location type
         model_task = parent.subwidgets["model"].model_version_tasks[
             (
-                parent.selected_model,
-                parent.selected_variant,
-                parent.selected_task,
+                parent.executed_task,
+                parent.executed_model,
+                parent.executed_variant,
             )
         ]
         # Location type determined from registry schema
@@ -367,7 +365,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # If we already have all the masks, don't run the pipeline
         if not proceed:
             show_info(
-                f"Masks already exist for all files for segmenting {TASK_NAMES[parent.selected_task]} with {parent.selected_model} ({parent.selected_variant})!"
+                f"Masks already exist for all files for segmenting {TASK_NAMES[parent.executed_task]} with {parent.executed_model} ({parent.executed_variant})!"
             )
             # Enable the export button as all masks available
             self.export_masks_btn.setEnabled(True)
@@ -421,7 +419,10 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # Add the parameters to the command
         for param, value in nxf_params.items():
             nxf_cmd += f" --{param}={value}"
-        print(nxf_cmd)
+        # Add the parameter hash to the command
+        nxf_cmd += (
+            f" --param_hash={self.parent.subwidgets['model'].param_hash}"
+        )
 
         @thread_worker(
             connect={

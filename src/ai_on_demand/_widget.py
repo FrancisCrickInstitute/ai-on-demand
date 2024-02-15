@@ -1,6 +1,6 @@
 from pathlib import Path
 import time
-from typing import Optional
+from typing import Optional, Union
 
 import napari
 from napari.qt.threading import thread_worker
@@ -10,7 +10,6 @@ from ai_on_demand.tasks import TaskWidget
 from ai_on_demand.data_selection import DataWidget
 from ai_on_demand.model_selection import ModelWidget
 from ai_on_demand.nxf import NxfWidget
-from ai_on_demand.utils import sanitise_name
 from ai_on_demand.widget_classes import MainWidget
 
 
@@ -212,18 +211,31 @@ Run segmentation/inference on selected images using one of the available pre-tra
         stem: str,
         extension: Optional[str] = None,
         executed: bool = False,
+        include_hash: bool = True,
+        truncate: bool = True,
     ):
         # If executed, use the executed attributes in case the user has changed the selection since running the pipeline
-        if executed:
-            fname = f"{stem}_masks_{self.executed_task}-{self.executed_model}-{sanitise_name(self.executed_variant)}"
-        else:
-            fname = f"{stem}_masks_{self.selected_task}-{self.selected_model}-{sanitise_name(self.selected_variant)}"
+        task_model_variant_name = self.subwidgets[
+            "model"
+        ].get_task_model_variant_name(executed)
+        # Construct the mask layer name
+        fname = f"{stem}_masks_{task_model_variant_name}"
+        # Add the hash if requested
+        if include_hash:
+            if truncate:
+                fname += f"-{self.subwidgets['model'].param_hash[:8]}"
+            else:
+                fname += f"-{self.subwidgets['model'].param_hash}"
         if extension is not None:
             fname += f".{extension}"
         return fname
 
-    def _get_mask_name(self, stem: str, extension="npy", executed=False):
-        mask_root = self._get_mask_layer_name(stem=stem, executed=executed)
+    def _get_mask_name(
+        self, stem: str, extension: str = "npy", executed=False, truncate=False
+    ):
+        mask_root = self._get_mask_layer_name(
+            stem=stem, executed=executed, truncate=truncate
+        )
         # Add the _all marker to signify all slices/completeness
         mask_root += "_all"
         # Add the extension
@@ -237,7 +249,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         """
         self.viewer.dims.set_point(0, 0)
 
-    def update_masks(self, new_files):
+    def update_masks(self, new_files: list[Union[str, Path]]):
         """
         Update the masks in the napari Labels layers with the new masks found in the last scan.
         """
@@ -316,7 +328,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # Load the numpy array
             mask_arr = np.load(
                 self.subwidgets["nxf"].mask_dir_path
-                / self._get_mask_name(img_fpath.stem, executed=True),
+                / self._get_mask_name(
+                    img_fpath.stem, executed=True, truncate=False
+                ),
                 allow_pickle=True,
             )
             # Insert mask data

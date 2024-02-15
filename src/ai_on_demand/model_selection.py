@@ -1,4 +1,3 @@
-import json
 from pathlib import Path
 from typing import Optional
 
@@ -19,7 +18,13 @@ from qtpy.QtWidgets import (
 import yaml
 
 from ai_on_demand.widget_classes import SubWidget
-from ai_on_demand.utils import format_tooltip, sanitise_name, merge_dicts
+from ai_on_demand.utils import (
+    format_tooltip,
+    sanitise_name,
+    merge_dicts,
+    get_param_hash,
+    load_config,
+)
 
 
 class ModelWidget(SubWidget):
@@ -84,7 +89,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
                     )
                     # Store this model-version-task for easy access to params and config
                     self.model_version_tasks[
-                        (base_name, version_name, task_name)
+                        (task_name, base_name, version_name)
                     ] = task
 
     def create_box(self, variant: Optional[str] = None):
@@ -343,19 +348,19 @@ If checked, the model output will be re-labelled using connected components to c
         # Remove the current model param widget
         self.clear_model_param_widget()
         # Construct the unique tuple for this widget
-        model_version_task = (
+        task_model_version = (
+            self.parent.selected_task,
             model_name,
             model_version,
-            self.parent.selected_task,
         )
         # Extract the default parameters for this model-version-task
-        param_list = self.model_version_tasks[model_version_task].params
+        param_list = self.model_version_tasks[task_model_version].params
         # NOTE: Likely to create a lot of redundant widgets, but should be light on memory
         # and is the most extendable
         # Retrieve the widget for this model if already created
-        if model_version_task in self.model_param_widgets_dict:
+        if task_model_version in self.model_param_widgets_dict:
             self.curr_model_param_widget = self.model_param_widgets_dict[
-                model_version_task
+                task_model_version
             ]
         # If no parameters, use the no_param widget
         elif param_list is None:
@@ -365,16 +370,16 @@ If checked, the model output will be re-labelled using connected components to c
         # Otherwise, construct it
         else:
             self.curr_model_param_widget = self._create_model_params_widget(
-                model_version_task, param_list
+                task_model_version, param_list
             )
-            self.model_param_widgets_dict[model_version_task] = (
+            self.model_param_widgets_dict[task_model_version] = (
                 self.curr_model_param_widget
             )
         # Set the current model param widget
         self.set_model_param_widget()
 
     def _create_model_params_widget(
-        self, model_version_task: tuple[str, str, str], param_list: list
+        self, task_model_version: tuple[str, str, str], param_list: list
     ):
         """
         Creates the widget for a specific model's parameters to swap in and out
@@ -383,7 +388,7 @@ If checked, the model output will be re-labelled using connected components to c
         model_widget = QWidget()
         model_layout = QGridLayout()
         # Create container for model parameters
-        self.model_param_dict[model_version_task] = {}
+        self.model_param_dict[task_model_version] = {}
         # Add the default model parameters
         for i, model_param in enumerate(param_list):
             # Create labels for each of the model parameters
@@ -421,7 +426,7 @@ If checked, the model output will be re-labelled using connected components to c
                 )
             model_layout.addWidget(param_val_widget, i, 1)
             # Store for later retrieval when saving the config
-            self.model_param_dict[model_version_task][model_param.name] = {
+            self.model_param_dict[task_model_version][model_param.name] = {
                 "label": param_label,
                 "value": param_val_widget,
             }
@@ -431,7 +436,6 @@ If checked, the model output will be re-labelled using connected components to c
         return model_widget
 
     def on_param_changed(self):
-        print("Default changed")
         self.changed_defaults = True
 
     def clear_model_param_widget(self):
@@ -439,10 +443,10 @@ If checked, the model output will be re-labelled using connected components to c
         self.model_param_layout.removeWidget(self.curr_model_param_widget)
         self.curr_model_param_widget.setParent(None)
 
-    def set_model_param_widget(self, model_version_task=None):
-        if model_version_task is not None:
+    def set_model_param_widget(self, task_model_version=None):
+        if task_model_version is not None:
             self.curr_model_param_widget = self.model_param_widgets_dict[
-                model_version_task
+                task_model_version
             ]
         # Set the collapsible box to contain the params for this model
         self.model_param_layout.addWidget(self.curr_model_param_widget)
@@ -479,7 +483,7 @@ If checked, the model output will be re-labelled using connected components to c
             self,
             "Select a model config",
             str(Path.home()),
-            "",
+            "Configs (*.yaml *.yml *.json)",
         )
         # Reset if dialog cancelled
         if fname == "":
@@ -499,74 +503,74 @@ If checked, the model output will be re-labelled using connected components to c
         self.model_config = None
 
     def get_model_config(self):
+        """
+        Need to construct the final model configuration.
+
+        If a model is found in the schema, this is loaded in as the base config.
+
+        If a config file is loaded, this simply replaces the base config. We do not merge them!
+
+        If a config file is not loaded, if GUI parameters exist we merge them into the base config.
+        """
         # First check if there is a config file for this model
-        model_task_version = (
-            self.parent.selected_model,
-            self.parent.selected_variant,
-            self.parent.selected_task,
-        )
-        model_version = self.model_version_tasks[model_task_version]
-        if model_version.config_path is not None:
+        # Use the executed model, variant, and task to get the version
+        # NOTE: Almost 100% sure same as selected at this point
+        task_model_version = self.get_task_model_variant(executed=True)
+        model_version = self.model_version_tasks[task_model_version]
+
+        if self.model_config is not None:
+            # Load the config file
+            model_dict = load_config(self.model_config)
+        elif model_version.config_path is not None:
             # Set this as the base config
-            base_config = Path(model_version.config_path)
-            # Check whether config is YAML or JSON and load accordingly
-            with open(Path(base_config), "r") as f:
-                if base_config.suffix == ".json":
-                    model_dict = json.load(f)
-                elif base_config.suffix in (".yaml", ".yml"):
-                    model_dict = yaml.safe_load(f)
-                else:
-                    raise ValueError(
-                        f"Config file (path: {base_config}) is not JSON or YAML!"
-                    )
-            # If the user has changed one of the parameters, ensure that the defaults are updated
-            if self.changed_defaults:
-                print("Changing defaults")
-                # Extract the model params
-                model_params = self.create_config_params(model_task_version)
-                # Merge into the base config to ensure completeness
-                model_dict = merge_dicts(model_dict, model_params)
-        # Otherwise, just extract from the parameters
+            model_dict = load_config(Path(model_version.config_path))
+            # Merge in the GUI params if they exist and have changed
+            if model_version.params is not None and self.changed_defaults:
+                gui_dict = self.create_config_params(
+                    task_model_version=task_model_version
+                )
+                model_dict = merge_dicts(model_dict, gui_dict)
+        # No loaded config, no schema config
         else:
+            # NOTE: May fail if there are no GUI params, on top of no schema or loaded config
             model_dict = self.create_config_params(
-                model_task_version=model_task_version
+                task_model_version=task_model_version
             )
+        # Get the unique hash to this set of parameters
+        self.param_hash = get_param_hash(model_dict)
         # Save the model config
         model_config_fpath = self.save_model_config(model_dict)
         return model_config_fpath
 
-    def save_model_config(self, model_dict):
-        # Extract the model type
-        # NOTE: We should constantly be updating this, so not needed...
-        self.parent.selected_variant = (
-            self.model_version_dropdown.currentText()
-        )
+    def save_model_config(self, model_dict: dict):
         # Define save path for the model config
         config_dir = self.parent.subwidgets["nxf"].nxf_base_dir / "configs"
         config_dir.mkdir(parents=True, exist_ok=True)
+
+        task_model_variant_name = self.get_task_model_variant_name()
+
+        # Name the config using the same task-model-version convention as the masks
         model_config_fpath = (
             config_dir
-            / f"{self.parent.selected_model}-{sanitise_name(self.parent.selected_variant)}_config.yaml"
+            / f"{task_model_variant_name}_config_{self.param_hash}.yaml"
         )
         # Save the yaml config
         with open(model_config_fpath, "w") as f:
             yaml.dump(model_dict, f)
         return model_config_fpath
 
-    def create_config_params(self, model_task_version: Optional[tuple] = None):
+    def create_config_params(self, task_model_version: Optional[tuple] = None):
         """
         Construct the model config from the parameter widgets.
+
+        If no task_model_version is given, the executed model, variant, and task are used.
         """
         # Get the current dictionary of widgets for selected model
-        if model_task_version is None:
-            model_task_version = (
-                self.parent.selected_model,
-                self.parent.selected_variant,
-                self.parent.selected_task,
-            )
-        model_dict_orig = self.model_param_dict[model_task_version]
+        if task_model_version is None:
+            task_model_version = self.get_task_model_variant(executed=True)
+        model_dict_orig = self.model_param_dict[task_model_version]
         # Get the relevant default params for this model
-        default_params = self.model_version_tasks[model_task_version].params
+        default_params = self.model_version_tasks[task_model_version].params
         # Reformat the dict to pipe into downstream model run scripts
         model_dict = {}
         # Extract params from model param widgets
@@ -586,3 +590,22 @@ If checked, the model output will be re-labelled using connected components to c
             # Extract the original/intended dtype and cast what's in the box
             model_dict[orig_param.arg_name] = orig_param._dtype(param_value)
         return model_dict
+
+    def get_task_model_variant(self, executed: bool = True):
+        if executed:
+            task, model, version = (
+                self.parent.executed_task,
+                self.parent.executed_model,
+                self.parent.executed_variant,
+            )
+        else:
+            task, model, version = (
+                self.parent.selected_task,
+                self.parent.selected_model,
+                self.parent.selected_variant,
+            )
+        return (task, model, version)
+
+    def get_task_model_variant_name(self, executed: bool = True):
+        task, model, version = self.get_task_model_variant(executed)
+        return f"{task}-{model}-{sanitise_name(version)}"
