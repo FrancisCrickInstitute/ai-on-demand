@@ -10,22 +10,43 @@ from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 import numpy as np
 import pandas as pd
+import qtpy.QtCore
 from qtpy.QtWidgets import (
     QWidget,
     QLayout,
     QGridLayout,
     QHBoxLayout,
+    QVBoxLayout,
     QLabel,
     QComboBox,
     QPushButton,
     QFileDialog,
     QProgressBar,
     QCheckBox,
+    QSpinBox,
+    QDoubleSpinBox,
 )
 import skimage.io
 import tqdm
 from ai_on_demand.utils import sanitise_name, format_tooltip
 from ai_on_demand.widget_classes import SubWidget
+
+# We need to import from the submodule
+# But it's not a package...lots of issues no __init__'ing can fix it seems
+# And I don't want to touch sys.path
+import importlib
+import sys
+
+spec = importlib.util.spec_from_file_location(
+    name="create_splits",
+    location=Path(__file__).parent
+    / "Segment-Flow/modules/models/resources/usr/bin/create_splits.py",
+)
+module = importlib.util.module_from_spec(spec)
+sys.modules["create_splits"] = module
+spec.loader.exec_module(module)
+# This will now be imported
+from create_splits import generate_stack_indices, auto_substack_size
 
 
 class NxfWidget(SubWidget):
@@ -181,6 +202,37 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.import_masks_btn.setEnabled(True)
         self.layout().addWidget(self.import_masks_btn, 2, 1, 1, 1)
 
+        # Add widget for advanced options
+        self.options_widget = QWidget()
+        self.options_layout = QVBoxLayout()
+        self.advanced_box = QPushButton(" ▶ Advanced Options")
+        self.advanced_box.setCheckable(True)
+        self.advanced_box.setStyleSheet(
+            f"QPushButton {{ text-align: left; }} QPushButton:checked {{background-color: {self.parent.subwidgets['model'].colour_selected}}}"
+        )
+        self.advanced_box.toggled.connect(self.on_toggle_advanced)
+        self.advanced_box.setToolTip(
+            format_tooltip(
+                """
+Show/hide advanced options for the Nextflow pipeline. These options define how to split an image into separate jobs in Nextflow. The underlying models will likely do their own splitting internally into patches, but this controls the trade-off between the number and size of each job.
+"""
+            )
+        )
+        self.advanced_widget = QWidget()
+        self.advanced_layout = QGridLayout()
+
+        # Add the advanced options
+        # Moved out due to length
+        self._add_advanced_options()
+
+        self.advanced_widget.setLayout(self.advanced_layout)
+        self.advanced_widget.setVisible(False)
+        self.options_layout.addWidget(self.advanced_box)
+        self.options_layout.addWidget(self.advanced_widget)
+        self.options_layout.setContentsMargins(0, 0, 0, 0)
+        self.options_widget.setLayout(self.options_layout)
+        self.layout().addWidget(self.options_widget, 3, 0, 1, 2)
+
         # Create a button to navigate to a directory to take images from
         self.nxf_run_btn = QPushButton("Run Pipeline!")
         self.nxf_run_btn.clicked.connect(self.run_pipeline)
@@ -189,7 +241,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
                 "Run the pipeline with the chosen organelle(s), model, and images."
             )
         )
-        self.layout().addWidget(self.nxf_run_btn, 3, 0, 1, 2)
+        self.layout().addWidget(self.nxf_run_btn, 4, 0, 1, 2)
 
         # Add a button for exporting masks, with a dropdown for different formats
         # and checkbox for binarising
@@ -215,7 +267,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             )
         )
         export_layout.addWidget(self.export_binary_check)
-        self.layout().addLayout(export_layout, 4, 0, 1, 2)
+        self.layout().addLayout(export_layout, 5, 0, 1, 2)
 
         pbar_layout = QHBoxLayout()
         # Add progress bar
@@ -228,11 +280,114 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # Add the label and progress bar to the layout
         pbar_layout.addWidget(self.pbar_label)
         pbar_layout.addWidget(self.pbar)
-        self.layout().addLayout(pbar_layout, 5, 0, 1, 2)
+        self.layout().addLayout(pbar_layout, 6, 0, 1, 2)
         # TQDM progress bar to monitor completion time
         self.tqdm_pbar = None
         # Add the layout to the main layout
         self.widget.setLayout(self.layout())
+
+    def _add_advanced_options(self):
+        self.tile_x_label = QLabel("Number X tiles:")
+        self.tile_x_label.setToolTip(
+            format_tooltip(
+                """
+Number of tiles to split the image into in the X dimension. 'auto' allows Nextflow to decide an appropriate split.
+"""
+            )
+        )
+        self.tile_x = QSpinBox(minimum=-1, maximum=100, value=-1)
+        self.tile_x.setSpecialValueText("auto")
+        self.tile_x.setAlignment(qtpy.QtCore.Qt.AlignCenter)
+
+        self.tile_y_label = QLabel("Number Y tiles:")
+        self.tile_y_label.setToolTip(
+            format_tooltip(
+                """
+Number of tiles to split the image into in the Y dimension. 'auto' allows Nextflow to decide an appropriate split.
+"""
+            )
+        )
+        self.tile_y = QSpinBox(minimum=-1, maximum=100, value=-1)
+        self.tile_y.setSpecialValueText("auto")
+        self.tile_y.setAlignment(qtpy.QtCore.Qt.AlignCenter)
+
+        self.tile_z_label = QLabel("Number Z tiles:")
+        self.tile_z_label.setToolTip(
+            format_tooltip(
+                """
+Number of tiles to split the image into in the Z dimension. 'auto' allows Nextflow to decide an appropriate split.
+"""
+            )
+        )
+        self.tile_z = QSpinBox(minimum=-1, maximum=100, value=-1)
+        self.tile_z.setSpecialValueText("auto")
+        self.tile_z.setAlignment(qtpy.QtCore.Qt.AlignCenter)
+
+        self.advanced_layout.addWidget(self.tile_x_label, 0, 0, 1, 1)
+        self.advanced_layout.addWidget(self.tile_x, 0, 1, 1, 1)
+        self.advanced_layout.addWidget(self.tile_y_label, 1, 0, 1, 1)
+        self.advanced_layout.addWidget(self.tile_y, 1, 1, 1, 1)
+        self.advanced_layout.addWidget(self.tile_z_label, 2, 0, 1, 1)
+        self.advanced_layout.addWidget(self.tile_z, 2, 1, 1, 1)
+
+        self.overlap_x_label = QLabel("Overlap X:")
+        self.overlap_x_label.setToolTip(
+            format_tooltip(
+                "Fraction of overlap between tiles in the X dimension."
+            )
+        )
+        self.overlap_x = QDoubleSpinBox(minimum=0.0, maximum=0.5, value=0.0)
+        self.overlap_x.setSingleStep(0.05)
+        self.overlap_x.setAlignment(qtpy.QtCore.Qt.AlignCenter)
+
+        self.overlap_y_label = QLabel("Overlap Y:")
+        self.overlap_y_label.setToolTip(
+            format_tooltip(
+                "Fraction of overlap between tiles in the Y dimension."
+            )
+        )
+        self.overlap_y = QDoubleSpinBox(minimum=0.0, maximum=0.5, value=0.0)
+        self.overlap_y.setSingleStep(0.05)
+        self.overlap_y.setAlignment(qtpy.QtCore.Qt.AlignCenter)
+
+        self.overlap_z_label = QLabel("Overlap Z:")
+        self.overlap_z_label.setToolTip(
+            format_tooltip(
+                "Fraction of overlap between tiles in the Z dimension."
+            )
+        )
+        self.overlap_z = QDoubleSpinBox(minimum=0.0, maximum=0.5, value=0.0)
+        self.overlap_z.setSingleStep(0.05)
+        self.overlap_z.setAlignment(qtpy.QtCore.Qt.AlignCenter)
+
+        self.advanced_layout.addWidget(self.overlap_x_label, 3, 0, 1, 1)
+        self.advanced_layout.addWidget(self.overlap_x, 3, 1, 1, 1)
+        self.advanced_layout.addWidget(self.overlap_y_label, 4, 0, 1, 1)
+        self.advanced_layout.addWidget(self.overlap_y, 4, 1, 1, 1)
+        self.advanced_layout.addWidget(self.overlap_z_label, 5, 0, 1, 1)
+        self.advanced_layout.addWidget(self.overlap_z, 5, 1, 1, 1)
+
+        # Connect all the spinboxes to the same function
+        self.tile_x.valueChanged.connect(self.update_tile_size)
+        self.tile_y.valueChanged.connect(self.update_tile_size)
+        self.tile_z.valueChanged.connect(self.update_tile_size)
+        self.overlap_x.valueChanged.connect(self.update_tile_size)
+        self.overlap_y.valueChanged.connect(self.update_tile_size)
+        self.overlap_z.valueChanged.connect(self.update_tile_size)
+
+        self.tile_size_label = QLabel("No image layers found!")
+        self.tile_size_label.setToolTip(
+            "Tile size based on currently selected image and tile settings above."
+        )
+        self.advanced_layout.addWidget(self.tile_size_label, 6, 0, 1, 2)
+
+    def on_toggle_advanced(self):
+        if self.advanced_box.isChecked():
+            self.advanced_widget.setVisible(True)
+            self.advanced_box.setText(" ▼ Advanced Options")
+        else:
+            self.advanced_widget.setVisible(False)
+            self.advanced_box.setText(" ▶ Advanced Options")
 
     def store_img_paths(self, img_paths):
         """
@@ -244,6 +399,19 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         output = defaultdict(list)
         # Create container for knowing what images to track progress of
         self.progress_dict = {}
+        # Counter for number of substacks (equivalent to number of submitted jobs!)
+        total_substacks = 0
+        # Extract inputted stack size
+        stack_size = (
+            "auto" if self.tile_x.value() == -1 else self.tile_x.value(),
+            "auto" if self.tile_y.value() == -1 else self.tile_y.value(),
+            "auto" if self.tile_z.value() == -1 else self.tile_z.value(),
+        )
+        overlap_frac = (
+            self.overlap_x.value(),
+            self.overlap_y.value(),
+            self.overlap_z.value(),
+        )
         # Extract info from each image
         for img_path in img_paths:
             # Get the mask layer name
@@ -270,11 +438,25 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             output["height"].append(H)
             output["width"].append(W)
             output["channels"].append(channels)
+            # Initialise the progress dict
+            self.progress_dict[img_path.stem] = 0
+            # Get the actual stack size
+            num_substacks = auto_substack_size(
+                image_shape=(num_slices, H, W),
+                num_substacks=stack_size,
+            )
+            # Get the number of substacks
+            _, num_substacks, _ = generate_stack_indices(
+                image_shape=(num_slices, H, W),
+                num_substacks=num_substacks,
+                overlap_fraction=overlap_frac,
+            )
+            total_substacks += num_substacks
         # Convert to a DataFrame and save
         df = pd.DataFrame(output)
         df.to_csv(self.img_list_fpath, index=False)
-        # Store the total number of slices for progress bar
-        self.total_slices = df["num_slices"].sum()
+        # Store the total number of jobs
+        self.total_substacks = total_substacks
 
     def check_inference(self):
         """
@@ -344,6 +526,24 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             res = Path(model_task.location)
             nxf_params["model_chkpt_loc"] = res.parent
             nxf_params["model_chkpt_fname"] = res.name
+        # Extract the tiles and overlap
+        # Special text is ignored by default, so need to convert
+        num_substacks = []
+        if self.tile_x.value() == self.tile_x.minimum():
+            num_substacks.append("auto")
+        else:
+            num_substacks.append(self.tile_x.value())
+        if self.tile_y.value() == self.tile_y.minimum():
+            num_substacks.append("auto")
+        else:
+            num_substacks.append(self.tile_y.value())
+        if self.tile_z.value() == self.tile_z.minimum():
+            num_substacks.append("auto")
+        # Nextflow needs a comma-separated string for multiple values
+        nxf_params["num_substacks"] = ",".join(map(str, num_substacks))
+        nxf_params["overlap"] = (
+            f"{self.overlap_x.value()},{self.overlap_y.value()},{self.overlap_z.value()}"
+        )
         # No need to check if we are ovewriting
         if self.overwrite_btn.isChecked():
             proceed = True
@@ -497,7 +697,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         # When finished, insert all '_all' masks to ensure everything is correct
         self.parent.insert_final_masks()
         # Ensure progress bar is at 100%
-        self.pbar.setValue(self.total_slices)
+        self.pbar.setValue(self.total_substacks)
 
     def _pipeline_fail(self, exc):
         show_info("Pipeline failed! See terminal for details")
@@ -531,10 +731,10 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
 
     def init_progress_bar(self):
         # Set the values of the Qt progress bar
-        self.pbar.setRange(0, self.total_slices)
+        self.pbar.setRange(0, self.total_substacks)
         self.pbar.setValue(0)
         # Initialise the tqdm progress bar to monitor time
-        self.tqdm_pbar = tqdm.tqdm(total=self.total_slices)
+        self.tqdm_pbar = tqdm.tqdm(total=self.total_substacks)
         # Reset the label
         self.pbar_label.setText("Progress: [--:--]")
 
@@ -636,3 +836,54 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         Binarises the given mask layer.
         """
         return (mask_layer.data).astype(bool).astype(np.uint8) * 255
+
+    def update_tile_size(self):
+        """
+        Callback for when the tile size spinboxes are updated.
+        """
+        # Get the stack size
+        stack_size = (
+            "auto" if self.tile_x.value() == -1 else self.tile_x.value(),
+            "auto" if self.tile_y.value() == -1 else self.tile_y.value(),
+            "auto" if self.tile_z.value() == -1 else self.tile_z.value(),
+        )
+        # Get the overlap
+        overlap_fraction = (
+            self.overlap_x.value(),
+            self.overlap_y.value(),
+            self.overlap_z.value(),
+        )
+        # Get the relevant image shape
+        # First check if we have any layers selected
+        if len(self.viewer.layers.selection) >= 1:
+            layers = self.viewer.layers.selection
+        # Otherwise get all layers
+        else:
+            layers = self.viewer.layers
+        layers = [
+            layer for layer in layers if isinstance(layer, napari.layers.Image)
+        ]
+        # Check if we have any image layers
+        if len(layers) == 0:
+            self.tile_size_label.setText("No image layers found!")
+            return
+        # Otherwise just take the first one
+        img_shape = layers[0].data.shape
+        # Get the actual stack size
+        num_substacks = auto_substack_size(
+            image_shape=img_shape,
+            num_substacks=stack_size,
+        )
+        # Get the number of substacks
+        _, num_substacks, stack_size_px = generate_stack_indices(
+            image_shape=img_shape,  # D x H x W
+            num_substacks=num_substacks,
+            overlap_fraction=overlap_fraction,
+        )
+
+        self.tile_size_label.setText(
+            format_tooltip(
+                f"Substack size: {stack_size_px[0]} slices, {stack_size_px[1]}px x {stack_size_px[2]}px for each of the {num_substacks} jobs to submit (for the selected image).",
+                width=40,
+            )
+        )

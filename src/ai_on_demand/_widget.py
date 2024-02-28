@@ -198,7 +198,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 # If we have as many slices as the total, we are done
                 if (
                     sum(self.subwidgets["nxf"].progress_dict.values())
-                    == self.subwidgets["nxf"].total_slices
+                    == self.subwidgets["nxf"].total_substacks
                 ):
                     print("Deactivating watcher...")
                     self.watcher_enabled = False
@@ -269,8 +269,14 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 print(e)
             # Check if the mask layer has been renamed
             prefix, suffix = f.stem.split("_masks_")
-            curr_idx, start_idx = suffix.split("_")[-2:]
-            curr_idx, start_idx = int(curr_idx), int(start_idx)
+            x_idxs, y_idxs, z_idxs = suffix.split("_")[-3:]
+            # TODO: Use Segment-Flow's extract_idxs_from_fname function later
+            # Remove the leader dim letter
+            x_idxs, y_idxs, z_idxs = x_idxs[1:], y_idxs[1:], z_idxs[1:]
+            # This hurts me
+            start_x, end_x = map(int, x_idxs.split("-"))
+            start_y, end_y = map(int, y_idxs.split("-"))
+            start_z, end_z = map(int, z_idxs.split("-"))
             # Extract the relevant Labels layer
             mask_layer_name = self._get_mask_layer_name(prefix, executed=True)
             label_layer = self.viewer.layers[mask_layer_name]
@@ -283,9 +289,14 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 ), f"Mask appears to be {mask_arr.ndim}D (after squeezing), but layer is {label_layer.ndim}D"
                 label_layer.data = mask_arr
             else:
-                label_layer.data[start_idx : start_idx + curr_idx] = mask_arr[
-                    :curr_idx
-                ]
+                # TODO: Handle multi-channel images
+                # TODO: Check DHW orientation? Does Napari enforce this?
+                if label_layer.ndim == 3:
+                    label_layer.data[
+                        start_z:end_z, start_x:end_x, start_y:end_y
+                    ] = mask_arr
+                else:
+                    label_layer.data[start_x:end_x, start_y:end_y] = mask_arr
             label_layer.visible = True
             # Try to rearrange the layers to get them on top
             idxs = []
@@ -298,11 +309,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
             idxs.append(label_idx)
             self.viewer.layers.move_multiple(idxs, -1)
             # Switch viewer to latest slice
-            self.viewer.dims.set_point(0, (start_idx + curr_idx) - 1)
+            self.viewer.dims.set_point(0, end_z - 1)
             # Insert the slice number into tracker for the progress bar
-            self.subwidgets["nxf"].progress_dict[
-                f"{prefix}_{start_idx}"
-            ] = curr_idx
+            self.subwidgets["nxf"].progress_dict[prefix] += 1
         # Now update the total progress bar
         self.subwidgets["nxf"].update_progress_bar()
 
