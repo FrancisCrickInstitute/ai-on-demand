@@ -295,7 +295,7 @@ Number of tiles to split the image into in the X dimension. 'auto' allows Nextfl
 """
             )
         )
-        self.tile_x = QSpinBox(minimum=-1, maximum=100, value=-1)
+        self.tile_x = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_x.setSpecialValueText("auto")
         self.tile_x.setAlignment(qtpy.QtCore.Qt.AlignCenter)
 
@@ -307,7 +307,7 @@ Number of tiles to split the image into in the Y dimension. 'auto' allows Nextfl
 """
             )
         )
-        self.tile_y = QSpinBox(minimum=-1, maximum=100, value=-1)
+        self.tile_y = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_y.setSpecialValueText("auto")
         self.tile_y.setAlignment(qtpy.QtCore.Qt.AlignCenter)
 
@@ -319,7 +319,7 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
 """
             )
         )
-        self.tile_z = QSpinBox(minimum=-1, maximum=100, value=-1)
+        self.tile_z = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_z.setSpecialValueText("auto")
         self.tile_z.setAlignment(qtpy.QtCore.Qt.AlignCenter)
 
@@ -403,9 +403,21 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         total_substacks = 0
         # Extract inputted stack size
         stack_size = (
-            "auto" if self.tile_x.value() == -1 else self.tile_x.value(),
-            "auto" if self.tile_y.value() == -1 else self.tile_y.value(),
-            "auto" if self.tile_z.value() == -1 else self.tile_z.value(),
+            (
+                "auto"
+                if self.tile_x.value() == self.tile_x.minimum()
+                else self.tile_x.value()
+            ),
+            (
+                "auto"
+                if self.tile_y.value() == self.tile_y.minimum()
+                else self.tile_y.value()
+            ),
+            (
+                "auto"
+                if self.tile_z.value() == self.tile_z.minimum()
+                else self.tile_z.value()
+            ),
         )
         overlap_frac = (
             self.overlap_x.value(),
@@ -529,16 +541,21 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         # Extract the tiles and overlap
         # Special text is ignored by default, so need to convert
         num_substacks = []
-        if self.tile_x.value() == self.tile_x.minimum():
-            num_substacks.append("auto")
-        else:
-            num_substacks.append(self.tile_x.value())
-        if self.tile_y.value() == self.tile_y.minimum():
-            num_substacks.append("auto")
-        else:
-            num_substacks.append(self.tile_y.value())
-        if self.tile_z.value() == self.tile_z.minimum():
-            num_substacks.append("auto")
+        num_substacks.append(
+            "auto"
+            if self.tile_x.value() == self.tile_x.minimum()
+            else self.tile_x.value()
+        )
+        num_substacks.append(
+            "auto"
+            if self.tile_y.value() == self.tile_y.minimum()
+            else self.tile_y.value()
+        )
+        num_substacks.append(
+            "auto"
+            if self.tile_z.value() == self.tile_z.minimum()
+            else self.tile_z.value()
+        )
         # Nextflow needs a comma-separated string for multiple values
         nxf_params["num_substacks"] = ",".join(map(str, num_substacks))
         nxf_params["overlap"] = (
@@ -842,10 +859,23 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         Callback for when the tile size spinboxes are updated.
         """
         # Get the stack size
+        # FIXME: Pattern repeated 3 times in this script, abstract?
         stack_size = (
-            "auto" if self.tile_x.value() == -1 else self.tile_x.value(),
-            "auto" if self.tile_y.value() == -1 else self.tile_y.value(),
-            "auto" if self.tile_z.value() == -1 else self.tile_z.value(),
+            (
+                "auto"
+                if self.tile_x.value() == self.tile_x.minimum()
+                else self.tile_x.value()
+            ),
+            (
+                "auto"
+                if self.tile_y.value() == self.tile_y.minimum()
+                else self.tile_y.value()
+            ),
+            (
+                "auto"
+                if self.tile_z.value() == self.tile_z.minimum()
+                else self.tile_z.value()
+            ),
         )
         # Get the overlap
         overlap_fraction = (
