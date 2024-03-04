@@ -46,7 +46,7 @@ module = importlib.util.module_from_spec(spec)
 sys.modules["create_splits"] = module
 spec.loader.exec_module(module)
 # This will now be imported
-from create_splits import generate_stack_indices, auto_substack_size
+from create_splits import generate_stack_indices, calc_num_stacks, Stack
 
 
 class NxfWidget(SubWidget):
@@ -419,10 +419,15 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
                 else self.tile_z.value()
             ),
         )
-        overlap_frac = (
-            self.overlap_x.value(),
-            self.overlap_y.value(),
-            self.overlap_z.value(),
+        # Convert into Stack namedtuple
+        stack_size = Stack(
+            height=stack_size[0], width=stack_size[1], depth=stack_size[2]
+        )
+        # Extract overlap fraction
+        overlap_frac = Stack(
+            height=round(self.overlap_x.value(), 2),
+            width=round(self.overlap_y.value(), 2),
+            depth=round(self.overlap_z.value(), 2),
         )
         # Extract info from each image
         for img_path in img_paths:
@@ -453,15 +458,18 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
             # Initialise the progress dict
             self.progress_dict[img_path.stem] = 0
             # Get the actual stack size
-            num_substacks = auto_substack_size(
-                image_shape=(num_slices, H, W),
-                num_substacks=stack_size,
+            img_shape = Stack(height=H, width=W, depth=num_slices)
+            num_substacks, eff_shape = calc_num_stacks(
+                image_shape=img_shape,
+                req_stacks=stack_size,
+                overlap_fraction=overlap_frac,
             )
             # Get the number of substacks
             _, num_substacks, _ = generate_stack_indices(
-                image_shape=(num_slices, H, W),
+                image_shape=img_shape,
                 num_substacks=num_substacks,
                 overlap_fraction=overlap_frac,
+                eff_shape=eff_shape,
             )
             total_substacks += num_substacks
         # Convert to a DataFrame and save
@@ -860,6 +868,7 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         """
         # Get the stack size
         # FIXME: Pattern repeated 3 times in this script, abstract?
+        # Extract inputted stack size
         stack_size = (
             (
                 "auto"
@@ -877,11 +886,15 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
                 else self.tile_z.value()
             ),
         )
-        # Get the overlap
-        overlap_fraction = (
-            self.overlap_x.value(),
-            self.overlap_y.value(),
-            self.overlap_z.value(),
+        # Convert into Stack namedtuple
+        stack_size = Stack(
+            height=stack_size[0], width=stack_size[1], depth=stack_size[2]
+        )
+        # Extract overlap fraction
+        overlap_frac = Stack(
+            height=round(self.overlap_x.value(), 2),
+            width=round(self.overlap_y.value(), 2),
+            depth=round(self.overlap_z.value(), 2),
         )
         # Get the relevant image shape
         # First check if we have any layers selected
@@ -899,21 +912,26 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
             return
         # Otherwise just take the first one
         img_shape = layers[0].data.shape
+        img_shape = Stack(
+            height=img_shape[1], width=img_shape[2], depth=img_shape[0]
+        )
         # Get the actual stack size
-        num_substacks = auto_substack_size(
+        num_substacks, eff_shape = calc_num_stacks(
             image_shape=img_shape,
-            num_substacks=stack_size,
+            req_stacks=stack_size,
+            overlap_fraction=overlap_frac,
         )
         # Get the number of substacks
         _, num_substacks, stack_size_px = generate_stack_indices(
-            image_shape=img_shape,  # D x H x W
+            image_shape=img_shape,
             num_substacks=num_substacks,
-            overlap_fraction=overlap_fraction,
+            overlap_fraction=overlap_frac,
+            eff_shape=eff_shape,
         )
 
         self.tile_size_label.setText(
             format_tooltip(
-                f"Substack size: {stack_size_px[0]} slices, {stack_size_px[1]}px x {stack_size_px[2]}px for each of the {num_substacks} jobs to submit (for the selected image).",
+                f"Substack size: {stack_size_px.depth} slices, {stack_size_px.height}px x {stack_size_px.width}px for each of the {num_substacks} jobs to submit (for the selected image).",
                 width=40,
             )
         )
