@@ -97,6 +97,36 @@ The profile determines where the pipeline is run.
             self.on_select_change
         )
 
+    def load_settings(self):
+        """
+        Load the settings for the plugin from the parent widget.
+        """
+        if not self.parent.plugin_settings:
+            return
+        if "nxf" in self.parent.plugin_settings:
+            settings = self.parent.plugin_settings["nxf"]
+            # Set the profile
+            if "profile" in settings:
+                idx = self.nxf_profile_box.findText(settings["profile"])
+                if idx != -1:
+                    self.nxf_profile_box.setCurrentIndex(idx)
+            # Set the base directory
+            if "base_dir" in settings:
+                nxf_base_dir = Path(settings["base_dir"])
+                self.nxf_dir_text.setText(str(nxf_base_dir))
+                # Update the base directory and Nextflow command
+                self.setup_nxf_dir_cmd(base_dir=Path(nxf_base_dir))
+
+    def get_settings(self) -> dict:
+        """
+        Get the settings for the plugin to store for future sessions.
+        """
+        settings = {
+            "profile": self.nxf_profile_box.currentText(),
+            "base_dir": str(self.nxf_base_dir),
+        }
+        return settings
+
     def on_select_change(self, event):
         layers_selected = event.source
         # If nothing selected, reset the mask layers
@@ -642,6 +672,8 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         # Don't run the pipeline if no green light given
         if not proceed:
             return
+        # Store plugin settings for future sessions
+        self.parent.store_settings()
         # Store the image paths
         self.store_img_paths(img_paths=img_paths)
         # Add custom work directory

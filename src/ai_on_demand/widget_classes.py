@@ -2,6 +2,7 @@ from abc import abstractmethod
 from pathlib import Path
 import string
 from typing import Optional
+import yaml
 
 import napari
 from npe2 import PluginManager
@@ -17,7 +18,12 @@ from qtpy.QtWidgets import (
 from qtpy.QtGui import QPixmap
 import qtpy.QtCore
 
-from ai_on_demand.utils import format_tooltip
+from ai_on_demand.utils import (
+    format_tooltip,
+    load_settings,
+    get_plugin_cache,
+    merge_dicts,
+)
 
 
 class MainWidget(QWidget):
@@ -30,6 +36,7 @@ class MainWidget(QWidget):
         super().__init__()
         pm = PluginManager.instance()
         self.all_manifests = pm.commands.execute("ai-on-demand.get_manifests")
+        self.plugin_settings = pm.commands.execute("ai-on-demand.get_settings")
 
         self.viewer = napari_viewer
         self.scroll = QScrollArea()
@@ -81,6 +88,28 @@ class MainWidget(QWidget):
     def register_widget(self, widget: "SubWidget"):
         self.subwidgets[widget._name] = widget
 
+    def store_settings(self):
+        # Check for each of the things we want to store
+        # Skipping if not present in this main widget
+        if "nxf" in self.subwidgets:
+            self.plugin_settings["nxf"] = self.subwidgets["nxf"].get_settings()
+
+        # Load the existing saved settings
+        orig_settings = load_settings()
+        # Merge the current settings
+        # Try to do a nuanced merge at first
+        try:
+            plugin_settings = merge_dicts(orig_settings, self.plugin_settings)
+        except KeyError:
+            # If this fails, our schema has changed and we need to overwrite the settings
+            # Try to preserve original where possible
+            # TODO: Future, embed versioning in the settings
+            plugin_settings = {**orig_settings, **self.plugin_settings}
+        # Save the settings to the cache
+        _, settings_path = get_plugin_cache()
+        with open(settings_path, "w") as f:
+            yaml.dump(plugin_settings, f)
+
 
 class SubWidget(QWidget):
     # Define a shorthand name to be used to register the widget
@@ -131,9 +160,25 @@ class SubWidget(QWidget):
             # Add to the content widget (i.e. scrollable able)
             self.parent.content_widget.layout().addWidget(self.widget)
 
+        self.load_settings()
+
     @abstractmethod
     def create_box(self, variant: Optional[str] = None):
         """
         Create the box for the subwidget, i.e. all UI elements.
         """
         raise NotImplementedError
+
+    @abstractmethod
+    def load_settings(self):
+        """
+        Load settings for the subwidget.
+        """
+        pass
+
+    @abstractmethod
+    def get_settings(self):
+        """
+        Get settings for the subwidget.
+        """
+        pass

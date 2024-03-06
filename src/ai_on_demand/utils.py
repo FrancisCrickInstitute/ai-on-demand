@@ -5,6 +5,8 @@ import textwrap
 from typing import Optional
 import yaml
 
+from platformdirs import user_cache_dir
+
 
 def sanitise_name(name):
     """
@@ -72,3 +74,21 @@ def load_config(config_path):
                 f"Config file (path: {config_path}) is not JSON or YAML!"
             )
     return model_dict
+
+
+def get_plugin_cache() -> tuple[Path, Path]:
+    cache_dir = Path(user_cache_dir("aiod"))
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    settings_path = cache_dir / "aiod_settings.yaml"
+    return cache_dir, settings_path
+
+
+def load_settings():
+    _, settings_path = get_plugin_cache()
+
+    if settings_path.exists():
+        with open(settings_path, "r") as f:
+            settings = yaml.safe_load(f)
+    else:
+        settings = {}
+    return settings
