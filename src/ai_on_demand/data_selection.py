@@ -56,14 +56,20 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             for img_layer in self.viewer.layers:
                 if isinstance(img_layer, Image):
                     try:
-                        img_path = Path(img_layer.source.path)
+                        img_path = img_layer.source.path
+                        # If the path is None, try to extract from metadata
+                        # This occurs explicitly with the sample data, because Napari
+                        if img_path is None:
+                            img_path = img_layer.metadata["path"]
+                        img_path = Path(img_path)
                         self.image_path_dict[img_path.stem] = img_path
                         counter += 1
-                    except AttributeError:
+                    except (AttributeError, TypeError):
                         show_info(
                             f"Cannot extract path for image layer {img_layer}. Please add manually using the buttons."
                         )
                         continue
+
         # If all pre-existing image layers have been added, set loaded flag
         # Set to False if no images, to avoid overriding the all_loaded flag
         if len(self.image_path_dict) == 0:

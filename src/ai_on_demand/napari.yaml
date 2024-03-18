@@ -11,8 +11,16 @@ contributions:
       python_name: ai_on_demand.evaluation_widget:Evaluation
       title: Evaluate segmentations
       short_title: Evaluation
+    - id: ai-on-demand.example_data
+      title: Example FIB SEM data
+      short_title: Example Data
+      python_name: ai_on_demand.example_data:load_example_data
   widgets:
     - command: ai-on-demand.inference
       display_name: Inference
     - command: ai-on-demand.evaluation
       display_name: Segmentation Evaluation
+  sample_data:
+    - command: ai-on-demand.example_data
+      display_name: Example FIB SEM data
+      key: example_fibsem
