@@ -17,7 +17,7 @@ from qtpy.QtWidgets import (
 import skimage.io
 
 from ai_on_demand.widget_classes import SubWidget
-from ai_on_demand.utils import format_tooltip
+from ai_on_demand.utils import format_tooltip, get_image_layer_path
 
 
 class DataWidget(SubWidget):
@@ -55,19 +55,12 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         if self.viewer.layers:
             for img_layer in self.viewer.layers:
                 if isinstance(img_layer, Image):
+                    img_path = get_image_layer_path(img_layer)
                     try:
-                        img_path = img_layer.source.path
-                        # If the path is None, try to extract from metadata
-                        # This occurs explicitly with the sample data, because Napari
-                        if img_path is None:
-                            img_path = img_layer.metadata["path"]
-                        img_path = Path(img_path)
                         self.image_path_dict[img_path.stem] = img_path
                         counter += 1
-                    except (AttributeError, TypeError):
-                        show_info(
-                            f"Cannot extract path for image layer {img_layer}. Please add manually using the buttons."
-                        )
+                    # Will fail if no path found
+                    except AttributeError:
                         continue
 
         # If all pre-existing image layers have been added, set loaded flag
@@ -126,11 +119,11 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         """
         if isinstance(event.value, Image):
             # Extract the underlying filepath of the image
-            img_path = event.value.source.path
+            img_path = get_image_layer_path(event.value)
             # Insert into the overall dict of images and their paths (if path is present)
             # This will be None when we are viewing arrays loaded separately from napari
             if img_path is not None:
-                self.image_path_dict[Path(img_path).stem] = Path(img_path)
+                self.image_path_dict[img_path.stem] = img_path
             # Then update the counts of files (and their types) with the extra image
             self.update_file_count()
             # Switch flag to signify the image has been loaded

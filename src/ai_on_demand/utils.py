@@ -1,5 +1,7 @@
 import hashlib
 import json
+from napari.layers import Image
+from napari.utils.notifications import show_info
 from pathlib import Path
 import textwrap
 from typing import Optional
@@ -92,3 +94,23 @@ def load_settings():
     else:
         settings = {}
     return settings
+
+
+def get_image_layer_path(img_layer: Image) -> Path:
+    # Extract from the layer source
+    img_path = img_layer.source.path
+    # If not there, check the metadata
+    # This occurs explicitly with the sample data by design (because I have to)
+    if img_path is None:
+        try:
+            img_path = img_layer.metadata["path"]
+        except KeyError:
+            img_path = None
+    # If still None, show a pop-up
+    if img_path is None:
+        show_info(
+            f"Cannot extract path for image layer {img_layer}. Please add manually using the buttons."
+        )
+        return
+    else:
+        return Path(img_path)
