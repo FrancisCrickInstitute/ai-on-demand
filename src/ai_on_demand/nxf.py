@@ -168,7 +168,7 @@ The profile determines where the pipeline is run.
         # Set the base Nextflow command
         # Ensures logs are stored in the right place (must be before run)
         self.nxf_base_cmd = (
-            f"nextflow -log {str(self.nxf_base_dir / 'nextflow.log')} "
+            f"nextflow -log '{str(self.nxf_base_dir / 'nextflow.log')}' "
         )
         # Path to store the text file containing the image paths
         self.img_list_fpath = self.nxf_store_dir / "all_img_paths.csv"
