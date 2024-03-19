@@ -597,7 +597,7 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         # Nextflow needs a comma-separated string for multiple values
         nxf_params["num_substacks"] = ",".join(map(str, num_substacks))
         nxf_params["overlap"] = (
-            f"{self.overlap_x.value()},{self.overlap_y.value()},{self.overlap_z.value()}"
+            f"{round(self.overlap_x.value(), 2)},{round(self.overlap_y.value(), 2)},{round(self.overlap_z.value(), 2)}"
         )
         # No need to check if we are ovewriting
         if self.overwrite_btn.isChecked():
