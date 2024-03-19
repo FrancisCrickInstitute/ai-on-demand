@@ -781,10 +781,13 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         # Skip if no directory selected
         if base_dir == "":
             return
+        # Replace any spaces, makes everything else easier
+        new_dir_name = Path(base_dir).name.replace(" ", "_")
+        base_dir = Path(base_dir).parent / new_dir_name
         # Update the text
-        self.nxf_dir_text.setText(base_dir)
+        self.nxf_dir_text.setText(str(base_dir))
         # Update the base directory and Nextflow command
-        self.setup_nxf_dir_cmd(base_dir=Path(base_dir))
+        self.setup_nxf_dir_cmd(base_dir=base_dir)
 
     def init_progress_bar(self):
         # Set the values of the Qt progress bar

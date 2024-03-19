@@ -96,7 +96,9 @@ def load_settings():
     return settings
 
 
-def get_image_layer_path(img_layer: Image) -> Path:
+def get_image_layer_path(
+    img_layer: Image, image_path_dict: Optional[dict] = None
+) -> Path:
     # Extract from the layer source
     img_path = img_layer.source.path
     # If not there, check the metadata
@@ -106,11 +108,13 @@ def get_image_layer_path(img_layer: Image) -> Path:
             img_path = img_layer.metadata["path"]
         except KeyError:
             img_path = None
-    # If still None, show a pop-up
+    # If still None, check if already added
     if img_path is None:
-        show_info(
-            f"Cannot extract path for image layer {img_layer}. Please add manually using the buttons."
-        )
-        return
+        if image_path_dict is not None:
+            if img_layer.name not in image_path_dict:
+                show_info(
+                    f"Cannot extract path for image layer {img_layer}. Please add manually using the buttons."
+                )
+                return
     else:
         return Path(img_path)

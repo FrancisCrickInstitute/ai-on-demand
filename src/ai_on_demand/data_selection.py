@@ -119,7 +119,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         """
         if isinstance(event.value, Image):
             # Extract the underlying filepath of the image
-            img_path = get_image_layer_path(event.value)
+            img_path = get_image_layer_path(event.value, self.image_path_dict)
             # Insert into the overall dict of images and their paths (if path is present)
             # This will be None when we are viewing arrays loaded separately from napari
             if img_path is not None:
