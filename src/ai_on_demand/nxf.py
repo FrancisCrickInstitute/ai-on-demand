@@ -411,6 +411,32 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         )
         self.advanced_layout.addWidget(self.tile_size_label, 6, 0, 1, 2)
 
+        # Add post-processing options
+        self.postprocess_btn = QCheckBox("Re-label output")
+        self.postprocess_btn.setChecked(True)
+        self.postprocess_btn.setToolTip(
+            format_tooltip(
+                """
+If checked, the model output will be re-labelled using connected components to create consistency across slices.
+            """
+            )
+        )
+        self.advanced_layout.addWidget(self.postprocess_btn, 7, 0, 1, 2)
+        # Add threshold for IoU SAM post-processing
+        self.iou_thresh_label = QLabel("IoU threshold (SAM only):")
+        self.iou_thresh_label.setToolTip(
+            format_tooltip(
+                """
+Threshold for the Intersection over Union (IoU) metric used in the SAM post-processing step.
+            """
+            )
+        )
+        self.iou_thresh = QDoubleSpinBox(minimum=0.0, maximum=1.0, value=0.8)
+        self.iou_thresh.setSingleStep(0.01)
+        self.iou_thresh.setAlignment(qtpy.QtCore.Qt.AlignCenter)
+        self.advanced_layout.addWidget(self.iou_thresh_label, 8, 0, 1, 1)
+        self.advanced_layout.addWidget(self.iou_thresh, 8, 1, 1, 1)
+
     def on_toggle_advanced(self):
         if self.advanced_box.isChecked():
             self.advanced_widget.setVisible(True)
@@ -599,6 +625,7 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         nxf_params["overlap"] = (
             f"{round(self.overlap_x.value(), 2)},{round(self.overlap_y.value(), 2)},{round(self.overlap_z.value(), 2)}"
         )
+        nxf_params["iou_threshold"] = round(self.iou_thresh.value(), 2)
         # No need to check if we are ovewriting
         if self.overwrite_btn.isChecked():
             proceed = True
@@ -682,7 +709,7 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         # Add the selected profile to the command
         nxf_cmd += f" -profile {self.nxf_profile_box.currentText()}"
         # Add postprocessing flag
-        if self.parent.subwidgets["model"].postprocess_btn.isChecked():
+        if self.postprocess_btn.isChecked():
             nxf_cmd += " --postprocess"
         # Add the parameters to the command
         for param, value in nxf_params.items():

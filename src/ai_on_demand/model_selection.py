@@ -128,18 +128,6 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         model_box_layout.addWidget(model_version_label, 1, 0)
         model_box_layout.addWidget(self.model_version_dropdown, 1, 1, 1, 2)
 
-        # Create a box for selecting post-processing options
-        self.postprocess_btn = QCheckBox("Re-label output")
-        self.postprocess_btn.setChecked(True)
-        self.postprocess_btn.setToolTip(
-            format_tooltip(
-                """
-If checked, the model output will be re-labelled using connected components to create consistency across slices.
-            """
-            )
-        )
-        model_box_layout.addWidget(self.postprocess_btn, 2, 0)
-
         self.layout().addLayout(model_box_layout)
 
         # Store model config location if given
