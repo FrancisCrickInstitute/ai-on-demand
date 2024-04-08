@@ -99,7 +99,6 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         model_label = QLabel("Select model:")
         # Dropdown of available models
         self.model_dropdown = QComboBox()
-        self.model_dropdown.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         # Store initial message to handle erroneous clicking
         self.model_name_init = "Select a task first!"
         self.model_name_unavail = "No models available!"
@@ -118,9 +117,6 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             )
         )
         self.model_version_dropdown = QComboBox()
-        self.model_version_dropdown.setSizeAdjustPolicy(
-            QComboBox.AdjustToContents
-        )
         self.model_version_dropdown.addItems(["Select a model first!"])
         self.model_version_dropdown.activated.connect(
             self.on_model_version_select
