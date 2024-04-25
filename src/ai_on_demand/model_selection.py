@@ -22,7 +22,7 @@ from ai_on_demand.utils import (
     format_tooltip,
     sanitise_name,
     merge_dicts,
-    get_param_hash,
+    calc_param_hash,
     load_config,
 )
 
@@ -523,7 +523,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
                 task_model_version=task_model_version
             )
         # Get the unique hash to this set of parameters
-        self.param_hash = get_param_hash(model_dict)
+        self.model_param_hash = calc_param_hash(model_dict)
         # Save the model config
         model_config_fpath = self.save_model_config(model_dict)
         return model_config_fpath
@@ -538,7 +538,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         # Name the config using the same task-model-version convention as the masks
         model_config_fpath = (
             config_dir
-            / f"{task_model_variant_name}_config_{self.param_hash}.yaml"
+            / f"{task_model_variant_name}_config_{self.model_param_hash}.yaml"
         )
         # Save the yaml config
         with open(model_config_fpath, "w") as f:

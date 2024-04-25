@@ -626,6 +626,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             f"{round(self.overlap_x.value(), 2)},{round(self.overlap_y.value(), 2)},{round(self.overlap_z.value(), 2)}"
         )
         nxf_params["iou_threshold"] = round(self.iou_thresh.value(), 2)
+        # Now have everything for the run hash
+        self.parent.get_run_hash(nxf_params)
         # No need to check if we are ovewriting
         if self.overwrite_btn.isChecked():
             proceed = True
@@ -715,9 +717,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         for param, value in nxf_params.items():
             nxf_cmd += f" --{param}={value}"
         # Add the parameter hash to the command
-        nxf_cmd += (
-            f" --param_hash={self.parent.subwidgets['model'].param_hash}"
-        )
+        nxf_cmd += f" --param_hash={self.parent.run_hash}"
 
         @thread_worker(
             connect={

@@ -40,6 +40,10 @@ Calculate various evaluation metrics (with or without ground truth) on selected 
         # Register any subwidgets here
         self.register_widget(EvalWidget(viewer=self.viewer, parent=self))
 
+    def get_run_hash(self):
+        # NOTE: Currently no need to hash anything for evaluation, as Nextflow is not used
+        pass
+
 
 class EvalWidget(SubWidget):
     _name = "eval"

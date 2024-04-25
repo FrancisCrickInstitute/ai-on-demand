@@ -110,6 +110,13 @@ class MainWidget(QWidget):
         with open(settings_path, "w") as f:
             yaml.dump(plugin_settings, f)
 
+    @abstractmethod
+    def get_hashed_params(self):
+        """
+        Gather all the parameters from the subwidgets to be used in obtaining a unique hash for a run.
+        """
+        raise NotImplementedError
+
 
 class SubWidget(QWidget):
     # Define a shorthand name to be used to register the widget

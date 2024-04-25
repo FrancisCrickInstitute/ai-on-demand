@@ -11,6 +11,7 @@ from ai_on_demand.data_selection import DataWidget
 from ai_on_demand.model_selection import ModelWidget
 from ai_on_demand.nxf import NxfWidget
 from ai_on_demand.widget_classes import MainWidget
+from ai_on_demand.utils import calc_param_hash
 
 
 class Inference(MainWidget):
@@ -30,6 +31,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.executed_task = None
         self.executed_model = None
         self.executed_variant = None
+        self.run_hash = None
 
         # Set selection colour
         self.colour_selected = "#F7AD6F"
@@ -48,6 +50,29 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.register_widget(
             NxfWidget(viewer=self.viewer, parent=self, pipeline="inference")
         )
+
+    def get_run_hash(self, nxf_params: dict):
+        """
+        Gather all the parameters from the subwidgets to be used in obtaining a unique hash for a run.
+        """
+        hashed_params = {}
+        # Add the model dictionary
+        hashed_params["model_hash"] = self.subwidgets["model"].model_param_hash
+        # Get the advanced Nextflow parameters
+        hashed_params.update(
+            {
+                k: v
+                for k, v in nxf_params.items()
+                if k in ["num_substacks", "overlap"]
+            }
+        )
+        # NOTE: Could consider using the nxf_cmd string instead
+        # Though this only applies if post-processing is added (I think)
+        if self.subwidgets["nxf"].postprocess_btn.isChecked():
+            hashed_params["iou_threshold"] = nxf_params["iou_threshold"]
+        # Calculate the overall hash for this run considering the model parameters
+        # and Nextflow parameters that affect the output
+        self.run_hash = calc_param_hash(hashed_params)
 
     def check_masks(self) -> tuple[bool, list, list]:
         """
@@ -223,9 +248,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Add the hash if requested
         if include_hash:
             if truncate:
-                fname += f"-{self.subwidgets['model'].param_hash[:8]}"
+                fname += f"-{self.run_hash[:8]}"
             else:
-                fname += f"-{self.subwidgets['model'].param_hash}"
+                fname += f"-{self.run_hash}"
         if extension is not None:
             fname += f".{extension}"
         return fname
