@@ -446,10 +446,12 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_dropdown.clear()
         # Check that there is a model available for this task
         if task_name in self.versions_per_task:
-            model_names = [
-                self.base_to_display[i]
-                for i in self.versions_per_task[task_name].keys()
-            ]
+            model_names = sorted(
+                [
+                    self.base_to_display[i]
+                    for i in self.versions_per_task[task_name].keys()
+                ]
+            )
         else:
             model_names = [self.model_name_unavail]
         self.model_dropdown.addItems(model_names)
