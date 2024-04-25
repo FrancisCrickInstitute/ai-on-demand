@@ -57,12 +57,10 @@ def filter_empty_dict(d):
     return new_dict
 
 
-def get_param_hash(model_dict):
+def calc_param_hash(d: dict):
     # Sort the dictionary so that the hash is consistent on contents rather than order
-    sorted_model_dict = dict(sorted(model_dict.items()))
-    return hashlib.md5(
-        json.dumps(sorted_model_dict).encode("utf-8")
-    ).hexdigest()
+    sorted_d = dict(sorted(d.items()))
+    return hashlib.md5(json.dumps(sorted_d).encode("utf-8")).hexdigest()
 
 
 def load_config(config_path):
