@@ -47,6 +47,10 @@ class MainWidget(QWidget):
         # Dictionary to contain all subwidgets
         self.subwidgets = {}
 
+        # A hash to uniquely identify a run
+        # Only used to uniquely identify a Nextflow pipeline based on inputs
+        self.run_hash = None
+
         # Add a Crick logo to the widget
         self.logo_label = QLabel()
         logo = QPixmap(
@@ -111,7 +115,7 @@ class MainWidget(QWidget):
             yaml.dump(plugin_settings, f)
 
     @abstractmethod
-    def get_hashed_params(self):
+    def get_run_hash(self):
         """
         Gather all the parameters from the subwidgets to be used in obtaining a unique hash for a run.
         """
