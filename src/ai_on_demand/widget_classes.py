@@ -97,22 +97,12 @@ class MainWidget(QWidget):
         # Skipping if not present in this main widget
         if "nxf" in self.subwidgets:
             self.plugin_settings["nxf"] = self.subwidgets["nxf"].get_settings()
-
-        # Load the existing saved settings
-        orig_settings = load_settings()
-        # Merge the current settings
-        # Try to do a nuanced merge at first
-        try:
-            plugin_settings = merge_dicts(orig_settings, self.plugin_settings)
-        except KeyError:
-            # If this fails, our schema has changed and we need to overwrite the settings
-            # Try to preserve original where possible
-            # TODO: Future, embed versioning in the settings
-            plugin_settings = {**orig_settings, **self.plugin_settings}
+        # TODO: Think/check if we want to store anything else
         # Save the settings to the cache
+        # As we retrieve everything every time, we can just overwrite the file
         _, settings_path = get_plugin_cache()
         with open(settings_path, "w") as f:
-            yaml.dump(plugin_settings, f)
+            yaml.dump(self.plugin_settings, f)
 
     @abstractmethod
     def get_run_hash(self):

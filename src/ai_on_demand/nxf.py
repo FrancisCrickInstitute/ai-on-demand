@@ -122,7 +122,6 @@ The profile determines where the pipeline is run.
         Get the settings for the plugin to store for future sessions.
         """
         settings = {
-            "profile": self.nxf_profile_box.currentText(),
             "base_dir": str(self.nxf_base_dir),
         }
         return settings
