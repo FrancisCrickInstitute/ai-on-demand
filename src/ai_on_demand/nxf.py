@@ -786,6 +786,10 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         show_info("Pipeline failed! See terminal for details")
         print(exc)
         self._reset_btns()
+        # Deactivate file watcher
+        if hasattr(self.parent, "watcher_enabled"):
+            print("Deactivating watcher...")
+            self.parent.watcher_enabled = False
 
     def _remove_cancel_btn(self):
         # Remove the cancel pipeline button
