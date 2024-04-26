@@ -790,7 +790,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
     def _remove_cancel_btn(self):
         # Remove the cancel pipeline button
         self.widget.layout().removeWidget(self.cancel_btn)
-        self.cancel_btn.deleteLater()
+        self.cancel_btn.setParent(None)
         idx = self.widget.layout().indexOf(self.nxf_run_btn)
         row, col, rowspan, _ = self.widget.layout().getItemPosition(idx)
         self.widget.layout().addWidget(
