@@ -28,7 +28,7 @@ from qtpy.QtWidgets import (
 )
 import skimage.io
 import tqdm
-from ai_on_demand.utils import sanitise_name, format_tooltip
+from ai_on_demand.utils import sanitise_name, format_tooltip, get_img_dims
 from ai_on_demand.widget_classes import SubWidget
 
 # We need to import from the submodule
@@ -136,8 +136,11 @@ The profile determines where the pipeline is run.
             ].get_mask_layers()
             # Reset text on export button
             self.export_masks_btn.setText("Export all masks")
-            # self.export_masks_btn
+            # Reset tile size label if nothing selected
+            self.update_tile_size(val=None, clear_label=True)
         else:
+            # Update the tile size label based on the selected layers
+            self.update_tile_size(val=None, clear_label=False)
             # Filter mask layers to ensure they are from AIoD outputs and not external
             self.selected_mask_layers = self.parent.subwidgets[
                 "data"
@@ -436,6 +439,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.advanced_layout.addWidget(self.iou_thresh_label, 8, 0, 1, 1)
         self.advanced_layout.addWidget(self.iou_thresh, 8, 1, 1, 1)
 
+        # Run the function to update the tile size label to get initial value
+        self.update_tile_size(val=None, clear_label=False)
+
     def on_toggle_advanced(self):
         if self.advanced_box.isChecked():
             self.advanced_widget.setVisible(True)
@@ -489,22 +495,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             # Get the mask layer name
             layer = self.parent.viewer.layers[img_path.stem]
             # Get the number of slices, channels, height, and width
-            arr = layer.data.squeeze()
-            if layer.rgb:
-                res = arr.shape[:-1]
-                channels = arr.shape[-1]
-            else:
-                res = arr.shape
-                channels = 1
-            if len(res) == 2:
-                num_slices = 1
-                H, W = res
-            elif len(res) == 3:
-                num_slices, H, W = res
-            else:
-                raise ValueError(
-                    f"Unexpected number of dimensions for image {img_path}!"
-                )
+            H, W, num_slices, channels = get_img_dims(layer, img_path)
             output["img_path"].append(str(img_path))
             output["num_slices"].append(num_slices)
             output["height"].append(H)
@@ -927,7 +918,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         """
         return (mask_layer.data).astype(bool).astype(np.uint8) * 255
 
-    def update_tile_size(self):
+    def update_tile_size(self, val: int | float, clear_label: bool = False):
         """
         Callback for when the tile size spinboxes are updated.
         """
@@ -968,18 +959,17 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         # Otherwise get all layers
         else:
             layers = self.viewer.layers
+        # Filter down to only Image layers
         layers = [
             layer for layer in layers if isinstance(layer, napari.layers.Image)
         ]
         # Check if we have any image layers
-        if len(layers) == 0:
+        if len(layers) == 0 or clear_label:
             self.tile_size_label.setText("No image layers found!")
             return
         # Otherwise just take the first one
-        img_shape = layers[0].data.shape
-        img_shape = Stack(
-            height=img_shape[1], width=img_shape[2], depth=img_shape[0]
-        )
+        H, W, num_slices, _ = get_img_dims(layers[0])
+        img_shape = Stack(height=H, width=W, depth=num_slices)
         # Get the actual stack size
         num_substacks, eff_shape = calc_num_stacks(
             image_shape=img_shape,
@@ -996,7 +986,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
         self.tile_size_label.setText(
             format_tooltip(
-                f"Substack size: {stack_size_px.depth} slices, {stack_size_px.height}px x {stack_size_px.width}px for each of the {num_substacks} jobs to submit (for the selected image).",
+                f"Substack size: {stack_size_px.depth} slice{'s' if stack_size_px.depth > 1 else ''}, {stack_size_px.height}px x {stack_size_px.width}px for each of the {num_substacks} jobs to submit (for the selected image).",
                 width=40,
             )
         )

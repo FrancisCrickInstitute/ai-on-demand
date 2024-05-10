@@ -116,3 +116,31 @@ def get_image_layer_path(
                 return
     else:
         return Path(img_path)
+
+
+def get_img_dims(layer: Image, img_path: Optional[Path] = None):
+    # Squeeze the data to remove any singleton dimensions
+    arr = layer.data.squeeze()
+    # Check if the image is RGB or not
+    if layer.rgb:
+        res = arr.shape[:-1]
+        channels = arr.shape[-1]
+    else:
+        res = arr.shape
+        channels = 1
+    if len(res) == 2:
+        num_slices = 1
+        H, W = res
+    elif len(res) == 3:
+        # TODO: Assumption here, need to check if Napari standardises no matter the input
+        num_slices, H, W = res
+    else:
+        if img_path is None:
+            raise ValueError(
+                f"Unexpected number of dimensions for {layer.name} image layer ({layer})!"
+            )
+        else:
+            raise ValueError(
+                f"Unexpected number of dimensions for image {img_path}!"
+            )
+    return H, W, num_slices, channels
