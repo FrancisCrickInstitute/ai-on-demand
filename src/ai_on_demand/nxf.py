@@ -1,7 +1,7 @@
 from collections import defaultdict
 from pathlib import Path
 import subprocess
-from typing import Optional
+from typing import Optional, Union
 from urllib.parse import urlparse
 
 from aiod_registry import TASK_NAMES
@@ -918,7 +918,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         """
         return (mask_layer.data).astype(bool).astype(np.uint8) * 255
 
-    def update_tile_size(self, val: int | float, clear_label: bool = False):
+    def update_tile_size(
+        self, val: Union[int, float], clear_label: bool = False
+    ):
         """
         Callback for when the tile size spinboxes are updated.
         """
