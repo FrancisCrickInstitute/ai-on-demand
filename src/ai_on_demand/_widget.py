@@ -147,7 +147,12 @@ Run segmentation/inference on selected images using one of the available pre-tra
                     )
             else:
                 # If the associated image is present, use its shape
-                img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape
+                # Get ndim of the layer (this accounts for RGB)
+                ndim = self.viewer.layers[f"{fpath.stem}"].ndim
+                # Get appropriate shape for the mask
+                img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape[
+                    :ndim
+                ]
                 # Add a Labels layer for this file
                 self.viewer.add_labels(
                     np.zeros(img_shape, dtype=np.uint32),
