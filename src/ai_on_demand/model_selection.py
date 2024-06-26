@@ -72,7 +72,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_version_tasks = {}
 
         # Extract the model info from all manifests
-        for model_manifest in self.parent.all_manifests:
+        for model_manifest in self.parent.all_manifests.values():
             # Get the short and display names
             base_name = model_manifest.short_name
             self.base_to_display[base_name] = model_manifest.name
