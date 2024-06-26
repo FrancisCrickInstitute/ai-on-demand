@@ -2,6 +2,8 @@ from pathlib import Path
 from typing import Optional
 
 import napari
+from napari._qt.qt_resources import get_stylesheet
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QWidget,
     QLayout,
@@ -14,6 +16,8 @@ from qtpy.QtWidgets import (
     QLineEdit,
     QComboBox,
     QCheckBox,
+    QDialog,
+    QTextEdit,
 )
 import yaml
 
@@ -123,6 +127,17 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         )
         model_box_layout.addWidget(model_version_label, 1, 0)
         model_box_layout.addWidget(self.model_version_dropdown, 1, 1, 1, 2)
+
+        # Add an icon for information about the selected model
+        self.model_info_icon = QPushButton("🔍")
+        # Fix the size, and set the icon as a percentage of this
+        self.model_info_icon.setFixedSize(30, 30)
+        self.model_info_icon.setIconSize(self.model_info_icon.size() * 0.65)
+        self.model_info_icon.setToolTip(
+            format_tooltip("Information about the selected model.")
+        )
+        self.model_info_icon.clicked.connect(self.on_model_info)
+        model_box_layout.addWidget(self.model_info_icon, 0, 3, 2, 1)
 
         self.layout().addLayout(model_box_layout)
 
@@ -595,3 +610,57 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
     def get_task_model_variant_name(self, executed: bool = True):
         task, model, version = self.get_task_model_variant(executed)
         return f"{task}-{model}-{sanitise_name(version)}"
+
+    def on_model_info(self):
+        """
+        Callback for when the model info button is clicked.
+
+        Opens a dialog box with information about the selected model.
+        """
+        # Extract the model info from the manifest
+        task_model_version = self.get_task_model_variant(executed=False)
+        model_version = self.model_version_tasks[task_model_version]
+        # Extract info from the schema if present
+        # Need to get the parent model this version came from
+        full_manifest = self.parent.all_manifests[task_model_version[1]]
+        # Construct the message
+        model_info = f"""Model: {self.base_to_display[task_model_version[1]]}
+Version: {task_model_version[2]}
+{full_manifest.metadata}"""
+        # Add the parameters if they exist
+        # TODO: Reformat to include tooltips
+        if model_version.params is not None:
+            model_info += "\nParameters:"
+            for param in model_version.params:
+                model_info += f"\n- {param.name} (default={param.value})"
+                if param.tooltip is not None and param.tooltip != "":
+                    model_info += f"\n\t{param.tooltip}"
+        # Add the config path if it exists
+        if model_version.config_path is not None:
+            model_info += f"\nConfig path: {model_version.config_path}"
+
+        self.model_window = ModelInfoWindow(self, model_info=model_info)
+        self.model_window.show()
+
+
+class ModelInfoWindow(QDialog):
+    def __init__(self, parent=None, model_info: str = ""):
+        super().__init__(parent)
+
+        # Set style/look to be same as Napari
+        self.setStyleSheet(get_stylesheet("dark"))
+        # Set the layout
+        self.layout = QVBoxLayout()
+        # Set the window title
+        self.setWindowTitle("Model Information")
+        # Add the info label
+        self.info_label = QTextEdit()
+        # No text wrapping (horizontal scroll)
+        self.info_label.setLineWrapMode(QTextEdit.NoWrap)
+        # Make the text selectable, but not editable
+        self.info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.info_label.setText(model_info)
+        self.info_label.setMinimumSize(500, 500)
+
+        self.layout.addWidget(self.info_label)
+        self.setLayout(self.layout)
