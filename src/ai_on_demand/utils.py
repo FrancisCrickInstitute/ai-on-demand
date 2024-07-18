@@ -1,16 +1,13 @@
 import hashlib
 import json
 from pathlib import Path
-import pickle
 import textwrap
-from typing import Optional, Union
+from typing import Optional
 import yaml
 
 from napari.layers import Image
 from napari.utils.notifications import show_info
-import numpy as np
 from platformdirs import user_cache_dir
-from pycocotools import mask as cocomask
 
 
 def sanitise_name(name):
@@ -147,53 +144,3 @@ def get_img_dims(layer: Image, img_path: Optional[Path] = None):
                 f"Unexpected number of dimensions for image {img_path}!"
             )
     return H, W, num_slices, channels
-
-
-def rle_encode(mask: np.ndarray) -> np.ndarray:
-    """
-    Run-length encoding of a binary mask, using pycocotools.
-    """
-    # The pycocomask needs the mask to have depth at the end, not start
-    if mask.ndim == 3:
-        mask = np.moveaxis(mask, 0, -1)
-    if mask.ndim >= 4:
-        raise ValueError(
-            f"Mask has too many dimensions ({mask.ndim})! Should be 2D or 3D."
-        )
-    # It needs the mask in Fortran order, and as a boolean (we assume 0/1 or 0/255)
-    return cocomask.encode(np.asfortranarray(mask.astype(bool)))
-
-
-def rle_save(encoded_mask: Union[dict, list], fpath: Union[str, Path]):
-    fpath = Path(fpath)
-    # Add pycoco pkl extension if not present
-    if fpath.suffix == "":
-        fpath = fpath.with_suffix(".pycoco.pkl")
-    with open(fpath, "w") as f:
-        pickle.dump(encoded_mask, f)
-
-
-def rle_load(fpath: Union[str, Path]) -> Union[dict, list]:
-    fpath = Path(fpath)
-    assert (
-        "".join(fpath.suffixes) == ".pycoco.pkl"
-    ), f"File {fpath} is not a pycoco RLE file!"
-    with open(fpath, "r") as f:
-        return pickle.load(f)
-
-
-def rle_decode(
-    encoded_mask: Union[dict, list], orig_shape: tuple[int, ...]
-) -> np.ndarray:
-    """
-    Run-length decoding of an encoded mask, using pycocotools.
-    """
-    # The pycocomask needs the mask to have depth at the end, not start
-    if len(orig_shape) == 3:
-        decoded_mask = np.moveaxis(cocomask.decode(encoded_mask), -1, 0)
-    elif len(orig_shape) >= 4:
-        raise ValueError(
-            f"Original shape has too many dimensions ({len(orig_shape)})! Should be 2D or 3D."
-        )
-    decoded_mask = cocomask.decode(encoded_mask)
-    return decoded_mask
