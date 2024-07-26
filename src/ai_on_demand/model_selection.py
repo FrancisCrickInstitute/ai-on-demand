@@ -627,14 +627,19 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         model_info = f"""Model: {self.base_to_display[task_model_version[1]]}
 Version: {task_model_version[2]}
 {full_manifest.metadata}"""
+
+        # Add a usage guide if it exists
+        if full_manifest.usage_guide is not None:
+            model_info += f"\n\nUsage Guide:\n{full_manifest.usage_guide}"
+
         # Add the parameters if they exist
-        # TODO: Reformat to include tooltips
         if model_version.params is not None:
             model_info += "\nParameters:"
             for param in model_version.params:
                 model_info += f"\n- {param.name} (default={param.value})"
                 if param.tooltip is not None and param.tooltip != "":
-                    model_info += f"\n\t{param.tooltip}"
+                    model_info += f"\n        {param.tooltip}"
+
         # Add the config path if it exists
         if model_version.config_path is not None:
             model_info += f"\nConfig path: {model_version.config_path}"
@@ -655,8 +660,6 @@ class ModelInfoWindow(QDialog):
         self.setWindowTitle("Model Information")
         # Add the info label
         self.info_label = QTextEdit()
-        # No text wrapping (horizontal scroll)
-        self.info_label.setLineWrapMode(QTextEdit.NoWrap)
         # Make the text selectable, but not editable
         self.info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.info_label.setText(model_info)
