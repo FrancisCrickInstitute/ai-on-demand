@@ -630,7 +630,7 @@ Version: {task_model_version[2]}
 
         # Add a usage guide if it exists
         if full_manifest.usage_guide is not None:
-            model_info += f"\n\nUsage Guide:\n{full_manifest.usage_guide}"
+            model_info += f"\nUsage Guide:\n{full_manifest.usage_guide}\n"
 
         # Add the parameters if they exist
         if model_version.params is not None:
@@ -639,6 +639,7 @@ Version: {task_model_version[2]}
                 model_info += f"\n- {param.name} (default={param.value})"
                 if param.tooltip is not None and param.tooltip != "":
                     model_info += f"\n        {param.tooltip}"
+            model_info += "\n"
 
         # Add the config path if it exists
         if model_version.config_path is not None:
