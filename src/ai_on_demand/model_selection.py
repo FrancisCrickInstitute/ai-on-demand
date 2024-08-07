@@ -19,6 +19,7 @@ from qtpy.QtWidgets import (
     QDialog,
     QTextEdit,
 )
+from qtpy.QtGui import QIcon
 import yaml
 
 from ai_on_demand.widget_classes import SubWidget
@@ -129,7 +130,10 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         model_box_layout.addWidget(self.model_version_dropdown, 1, 1, 1, 2)
 
         # Add an icon for information about the selected model
-        self.model_info_icon = QPushButton("🔍")
+        self.model_info_icon = QPushButton("")
+        self.model_info_icon.setIcon(
+            QIcon(napari.resources.get_icon_path("help"))
+        )
         # Fix the size, and set the icon as a percentage of this
         self.model_info_icon.setFixedSize(30, 30)
         self.model_info_icon.setIconSize(self.model_info_icon.size() * 0.65)
