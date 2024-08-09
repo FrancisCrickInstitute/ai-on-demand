@@ -5,6 +5,7 @@ from napari.utils.notifications import show_info
 from pathlib import Path
 import textwrap
 from typing import Optional
+import warnings
 import yaml
 
 from platformdirs import user_cache_dir
@@ -121,19 +122,44 @@ def get_image_layer_path(
 def get_img_dims(layer: Image, img_path: Optional[Path] = None):
     # Squeeze the data to remove any singleton dimensions
     arr = layer.data.squeeze()
+    # TODO: What if multi-channel but not RGB? Does Napari allow this?
     # Check if the image is RGB or not
     if layer.rgb:
         res = arr.shape[:-1]
         channels = arr.shape[-1]
     else:
         res = arr.shape
-        channels = 1
+        channels = None
+    # It could be multi-channel but not RGB
+    # 2D
     if len(res) == 2:
         num_slices = 1
         H, W = res
+        channels = 1 if channels is None else channels
+    # 3D
     elif len(res) == 3:
-        # TODO: Assumption here, need to check if Napari standardises no matter the input
+        # Without metadata, we can't know if the 3rd dimension is channels or slices
+        # TODO: Use bioio to get metadata and infer this
         num_slices, H, W = res
+        channels = 1 if channels is None else channels
+        warnings.warn(
+            f"Assuming the first dimension is slices for {layer.name} image layer ({layer} with shape {res})."
+        )
+    # 4D
+    elif len(res) == 4:
+        # We assume the first two dims are slices and channels, in some order
+        # Assume whichever is smaller are the channels
+        warnings.warn(
+            f"Assuming the first two dimensions are channels and slices for {layer.name} image layer ({layer}), and using the smaller of the two as the number of channels."
+        )
+        if channels is not None:
+            num_slices, H, W = res
+        else:
+            if res[0] < res[1]:
+                channels, num_slices, H, W = res
+            else:
+                num_slices, channels, H, W = res
+    # Who knows
     else:
         if img_path is None:
             raise ValueError(
