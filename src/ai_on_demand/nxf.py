@@ -37,6 +37,7 @@ from ai_on_demand.widget_classes import SubWidget
 import importlib
 import sys
 
+# TODO: Create aiod_utils package to handle this
 spec = importlib.util.spec_from_file_location(
     name="create_splits",
     location=Path(__file__).parent
@@ -504,7 +505,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             # Initialise the progress dict
             self.progress_dict[img_path.stem] = 0
             # Get the actual stack size
-            img_shape = Stack(height=H, width=W, depth=num_slices)
+            img_shape = Stack(
+                height=H, width=W, depth=num_slices, channels=channels
+            )
             num_substacks, eff_shape = calc_num_stacks(
                 image_shape=img_shape,
                 req_stacks=stack_size,
@@ -970,8 +973,10 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self.tile_size_label.setText("No image layers found!")
             return
         # Otherwise just take the first one
-        H, W, num_slices, _ = get_img_dims(layers[0])
-        img_shape = Stack(height=H, width=W, depth=num_slices)
+        H, W, num_slices, channels = get_img_dims(layers[0])
+        img_shape = Stack(
+            height=H, width=W, depth=num_slices, channels=channels
+        )
         # Get the actual stack size
         num_substacks, eff_shape = calc_num_stacks(
             image_shape=img_shape,

@@ -4,7 +4,7 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - python=3.9
+  - python=3.10
   - pyqt
   - napari>=0.4.19
   - numpy
@@ -19,3 +19,4 @@ dependencies:
     - tabulate
     - git+https://github.com/FrancisCrickInstitute/ai-on-demand.git
     - git+https://github.com/FrancisCrickInstitute/AIoD-Model-Registry.git
+    - git+https://github.com/FrancisCrickInstitute/aiod_utils.git

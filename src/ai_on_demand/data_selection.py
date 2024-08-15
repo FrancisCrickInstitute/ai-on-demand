@@ -225,7 +225,14 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             }
         )
         def _load_image(fpath):
-            return skimage.io.imread(fpath), Path(fpath)
+            # NOTE: bioio got the channels wrong in some local examples, so stick to skimage for some extensions
+            if Path(fpath).suffix in [".jpg", ".jpeg", ".png"]:
+                return skimage.io.imread(fpath), Path(fpath)
+            else:
+                # NOTE: Default is for dims to exist when e.g. C=1 or Z/D=1, so squeeze to remove (and align with masks)
+                return aiod_io.load_image(
+                    fpath, return_dask=True
+                ).squeeze(), Path(fpath)
 
         # Load each image in a separate thread
         for fpath in imgs_to_load:
