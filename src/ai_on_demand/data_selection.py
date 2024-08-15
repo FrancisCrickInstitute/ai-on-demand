@@ -18,6 +18,7 @@ import skimage.io
 
 from ai_on_demand.widget_classes import SubWidget
 from ai_on_demand.utils import format_tooltip, get_image_layer_path
+import aiod_utils.io as aiod_io
 
 
 class DataWidget(SubWidget):
