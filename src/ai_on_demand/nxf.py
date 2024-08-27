@@ -451,7 +451,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self.advanced_widget.setVisible(False)
             self.advanced_box.setText(" ▶ Advanced Options")
 
-    def store_img_paths(self, img_paths):
+    def store_img_paths(self, img_paths: list[Path]):
         """
         Writes the provided image paths to a file to pass into Nextflow.
 
@@ -543,7 +543,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         if len(self.parent.subwidgets["data"].image_path_dict) == 0:
             raise ValueError("No data selected!")
 
-    def setup_inference(self, nxf_params=None):
+    def setup_inference(self, nxf_params: Optional[dict] = None):
         """
         Runs the inference pipeline in Nextflow.
 

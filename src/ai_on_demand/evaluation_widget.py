@@ -294,7 +294,7 @@ class EvalWidget(SubWidget):
         # Reset the calculate button
         self.reset_calculate_btn()
 
-    def display_results(self, results):
+    def display_results(self, results: dict):
         # Convert results into a DataFrame for easier display and export
         self.df_results = pd.DataFrame(results)
         # Remove any previous results

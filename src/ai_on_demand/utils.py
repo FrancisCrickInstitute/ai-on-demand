@@ -4,14 +4,14 @@ from napari.layers import Image
 from napari.utils.notifications import show_info
 from pathlib import Path
 import textwrap
-from typing import Optional
+from typing import Optional, Union
 import warnings
 import yaml
 
 from platformdirs import user_cache_dir
 
 
-def sanitise_name(name):
+def sanitise_name(name: str) -> str:
     """
     Function to sanitise model/model variant names to use in filenames (in Nextflow).
     """
@@ -36,7 +36,7 @@ def merge_dicts(d1: dict, d2: Optional[dict] = None) -> dict:
     return d1
 
 
-def format_tooltip(text, width: int = 70):
+def format_tooltip(text: str, width: int = 70) -> str:
     """
     Function to wrap text in a tooltip to the specified width. Ensures better-looking tooltips.
 
@@ -45,7 +45,7 @@ def format_tooltip(text, width: int = 70):
     return textwrap.fill(text.strip(), width=width, drop_whitespace=True)
 
 
-def filter_empty_dict(d):
+def filter_empty_dict(d: dict) -> dict:
     """
     Filter out empty dicts from a nested dict.
     """
@@ -58,13 +58,13 @@ def filter_empty_dict(d):
     return new_dict
 
 
-def calc_param_hash(d: dict):
+def calc_param_hash(d: dict) -> str:
     # Sort the dictionary so that the hash is consistent on contents rather than order
     sorted_d = dict(sorted(d.items()))
     return hashlib.md5(json.dumps(sorted_d).encode("utf-8")).hexdigest()
 
 
-def load_config(config_path):
+def load_config(config_path: Union[str, Path]) -> dict:
     with open(Path(config_path), "r") as f:
         if config_path.suffix == ".json":
             model_dict = json.load(f)
@@ -84,7 +84,7 @@ def get_plugin_cache() -> tuple[Path, Path]:
     return cache_dir, settings_path
 
 
-def load_settings():
+def load_settings() -> dict:
     _, settings_path = get_plugin_cache()
 
     if settings_path.exists():
@@ -119,7 +119,9 @@ def get_image_layer_path(
         return Path(img_path)
 
 
-def get_img_dims(layer: Image, img_path: Optional[Path] = None):
+def get_img_dims(
+    layer: Image, img_path: Optional[Path] = None
+) -> tuple[int, int, int, Optional[int]]:
     # Squeeze the data to remove any singleton dimensions
     arr = layer.data.squeeze()
     # TODO: What if multi-channel but not RGB? Does Napari allow this?

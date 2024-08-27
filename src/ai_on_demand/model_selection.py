@@ -446,7 +446,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_param_layout.removeWidget(self.curr_model_param_widget)
         self.curr_model_param_widget.setParent(None)
 
-    def set_model_param_widget(self, task_model_version=None):
+    def set_model_param_widget(
+        self, task_model_version: Optional[tuple] = None
+    ):
         if task_model_version is not None:
             self.curr_model_param_widget = self.model_param_widgets_dict[
                 task_model_version
@@ -459,7 +461,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         else:
             self.curr_model_param_widget.setVisible(False)
 
-    def update_model_box(self, task_name):
+    def update_model_box(self, task_name: str):
         """The model box updates according to what's defined for each task."""
         # Clear and set available models in dropdown
         self.model_dropdown.clear()
@@ -507,7 +509,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_config_label.setText("No model config file selected.")
         self.model_config = None
 
-    def get_model_config(self):
+    def get_model_config(self) -> Path:
         """
         Need to construct the final model configuration.
 
@@ -547,7 +549,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         model_config_fpath = self.save_model_config(model_dict)
         return model_config_fpath
 
-    def save_model_config(self, model_dict: dict):
+    def save_model_config(self, model_dict: dict) -> Path:
         # Define save path for the model config
         config_dir = self.parent.subwidgets["nxf"].nxf_base_dir / "configs"
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -564,7 +566,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             yaml.dump(model_dict, f)
         return model_config_fpath
 
-    def create_config_params(self, task_model_version: Optional[tuple] = None):
+    def create_config_params(
+        self, task_model_version: Optional[tuple] = None
+    ) -> dict:
         """
         Construct the model config from the parameter widgets.
 
@@ -596,7 +600,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             model_dict[orig_param.arg_name] = orig_param._dtype(param_value)
         return model_dict
 
-    def get_task_model_variant(self, executed: bool = True):
+    def get_task_model_variant(
+        self, executed: bool = True
+    ) -> tuple[str, str, str]:
         if executed:
             task, model, version = (
                 self.parent.executed_task,
@@ -611,7 +617,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             )
         return (task, model, version)
 
-    def get_task_model_variant_name(self, executed: bool = True):
+    def get_task_model_variant_name(self, executed: bool = True) -> str:
         task, model, version = self.get_task_model_variant(executed)
         return f"{task}-{model}-{sanitise_name(version)}"
 

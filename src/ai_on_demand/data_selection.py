@@ -324,13 +324,14 @@ Images can also be opened, or dragged into napari as normal. The selection will 
 
     def get_mask_layers(
         self, layer_list: Optional[napari.components.LayerList] = None
-    ):
+    ) -> list[napari.layers.Labels]:
         """
         Return all the mask layers in the viewer.
 
         This is used to get the masks to evaluate against.
         """
         # If no layer list given, use all layers in the Napari viewer
+        # TODO: Is this generally correct, as not filtering Labels?
         if layer_list is None:
             layer_list = self.viewer.layers
         # Filter the layers by:
