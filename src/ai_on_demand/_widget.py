@@ -67,7 +67,11 @@ Run segmentation/inference on selected images using one of the available pre-tra
         Gather all the parameters from the subwidgets to be used in obtaining a unique hash for a run.
         """
         hashed_params = {}
-        # Add the model dictionary
+        # Add model details
+        hashed_params["task"] = nxf_params["task"]
+        hashed_params["model"] = nxf_params["model"]
+        hashed_params["variant"] = nxf_params["model_type"]
+        # Add the model dictionary (hashed)
         hashed_params["model_hash"] = self.subwidgets["model"].model_param_hash
         # Get the advanced Nextflow parameters
         hashed_params.update(
