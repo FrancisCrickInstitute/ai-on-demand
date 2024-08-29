@@ -41,6 +41,7 @@ class MainWidget(QWidget):
 
         # Set overall layout for the widget
         self.setLayout(QVBoxLayout())
+        self.layout().setAlignment(qtpy.QtCore.Qt.AlignTop)
 
         # Dictionary to contain all subwidgets
         self.subwidgets = {}
@@ -84,6 +85,7 @@ class MainWidget(QWidget):
             qtpy.QtWidgets.QSizePolicy.Minimum,
             qtpy.QtWidgets.QSizePolicy.Fixed,
         )
+        self.content_widget.layout().setAlignment(qtpy.QtCore.Qt.AlignTop)
         self.scroll.setWidget(self.content_widget)
         self.layout().addWidget(self.scroll)
 
