@@ -59,6 +59,7 @@ class NxfWidget(SubWidget):
         pipeline: str,
         parent: Optional[QWidget] = None,
         layout: QLayout = QGridLayout,
+        **kwargs,
     ):
         # Define attributes that may be useful outside of this class
         # or throughout it
@@ -67,13 +68,14 @@ class NxfWidget(SubWidget):
         self.setup_nxf_dir_cmd()
         super().__init__(
             viewer=viewer,
-            title="Execution",
+            title="Run Pipeline",
             parent=parent,
             layout=layout,
             tooltip="""
 Allows for the computational pipeline to be triggered, with different additional options depending on the main widget selected.
 The profile determines where the pipeline is run.
 """,
+            **kwargs,
         )
         # Whether all images have been loaded
         # Needed to properly extract metadata
@@ -191,8 +193,8 @@ The profile determines where the pipeline is run.
         avail_confs = [str(i.stem) for i in config_dir.glob("*.conf")]
         avail_confs.sort()
         self.nxf_profile_box.addItems(avail_confs)
-        self.layout().addWidget(self.nxf_profile_label, 0, 0)
-        self.layout().addWidget(self.nxf_profile_box, 0, 1)
+        self.inner_layout.addWidget(self.nxf_profile_label, 0, 0)
+        self.inner_layout.addWidget(self.nxf_profile_box, 0, 1)
 
         # Create the option for selecting base directory
         base_dir_layout = QGridLayout()
@@ -212,7 +214,7 @@ The profile determines where the pipeline is run.
         base_dir_layout.addWidget(self.nxf_dir_label, 0, 0, 1, 2)
         base_dir_layout.addWidget(self.nxf_dir_text, 0, 2, 1, 4)
         base_dir_layout.addWidget(self.nxf_dir_btn, 0, 6, 1, 1)
-        self.layout().addLayout(base_dir_layout, 1, 0, 1, 2)
+        self.inner_layout.addLayout(base_dir_layout, 1, 0, 1, 2)
 
         # Add a checkbox for overwriting existing results
         self.overwrite_btn = QCheckBox("Overwrite existing results")
@@ -225,7 +227,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         """
             )
         )
-        self.layout().addWidget(self.overwrite_btn, 2, 0, 1, 1)
+        self.inner_layout.addWidget(self.overwrite_btn, 2, 0, 1, 1)
         # Add a button for importing masks
         self.import_masks_btn = QPushButton("Import masks")
         self.import_masks_btn.clicked.connect(self.on_click_import)
@@ -233,7 +235,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             format_tooltip("Import segmentation masks.")
         )
         self.import_masks_btn.setEnabled(True)
-        self.layout().addWidget(self.import_masks_btn, 2, 1, 1, 1)
+        self.inner_layout.addWidget(self.import_masks_btn, 2, 1, 1, 1)
 
         # Add widget for advanced options
         self.options_widget = QWidget()
@@ -264,7 +266,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         self.options_layout.addWidget(self.advanced_widget)
         self.options_layout.setContentsMargins(0, 0, 0, 0)
         self.options_widget.setLayout(self.options_layout)
-        self.layout().addWidget(self.options_widget, 3, 0, 1, 2)
+        self.inner_layout.addWidget(self.options_widget, 3, 0, 1, 2)
 
         # Create a button to navigate to a directory to take images from
         self.nxf_run_btn = QPushButton("Run Pipeline!")
@@ -274,7 +276,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
                 "Run the pipeline with the chosen organelle(s), model, and images."
             )
         )
-        self.layout().addWidget(self.nxf_run_btn, 4, 0, 1, 2)
+        self.inner_layout.addWidget(self.nxf_run_btn, 4, 0, 1, 2)
 
         # Add a button for exporting masks, with a dropdown for different formats
         # and checkbox for binarising
@@ -300,7 +302,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
             )
         )
         export_layout.addWidget(self.export_binary_check)
-        self.layout().addLayout(export_layout, 5, 0, 1, 2)
+        self.inner_layout.addLayout(export_layout, 5, 0, 1, 2)
 
         pbar_layout = QHBoxLayout()
         # Add progress bar
@@ -313,11 +315,11 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         # Add the label and progress bar to the layout
         pbar_layout.addWidget(self.pbar_label)
         pbar_layout.addWidget(self.pbar)
-        self.layout().addLayout(pbar_layout, 6, 0, 1, 2)
+        self.inner_layout.addLayout(pbar_layout, 6, 0, 1, 2)
         # TQDM progress bar to monitor completion time
         self.tqdm_pbar = None
         # Add the layout to the main layout
-        self.widget.setLayout(self.layout())
+        self.inner_widget.setLayout(self.inner_layout)
 
     def _add_advanced_options(self):
         self.tile_x_label = QLabel("Number X tiles:")
@@ -753,17 +755,19 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.nxf_run_btn.setText("Running Pipeline...")
         self.init_progress_bar()
         # Add a cancel pipeline button
-        idx = self.widget.layout().indexOf(self.nxf_run_btn)
-        row, col, rowspan, colspan = self.widget.layout().getItemPosition(idx)
+        idx = self.inner_widget.layout().indexOf(self.nxf_run_btn)
+        row, col, rowspan, colspan = (
+            self.inner_widget.layout().getItemPosition(idx)
+        )
         self.orig_colspan = colspan
         self.cancel_btn = QPushButton("Cancel Pipeline")
         self.cancel_btn.clicked.connect(self.cancel_pipeline)
         self.cancel_btn.setToolTip("Cancel the currently running pipeline.")
         new_colspan = colspan // 2 if colspan > 1 else 1
-        self.widget.layout().addWidget(
+        self.inner_widget.layout().addWidget(
             self.nxf_run_btn, row, col, rowspan, new_colspan
         )
-        self.widget.layout().addWidget(
+        self.inner_widget.layout().addWidget(
             self.cancel_btn, row, col + new_colspan, rowspan, new_colspan
         )
 
@@ -787,11 +791,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
     def _remove_cancel_btn(self):
         # Remove the cancel pipeline button
-        self.widget.layout().removeWidget(self.cancel_btn)
+        self.inner_widget.layout().removeWidget(self.cancel_btn)
         self.cancel_btn.setParent(None)
-        idx = self.widget.layout().indexOf(self.nxf_run_btn)
-        row, col, rowspan, _ = self.widget.layout().getItemPosition(idx)
-        self.widget.layout().addWidget(
+        idx = self.inner_widget.layout().indexOf(self.nxf_run_btn)
+        row, col, rowspan, _ = self.inner_widget.layout().getItemPosition(idx)
+        self.inner_widget.layout().addWidget(
             self.nxf_run_btn, row, col, rowspan, self.orig_colspan
         )
 

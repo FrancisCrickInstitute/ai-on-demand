@@ -29,10 +29,11 @@ class DataWidget(SubWidget):
         viewer: napari.Viewer,
         parent: Optional[QWidget] = None,
         layout: QLayout = QGridLayout,
+        **kwargs,
     ):
         super().__init__(
             viewer,
-            "data",
+            "Data Selection",
             parent,
             layout,
             tooltip="""
@@ -40,6 +41,7 @@ Select data to be used as input to the model.
 
 Images can also be opened, or dragged into napari as normal. The selection will be updated accordingly. The 'Reset selection' button can be used to clear all images.
 """,
+            **kwargs,
         )
 
         # Connect to the viewer to some callbacks
@@ -80,7 +82,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
                 "Select individual image files to use as input to the model."
             )
         )
-        self.layout().addWidget(self.img_btn, 0, 0)
+        self.inner_layout.addWidget(self.img_btn, 0, 0)
         # Create a button to navigate to a directory to take images from
         self.dir_btn = QPushButton("Select image\ndirectory")
         self.dir_btn.clicked.connect(self.browse_imgs_dir)
@@ -89,7 +91,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
                 "Select folder/directory of images to use as input to the model."
             )
         )
-        self.layout().addWidget(self.dir_btn, 0, 1)
+        self.inner_layout.addWidget(self.dir_btn, 0, 1)
         # Create a button to clear selected directory
         self.clear_dir_btn = QPushButton("Reset\nselection")
         self.clear_dir_btn.clicked.connect(self.clear_directory)
@@ -98,19 +100,19 @@ Images can also be opened, or dragged into napari as normal. The selection will 
                 "Reset selection of images (clears all images in the viewer)."
             )
         )
-        self.layout().addWidget(self.clear_dir_btn, 0, 2)
+        self.inner_layout.addWidget(self.clear_dir_btn, 0, 2)
         # Add an output to show the counts
         self.init_file_msg = "No files selected or added to Napari."
         self.img_counts = QLabel(self.init_file_msg)
         self.img_counts.setWordWrap(True)
-        self.layout().addWidget(self.img_counts, 1, 0, 1, 3)
+        self.inner_layout.addWidget(self.img_counts, 1, 0, 1, 3)
 
         # Run the file counter if there are images already loaded
         if len(self.image_path_dict) > 0:
             self.update_file_count()
         # Add button layout to box layout
         # Sort out layout and add to main widget
-        self.widget.setLayout(self.layout())
+        self.inner_widget.setLayout(self.inner_layout)
 
     def on_layer_added(self, event):
         """
