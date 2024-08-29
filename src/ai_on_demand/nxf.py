@@ -28,6 +28,8 @@ from qtpy.QtWidgets import (
 )
 import skimage.io
 import tqdm
+import yaml
+
 from ai_on_demand.utils import sanitise_name, format_tooltip, get_img_dims
 from ai_on_demand.widget_classes import SubWidget
 
@@ -575,7 +577,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         nxf_params["root_dir"] = str(self.nxf_base_dir)
         nxf_params["img_dir"] = str(self.img_list_fpath)
         nxf_params["model"] = parent.selected_model
-        nxf_params["model_config"] = config_path
+        nxf_params["model_config"] = str(config_path)
         nxf_params["model_type"] = sanitise_name(parent.executed_variant)
         nxf_params["task"] = parent.executed_task
         # Extract the model checkpoint location and location type
@@ -706,13 +708,17 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         # Add the selected profile to the command
         nxf_cmd += f" -profile {self.nxf_profile_box.currentText()}"
         # Add postprocessing flag
-        if self.postprocess_btn.isChecked():
-            nxf_cmd += " --postprocess"
-        # Add the parameters to the command
-        for param, value in nxf_params.items():
-            nxf_cmd += f" --{param}={value}"
-        # Add the parameter hash to the command
-        nxf_cmd += f" --param_hash={self.parent.run_hash}"
+        nxf_params["postprocess"] = self.postprocess_btn.isChecked()
+        # Add the Nextflow parameter hash to the command
+        nxf_params["param_hash"] = self.parent.run_hash
+        # Save the Nextflow parameters to a YAML file
+        nxf_params_fpath = (
+            self.nxf_store_dir / f"nxf_params_{self.parent.run_hash}.yml"
+        )
+        with open(nxf_params_fpath, "w") as f:
+            yaml.dump(nxf_params, f)
+        # Add params-file to nxf command
+        nxf_cmd += f" -params-file {nxf_params_fpath}"
 
         @thread_worker(
             connect={
