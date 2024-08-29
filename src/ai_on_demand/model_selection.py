@@ -40,6 +40,7 @@ class ModelWidget(SubWidget):
         viewer: napari.Viewer,
         parent: Optional[QWidget] = None,
         layout: QLayout = QVBoxLayout,
+        **kwargs,
     ):
         # Set selection colour
         # Needs to be done before super call
@@ -47,7 +48,7 @@ class ModelWidget(SubWidget):
 
         super().__init__(
             viewer=viewer,
-            title="Model",
+            title="Model Selection",
             parent=parent,
             layout=layout,
             tooltip="""
@@ -55,6 +56,7 @@ Select the model and model variant to use for inference.
 
 Parameters can be modified if setup properly, otherwise a config file can be loaded in whatever format the model takes!
         """,
+            **kwargs,
         )
         # Extract the model info from all manifests
         self.extract_model_info()
@@ -143,7 +145,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_info_icon.clicked.connect(self.on_model_info)
         model_box_layout.addWidget(self.model_info_icon, 0, 3, 2, 1)
 
-        self.layout().addLayout(model_box_layout)
+        self.inner_layout.addLayout(model_box_layout, 0, 0)
 
         # Store model config location if given
         self.model_config = None
@@ -182,13 +184,13 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.params_config_layout.setSpacing(5)
         self.params_config_widget.setLayout(self.params_config_layout)
         # Add the widgets to the overall container
-        self.layout().addWidget(self.params_config_widget)
+        self.inner_layout.addWidget(self.params_config_widget, 1, 0)
 
         # Create widgets for the two options
         self.create_model_param_widget()
         self.create_model_config_widget()
 
-        self.widget.setLayout(self.layout())
+        self.inner_widget.setLayout(self.inner_layout)
 
     def on_model_select(self):
         """
@@ -294,7 +296,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_config_widget.setLayout(self.model_config_layout)
 
         self.model_config_widget.setVisible(False)
-        self.layout().addWidget(self.model_config_widget)
+        self.inner_layout.addWidget(self.model_config_widget)
 
     def create_model_param_widget(self):
         """
@@ -329,7 +331,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_param_widgets_dict["no_param"] = no_param_widget
         # Disable showing widget until selected to view
         self.model_param_widget.setVisible(False)
-        self.layout().addWidget(self.model_param_widget)
+        self.inner_layout.addWidget(self.model_param_widget)
 
     def update_model_param_config(self, model_name: str, model_version: str):
         """

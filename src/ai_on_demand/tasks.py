@@ -20,13 +20,15 @@ class TaskWidget(SubWidget):
         viewer: napari.Viewer,
         parent: Optional[QWidget] = None,
         layout: QLayout = QGridLayout,
+        **kwargs,
     ):
         super().__init__(
             viewer=viewer,
-            title="Select Organelle to Segment",
+            title="Segmentation Task",
             parent=parent,
             layout=layout,
             tooltip="Select the organelle you want to segment. The models available will change depending on the organelle selected.",
+            **kwargs,
         )
 
     def create_box(self, variant: Optional[str] = None):
@@ -41,10 +43,10 @@ class TaskWidget(SubWidget):
             btn.setEnabled(True)
             btn.setChecked(False)
             btn.clicked.connect(self.on_click_task)
-            self.layout().addWidget(btn)
+            self.inner_layout.addWidget(btn)
             self.task_buttons[name] = btn
 
-        self.widget.setLayout(self.layout())
+        self.inner_widget.setLayout(self.inner_layout)
 
     def on_click_task(self):
         """

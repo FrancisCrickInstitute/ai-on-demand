@@ -37,18 +37,29 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.colour_selected = "#F7AD6F"
 
         # Create radio buttons for selecting task (i.e. organelle)
-        self.register_widget(TaskWidget(viewer=self.viewer, parent=self))
+        self.register_widget(
+            TaskWidget(viewer=self.viewer, parent=self, expanded=True)
+        )
 
         # Create radio buttons for selecting the model to run
         # Functionality currently limited to Meta's Segment Anything Model
-        self.register_widget(ModelWidget(viewer=self.viewer, parent=self))
+        self.register_widget(
+            ModelWidget(viewer=self.viewer, parent=self, expanded=True)
+        )
 
         # Create the box for selecting the directory, showing img count etc.
-        self.register_widget(DataWidget(viewer=self.viewer, parent=self))
+        self.register_widget(
+            DataWidget(viewer=self.viewer, parent=self, expanded=True)
+        )
 
         # Add the button for running the Nextflow pipeline
         self.register_widget(
-            NxfWidget(viewer=self.viewer, parent=self, pipeline="inference")
+            NxfWidget(
+                viewer=self.viewer,
+                parent=self,
+                pipeline="inference",
+                expanded=True,
+            )
         )
 
     def get_run_hash(self, nxf_params: dict):
