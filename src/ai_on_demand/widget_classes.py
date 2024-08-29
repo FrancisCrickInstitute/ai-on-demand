@@ -11,18 +11,16 @@ from qtpy.QtWidgets import (
     QScrollArea,
     QLayout,
     QGridLayout,
-    QGroupBox,
     QLabel,
     QVBoxLayout,
 )
 from qtpy.QtGui import QPixmap
 import qtpy.QtCore
 
+from ai_on_demand.qcollapsible import QCollapsible
 from ai_on_demand.utils import (
     format_tooltip,
-    load_settings,
     get_plugin_cache,
-    merge_dicts,
 )
 
 
@@ -112,7 +110,7 @@ class MainWidget(QWidget):
         raise NotImplementedError
 
 
-class SubWidget(QWidget):
+class SubWidget(QCollapsible):
     # Define a shorthand name to be used to register the widget
     _name: str = None
 
@@ -121,8 +119,9 @@ class SubWidget(QWidget):
         viewer: napari.Viewer,
         title: str,
         parent: Optional[QWidget] = None,
-        layout: QLayout = QGridLayout,
+        layout: QLayout = QVBoxLayout,
         tooltip: Optional[str] = None,
+        **kwargs,
     ):
         """
         Custom widget for the AI OnDemand plugin.
@@ -139,28 +138,43 @@ class SubWidget(QWidget):
         title : str
             Title of the widget to be displayed.
         layout : QLayout, optional
-            Layout to use for the widget, by default QGridLayout. This is the default layout for the subwidget.
+            Layout to use for the widget. This is the default layout for the subwidget.
         tooltip : Optional[str], optional
-            Tooltip to display for the widget (i.e. the GroupBox), by default None.
+            Tooltip to display for the widget, by default None.
         """
-        super().__init__()
+        super().__init__(
+            title=string.capwords(title),
+            layout=layout,
+            collapsedIcon="▶",
+            expandedIcon="▼",
+            duration=200,
+            margins=(0, 0, 0, 0),
+            **kwargs,
+        )
         self.viewer = viewer
         self.parent = parent
+        self.title = title
 
-        # Set the layout
-        self.setLayout(layout())
-        # Set the main widget container
-        self.widget = QGroupBox(f"{string.capwords(title)}:")
+        # Set the inner widgets (the things that get collapsed/expanded)
+        self.inner_widget = QWidget()
+        self.inner_layout = QGridLayout()
+        self.inner_layout.setAlignment(qtpy.QtCore.Qt.AlignTop)
+        self.inner_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Set the tooltip if given
         if tooltip is not None:
-            self.widget.setToolTip(format_tooltip(tooltip))
+            self.setToolTip(format_tooltip(tooltip))
         # Create the initial widgets/elements
         self.create_box()
+        # Add the inner widget to the collapsible widget
+        self.addWidget(self.inner_widget)
 
         # If given a parent at creation, add this widget to the parent's layout
         if self.parent is not None:
             # Add to the content widget (i.e. scrollable able)
-            self.parent.content_widget.layout().addWidget(self.widget)
+            self.parent.content_widget.layout().addWidget(self)
 
+        # Load any previous settings for this widget if available
         self.load_settings()
 
     @abstractmethod
