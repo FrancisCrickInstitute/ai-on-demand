@@ -10,6 +10,7 @@ from ai_on_demand.tasks import TaskWidget
 from ai_on_demand.data_selection import DataWidget
 from ai_on_demand.model_selection import ModelWidget
 from ai_on_demand.nxf import NxfWidget
+from ai_on_demand.preprocess import PreprocessWidget
 from ai_on_demand.widget_classes import MainWidget
 from ai_on_demand.utils import calc_param_hash
 
@@ -38,18 +39,23 @@ Run segmentation/inference on selected images using one of the available pre-tra
 
         # Create radio buttons for selecting task (i.e. organelle)
         self.register_widget(
-            TaskWidget(viewer=self.viewer, parent=self, expanded=True)
+            TaskWidget(viewer=self.viewer, parent=self, expanded=False)
         )
 
         # Create radio buttons for selecting the model to run
         # Functionality currently limited to Meta's Segment Anything Model
         self.register_widget(
-            ModelWidget(viewer=self.viewer, parent=self, expanded=True)
+            ModelWidget(viewer=self.viewer, parent=self, expanded=False)
         )
 
         # Create the box for selecting the directory, showing img count etc.
         self.register_widget(
-            DataWidget(viewer=self.viewer, parent=self, expanded=True)
+            DataWidget(viewer=self.viewer, parent=self, expanded=False)
+        )
+
+        # Add a box for preprocessing options
+        self.register_widget(
+            PreprocessWidget(viewer=self.viewer, parent=self, expanded=False)
         )
 
         # Add the button for running the Nextflow pipeline
@@ -58,7 +64,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 viewer=self.viewer,
                 parent=self,
                 pipeline="inference",
-                expanded=True,
+                expanded=False,
             )
         )
 

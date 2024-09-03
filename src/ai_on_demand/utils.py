@@ -98,6 +98,9 @@ def load_settings() -> dict:
 def get_image_layer_path(
     img_layer: Image, image_path_dict: Optional[dict] = None
 ) -> Path:
+    # Skip this if the layer is a result of the Preprocess preview
+    if img_layer.metadata.get("preprocess", None):
+        return
     # Extract from the layer source
     img_path = img_layer.source.path
     # If not there, check the metadata

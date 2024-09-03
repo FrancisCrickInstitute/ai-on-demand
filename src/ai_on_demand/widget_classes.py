@@ -86,6 +86,7 @@ class MainWidget(QWidget):
             qtpy.QtWidgets.QSizePolicy.Fixed,
         )
         self.content_widget.layout().setAlignment(qtpy.QtCore.Qt.AlignTop)
+        self.content_widget.layout().setSpacing(0)
         self.scroll.setWidget(self.content_widget)
         self.layout().addWidget(self.scroll)
 
@@ -173,7 +174,7 @@ class SubWidget(QCollapsible):
 
         # If given a parent at creation, add this widget to the parent's layout
         if self.parent is not None:
-            # Add to the content widget (i.e. scrollable able)
+            # Add to the content widget (i.e. scrollable area)
             self.parent.content_widget.layout().addWidget(self)
 
         # Load any previous settings for this widget if available
