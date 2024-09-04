@@ -236,7 +236,10 @@ class PreprocessWidget(SubWidget):
                     internal_dtype = type(
                         method_dict["params"][param_name]["default"][0]
                     )
-                    option_dict["params"][param_name] = dtype(
+                    # NOTE: We always cast to list to avoid '!!python/tuple' pyyaml tag
+                    # As this cannot be loaded by the yaml.safe_load function
+                    # And I do not want to use another loader for configs that users can write
+                    option_dict["params"][param_name] = list(
                         map(internal_dtype, value.replace(" ", "").split(","))
                     )
                 else:

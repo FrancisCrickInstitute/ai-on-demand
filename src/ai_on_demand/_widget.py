@@ -87,7 +87,8 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 if k in ["num_substacks", "overlap"]
             }
         )
-        # NOTE: Could consider using the nxf_cmd string instead
+        # Get the preprocessing parameters
+        hashed_params["preprocess"] = nxf_params["preprocess"]
         # Though this only applies if post-processing is added (I think)
         if self.subwidgets["nxf"].postprocess_btn.isChecked():
             hashed_params["iou_threshold"] = nxf_params["iou_threshold"]
