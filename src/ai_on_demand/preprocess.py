@@ -152,7 +152,7 @@ class PreprocessWidget(SubWidget):
                 self.order_list = order.split("->")
                 # If checked, add to the start of the list
                 if checked:
-                    self.order_list.insert(0, name)
+                    self.order_list.append(name)
                 else:
                     self.order_list.remove(name)
                 # Handle when all are unchecked
