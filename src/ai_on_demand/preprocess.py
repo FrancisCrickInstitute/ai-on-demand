@@ -66,8 +66,8 @@ class PreprocessWidget(SubWidget):
                 "box": group_box,
                 "params": {},
             }
-            if "tooltip" in d:
-                group_box.setToolTip(format_tooltip(d["tooltip"]))
+            if getattr(d["object"], "tooltip", None) is not None:
+                group_box.setToolTip(format_tooltip(d["object"].tooltip))
             group_box.setCheckable(True)
             group_box.setChecked(False)
             group_box.toggled.connect(self.on_click_preprocess(name))
@@ -109,6 +109,7 @@ class PreprocessWidget(SubWidget):
                     )
                 # Add tooltip if available
                 if "tooltip" in param_dict:
+                    label.setToolTip(format_tooltip(param_dict["tooltip"]))
                     widget.setToolTip(format_tooltip(param_dict["tooltip"]))
                 # Add the widget to the layout
                 group_layout.addWidget(widget, i, 1, 1, 1)
