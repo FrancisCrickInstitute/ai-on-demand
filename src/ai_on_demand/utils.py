@@ -147,6 +147,7 @@ def get_img_dims(
         # TODO: Use bioio to get metadata and infer this
         num_slices, H, W = res
         channels = 1 if channels is None else channels
+        # NOTE: This can get triggered a lot through nxf.update_tile_size
         warnings.warn(
             f"Assuming the first dimension is slices for {layer.name} image layer ({layer} with shape {res})."
         )

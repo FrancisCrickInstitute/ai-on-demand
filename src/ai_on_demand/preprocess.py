@@ -1,7 +1,7 @@
 from typing import Optional
 
 import napari
-from napari.utils.notifications import show_error
+from napari.utils.notifications import show_error, show_info
 import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
@@ -197,6 +197,26 @@ class PreprocessWidget(SubWidget):
         if data.ndim == 3:
             # Get the current slice
             image = data[self.viewer.dims.current_step[0]]
+            # As the preview is for 2D only, remap 3D-specific options to 2D if needed
+            for option in options:
+                if option["name"] == "Filter":
+                    footprint = option["params"]["footprint"]
+                    if footprint == "cube":
+                        option["params"]["footprint"] = "square"
+                    elif footprint == "ball":
+                        option["params"]["footprint"] = "disk"
+                    # Show info if changed
+                    if footprint != option["params"]["footprint"]:
+                        show_info(
+                            f"Changed Filter footprint to {option['params']['footprint']} from {footprint} for 2D preview."
+                        )
+                elif option["name"] == "Downsample":
+                    blocksize = option["params"]["block_size"]
+                    if len(blocksize) == 3:
+                        option["params"]["block_size"] = blocksize[1:]
+                        show_info(
+                            f"Changed Downsample blocksize to {option['params']['block_size']} from {blocksize} for 2D preview."
+                        )
         else:
             # Convert to numpy?
             image = data
