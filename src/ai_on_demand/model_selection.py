@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional
 
 import napari
+from napari.utils.notifications import show_error
 from napari._qt.qt_resources import get_stylesheet
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
@@ -631,6 +632,10 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         """
         # Extract the model info from the manifest
         task_model_version = self.get_task_model_variant(executed=False)
+        # Handle not all selections made
+        if not all(task_model_version):
+            show_error("Please select a task, model, and version first!")
+            return
         model_version = self.model_version_tasks[task_model_version]
         # Extract info from the schema if present
         # Need to get the parent model this version came from
