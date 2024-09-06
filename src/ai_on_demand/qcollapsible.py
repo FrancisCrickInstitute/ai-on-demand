@@ -51,7 +51,7 @@ class QCollapsible(QFrame):
             self._toggle_btn.setStyleSheet(btn_style)
         else:
             self._toggle_btn.setStyleSheet(
-                "text-align: left; border: none; outline: none;"
+                "text-align: left; border: 1px solid black; outline: none;"
             )
         self._toggle_btn.toggled.connect(self._toggle)
 

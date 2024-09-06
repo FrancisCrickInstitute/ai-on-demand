@@ -86,7 +86,6 @@ class MainWidget(QWidget):
             qtpy.QtWidgets.QSizePolicy.Fixed,
         )
         self.content_widget.layout().setAlignment(qtpy.QtCore.Qt.AlignTop)
-        self.content_widget.layout().setSpacing(0)
         self.scroll.setWidget(self.content_widget)
         self.layout().addWidget(self.scroll)
 
