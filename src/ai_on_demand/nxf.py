@@ -597,7 +597,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             nxf_params["model_chkpt_fname"] = Path(res.path).name
         elif model_task.location_type == "file":
             res = Path(model_task.location)
-            nxf_params["model_chkpt_loc"] = res.parent
+            nxf_params["model_chkpt_loc"] = str(res.parent)
             nxf_params["model_chkpt_fname"] = res.name
         # Extract the tiles and overlap
         # Special text is ignored by default, so need to convert
