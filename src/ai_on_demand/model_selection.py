@@ -1,3 +1,4 @@
+import builtins
 from pathlib import Path
 from typing import Optional
 
@@ -420,8 +421,11 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
                 param_val_widget.currentIndexChanged.connect(
                     self.on_param_changed
                 )
-            # Int/float/str -> LineEdit
-            elif isinstance(param_values, (int, float, str)):
+            # Int/float/str/None -> LineEdit
+            elif (
+                isinstance(param_values, (int, float, str))
+                or param_values is None
+            ):
                 param_val_widget = QLineEdit()
                 param_val_widget.setText(str(param_values))
                 param_val_widget.textChanged.connect(self.on_param_changed)
@@ -600,7 +604,15 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             else:
                 raise NotImplementedError
             # Extract the original/intended dtype and cast what's in the box
-            model_dict[orig_param.arg_name] = orig_param._dtype(param_value)
+            # If None, get the provided dtype from the schema and cast
+            if orig_param.value is None:
+                if isinstance(orig_param.dtype, str):
+                    model_dict[orig_param.arg_name] = getattr(
+                        builtins, orig_param.dtype
+                    )(param_value)
+            # Otherwise cast to the default value's dtype
+            else:
+                model_dict[orig_param.arg_name] = orig_param.dtype(param_value)
         return model_dict
 
     def get_task_model_variant(
