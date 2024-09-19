@@ -21,7 +21,7 @@ from ai_on_demand.widget_classes import SubWidget
 from ai_on_demand.utils import format_tooltip
 
 import aiod_utils
-from aiod_utils.preprocess import get_preprocess_options
+from aiod_utils.preprocess import get_preprocess_methods, get_preprocess_params
 
 
 class PreprocessWidget(SubWidget):
@@ -35,7 +35,7 @@ class PreprocessWidget(SubWidget):
         **kwargs,
     ):
         # Load and extract all the available preprocessing options
-        self.preprocess_methods = get_preprocess_options()
+        self.preprocess_methods = get_preprocess_methods()
         # Store the elements for later extraction
         self.preprocess_boxes = {}
         # Store the order of the preprocessing
@@ -224,10 +224,11 @@ class PreprocessWidget(SubWidget):
         # Apply the preprocessing and show the result
         # Convert to numpy array in case it's dask
         image = aiod_utils.run_preprocess(np.array(image), options)
+        prep_str = get_preprocess_params(options)
         # Add metadata to skip file path checks in plugin
         self.viewer.add_image(
             data=image,
-            name=f"{layer.name}_{self.preprocess_order.text()}",
+            name=f"{layer.name}_{prep_str}",
             metadata={"preprocess": True},
         )
         # Switch focus back to the original layer
