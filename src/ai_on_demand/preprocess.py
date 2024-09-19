@@ -230,6 +230,8 @@ class PreprocessWidget(SubWidget):
             name=f"{layer.name}_{self.preprocess_order.text()}",
             metadata={"preprocess": True},
         )
+        # Switch focus back to the original layer
+        self.viewer.layers.selection.active = layer
 
     def extract_options(self):
         # Extract the options from the UI elements
