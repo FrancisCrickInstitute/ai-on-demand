@@ -13,6 +13,7 @@ from ai_on_demand.nxf import NxfWidget
 from ai_on_demand.preprocess import PreprocessWidget
 from ai_on_demand.widget_classes import MainWidget
 from ai_on_demand.utils import calc_param_hash
+import aiod_utils.preprocess
 
 
 class Inference(MainWidget):
@@ -175,9 +176,15 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape[
                     :ndim
                 ]
+                # Get the resulting shape considering preprocessing options
+                options = self.subwidgets["preprocess"].extract_options()
+                mask_shape = aiod_utils.preprocess.get_output_shape(
+                    options=options, input_shape=img_shape
+                )
+                print(fpath.stem, img_shape, mask_shape)
                 # Add a Labels layer for this file
                 self.viewer.add_labels(
-                    np.zeros(img_shape, dtype=np.uint32),
+                    np.zeros(mask_shape, dtype=np.uint16),
                     name=layer_name,
                     visible=False,
                     opacity=0.5,
