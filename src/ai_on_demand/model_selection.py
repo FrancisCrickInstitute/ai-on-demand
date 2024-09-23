@@ -606,7 +606,11 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             # Extract the original/intended dtype and cast what's in the box
             # If None, get the provided dtype from the schema and cast
             if orig_param.value is None:
-                if isinstance(orig_param.dtype, str):
+                # Thanks textbox conversions
+                # Could check NoneType compatible?
+                if param_value is None or param_value == "None":
+                    model_dict[orig_param.arg_name] = None
+                else:
                     model_dict[orig_param.arg_name] = getattr(
                         builtins, orig_param.dtype
                     )(param_value)
