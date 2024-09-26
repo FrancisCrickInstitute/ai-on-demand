@@ -14,6 +14,7 @@ from ai_on_demand.preprocess import PreprocessWidget
 from ai_on_demand.widget_classes import MainWidget
 from ai_on_demand.utils import calc_param_hash
 import aiod_utils.preprocess
+from aiod_utils.io import extract_idxs_from_fname
 
 
 class Inference(MainWidget):
@@ -181,7 +182,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 mask_shape = aiod_utils.preprocess.get_output_shape(
                     options=options, input_shape=img_shape
                 )
-                print(fpath.stem, img_shape, mask_shape)
                 # Add a Labels layer for this file
                 self.viewer.add_labels(
                     np.zeros(mask_shape, dtype=np.uint16),
@@ -326,16 +326,22 @@ Run segmentation/inference on selected images using one of the available pre-tra
             except ValueError as e:
                 print(f)
                 print(e)
+            # Need to get the preprocessing options to check if downsampling was used
+            preprocess_params = aiod_utils.preprocess.load_methods(
+                self.subwidgets["preprocess"].extract_options()
+            )
+            # FIXME: Abstract this
+            for d in preprocess_params:
+                if d["name"] == "Downsample":
+                    downsample_factor = d["params"]["block_size"]
+            # Get indices from fname, modified if downsampled
+            start_x, end_x, start_y, end_y, start_z, end_z = (
+                extract_idxs_from_fname(
+                    fname=f, downsample_factor=downsample_factor
+                )
+            )
             # Check if the mask layer has been renamed
             prefix, suffix = f.stem.split("_masks_")
-            x_idxs, y_idxs, z_idxs = suffix.split("_")[-3:]
-            # TODO: Use Segment-Flow's extract_idxs_from_fname function later
-            # Remove the leader dim letter
-            x_idxs, y_idxs, z_idxs = x_idxs[1:], y_idxs[1:], z_idxs[1:]
-            # This hurts me
-            start_x, end_x = map(int, x_idxs.split("-"))
-            start_y, end_y = map(int, y_idxs.split("-"))
-            start_z, end_z = map(int, z_idxs.split("-"))
             # Extract the relevant Labels layer
             mask_layer_name = self._get_mask_layer_name(prefix, executed=True)
             label_layer = self.viewer.layers[mask_layer_name]
