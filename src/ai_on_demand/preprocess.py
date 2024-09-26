@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Optional
 
 import napari
@@ -127,13 +128,27 @@ class PreprocessWidget(SubWidget):
         self.btn_layout.addWidget(self.preprocess_order, 0, 1, 1, 1)
         # Add preview button
         self.preview_btn = QPushButton("Preview")
-        self.preview_btn.clicked.connect(self.on_click_preview)
+        self.preview_btn.clicked.connect(
+            partial(self.on_click_run, preview=True)
+        )
         self.preview_btn.setToolTip(
             format_tooltip(
                 "Preview the effect of the selected preprocessing options on the currently selected image (or first image layer if none selected)."
             )
         )
-        self.btn_layout.addWidget(self.preview_btn, 1, 0, 1, 2)
+        self.btn_layout.addWidget(self.preview_btn, 1, 0, 1, 1)
+        # Add a run button to apply the preprocessing entirely
+        # Useful for when trying to compare downsampled masks
+        self.prep_run_btn = QPushButton("Run")
+        self.prep_run_btn.clicked.connect(
+            partial(self.on_click_run, preview=False)
+        )
+        self.prep_run_btn.setToolTip(
+            format_tooltip(
+                "Apply the selected preprocessing options to the currently selected image (or first image layer if none selected)."
+            )
+        )
+        self.btn_layout.addWidget(self.prep_run_btn, 1, 1, 1, 1)
         # Set the layout for the widget
         self.btn_widget.setLayout(self.btn_layout)
         self.inner_layout.addWidget(self.btn_widget)
@@ -166,7 +181,7 @@ class PreprocessWidget(SubWidget):
         # Return the callback
         return cb
 
-    def on_click_preview(self):
+    def on_click_run(self, preview: bool = False):
         # Callback for when the preview button is clicked
         # First check if we are able to preview
         if self.preprocess_order.text() == self.init_order:
@@ -197,27 +212,30 @@ class PreprocessWidget(SubWidget):
         data = layer.data
         if data.ndim == 3:
             # Get the current slice
-            image = data[self.viewer.dims.current_step[0]]
-            # As the preview is for 2D only, remap 3D-specific options to 2D if needed
-            for option in options:
-                if option["name"] == "Filter":
-                    footprint = option["params"]["footprint"]
-                    if footprint == "cube":
-                        option["params"]["footprint"] = "square"
-                    elif footprint == "ball":
-                        option["params"]["footprint"] = "disk"
-                    # Show info if changed
-                    if footprint != option["params"]["footprint"]:
-                        show_info(
-                            f"Changed Filter footprint to {option['params']['footprint']} from {footprint} for 2D preview."
-                        )
-                elif option["name"] == "Downsample":
-                    blocksize = option["params"]["block_size"]
-                    if len(blocksize) == 3:
-                        option["params"]["block_size"] = blocksize[1:]
-                        show_info(
-                            f"Changed Downsample blocksize to {option['params']['block_size']} from {blocksize} for 2D preview."
-                        )
+            if preview:
+                image = data[self.viewer.dims.current_step[0]]
+                # As the preview is for 2D only, remap 3D-specific options to 2D if needed
+                for option in options:
+                    if option["name"] == "Filter":
+                        footprint = option["params"]["footprint"]
+                        if footprint == "cube":
+                            option["params"]["footprint"] = "square"
+                        elif footprint == "ball":
+                            option["params"]["footprint"] = "disk"
+                        # Show info if changed
+                        if footprint != option["params"]["footprint"]:
+                            show_info(
+                                f"Changed Filter footprint to {option['params']['footprint']} from {footprint} for 2D preview."
+                            )
+                    elif option["name"] == "Downsample":
+                        blocksize = option["params"]["block_size"]
+                        if len(blocksize) == 3:
+                            option["params"]["block_size"] = blocksize[1:]
+                            show_info(
+                                f"Changed Downsample blocksize to {option['params']['block_size']} from {blocksize} for 2D preview."
+                            )
+            else:
+                image = data
         else:
             # Convert to numpy?
             image = data
