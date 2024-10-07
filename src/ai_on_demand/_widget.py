@@ -331,6 +331,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 self.subwidgets["preprocess"].extract_options()
             )
             # FIXME: Abstract this
+            downsample_factor = None
             for d in preprocess_params:
                 if d["name"] == "Downsample":
                     downsample_factor = d["params"]["block_size"]
