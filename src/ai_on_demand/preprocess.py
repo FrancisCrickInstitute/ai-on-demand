@@ -49,7 +49,11 @@ class PreprocessWidget(SubWidget):
             title="Preprocessing",
             parent=parent,
             layout=layout,
-            tooltip="Select image preprocessing options.",
+            tooltip="""
+Select image preprocessing options. Note that all preprocessing is done on-the-fly in Nextflow.
+
+Any preprocessing applied here is for visualization purposes only, only the original image will be used in the Nextflow pipeline.
+""",
             **kwargs,
         )
 
@@ -125,7 +129,7 @@ class PreprocessWidget(SubWidget):
         self.btn_layout.setAlignment(qtpy.QtCore.Qt.AlignTop)
         # Add text box to show current order of preprocessing
         self.btn_layout.addWidget(self.order_label, 0, 0, 1, 1)
-        self.btn_layout.addWidget(self.preprocess_order, 0, 1, 1, 1)
+        self.btn_layout.addWidget(self.preprocess_order, 0, 1, 1, 2)
         # Add preview button
         self.preview_btn = QPushButton("Preview")
         self.preview_btn.clicked.connect(
@@ -138,17 +142,32 @@ class PreprocessWidget(SubWidget):
         )
         self.btn_layout.addWidget(self.preview_btn, 1, 0, 1, 1)
         # Add a run button to apply the preprocessing entirely
-        # Useful for when trying to compare downsampled masks
         self.prep_run_btn = QPushButton("Run")
         self.prep_run_btn.clicked.connect(
             partial(self.on_click_run, preview=False)
         )
         self.prep_run_btn.setToolTip(
             format_tooltip(
-                "Apply the selected preprocessing options to the currently selected image (or first image layer if none selected)."
+                """
+Apply the selected preprocessing options to the currently selected image (or first image layer if none selected).
+NOTE: This will run the computation locally and return an array in-memory, so be careful with larger images and/or expensive preprocessing.
+NOTE: The result is just for visualization, and will not be used in the Nextflow pipeline.
+                """
             )
         )
         self.btn_layout.addWidget(self.prep_run_btn, 1, 1, 1, 1)
+        # Add a button for rescaling images
+        # Best for visually comparing downsampling with masks
+        self.rescale_btn = QPushButton("Rescale")
+        self.rescale_btn.clicked.connect(self.on_click_rescale)
+        self.rescale_btn.setToolTip(
+            format_tooltip(
+                """
+Rescale all preprocessed layers to their original size. Useful for visually comparing downsampling with masks.
+                """
+            )
+        )
+        self.btn_layout.addWidget(self.rescale_btn, 1, 2, 1, 1)
         # Set the layout for the widget
         self.btn_widget.setLayout(self.btn_layout)
         self.inner_layout.addWidget(self.btn_widget)
@@ -239,6 +258,14 @@ class PreprocessWidget(SubWidget):
         else:
             # Convert to numpy?
             image = data
+        # Extract blocksize for rescaling if downsampling used
+        # This will be the corrected blocksize based on preview/run and input data shape
+        for option in options:
+            if option["name"] == "Downsample":
+                blocksize = option["params"]["block_size"]
+                break
+        else:
+            blocksize = None
         # Apply the preprocessing and show the result
         # Convert to numpy array in case it's dask
         image = aiod_utils.run_preprocess(np.array(image), options)
@@ -247,10 +274,30 @@ class PreprocessWidget(SubWidget):
         self.viewer.add_image(
             data=image,
             name=f"{layer.name}_{prep_str}",
-            metadata={"preprocess": True},
+            metadata={
+                "preprocess": True,
+                "downsample_blocksize": blocksize,
+            },
         )
         # Switch focus back to the original layer
         self.viewer.layers.selection.active = layer
+
+    def on_click_rescale(self):
+        # Gather all the layers on which preprocessing has been applied
+        prep_layers = [
+            layer
+            for layer in self.viewer.layers
+            if "preprocess" in layer.metadata
+        ]
+        if len(prep_layers) == 0:
+            show_error(
+                "No preprocessed layers found to rescale!",
+            )
+            return
+        for layer in prep_layers:
+            blocksize = layer.metadata.get("downsample_blocksize", None)
+            if blocksize is not None:
+                layer.scale = blocksize
 
     def extract_options(self):
         # Extract the options from the UI elements
