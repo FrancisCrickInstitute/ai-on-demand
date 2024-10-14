@@ -173,10 +173,32 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 # If the associated image is present, use its shape
                 # Get ndim of the layer (this accounts for RGB)
                 ndim = self.viewer.layers[f"{fpath.stem}"].ndim
-                # Get appropriate shape for the mask
-                img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape[
-                    :ndim
-                ]
+                metadata = self.viewer.layers[f"{fpath.stem}"].metadata
+                # Channels (non-RGB) & Z
+                if ndim == 4:
+                    # Channels should be first, don't care for labels so remove
+                    img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape[
+                        1:
+                    ]
+                elif ndim == 3:
+                    # If we have a Z, no problem
+                    if ("bioio_dims" in metadata) and (
+                        metadata["bioio_dims"].Z > 1
+                    ):
+                        img_shape = self.viewer.layers[
+                            f"{fpath.stem}"
+                        ].data.shape
+                    # Otherwise it's a non-RGB multi-channel 2D image
+                    else:
+                        img_shape = self.viewer.layers[
+                            f"{fpath.stem}"
+                        ].data.shape[1:]
+                # Otherwise take the 2D image shape
+                # NOTE: [:ndim] is to handle RGB images as Napari interprets
+                else:
+                    img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape[
+                        :ndim
+                    ]
                 # Get the resulting shape considering preprocessing options
                 options = self.subwidgets["preprocess"].extract_options()
                 mask_shape = aiod_utils.preprocess.get_output_shape(

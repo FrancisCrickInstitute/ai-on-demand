@@ -6,6 +6,7 @@ import napari
 from napari.layers import Image
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
+import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
     QLayout,
@@ -233,9 +234,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
                 return skimage.io.imread(fpath), Path(fpath)
             else:
                 # NOTE: Default is for dims to exist when e.g. C=1 or Z/D=1, so squeeze to remove (and align with masks)
-                return aiod_io.load_image(
-                    fpath, return_dask=True
-                ).squeeze(), Path(fpath)
+                return aiod_io.load_image(fpath), Path(fpath)
 
         # Load each image in a separate thread
         for fpath in imgs_to_load:
@@ -249,10 +248,42 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         """
         Adds an image to the viewer when loaded, using its filepath as the name.
         """
-        img, fpath = res
+        bioio_img, fpath = res
         # Add the image to the overall dict
         self.image_path_dict[fpath.stem] = fpath
-        self.viewer.add_image(img, name=fpath.stem)
+        # Handle JPEGs etc.
+        if isinstance(bioio_img, np.ndarray):
+            self.viewer.add_image(
+                bioio_img,
+                name=fpath.stem,
+            )
+        # Otherwise deal with BioIO object
+        else:
+            # TODO: Add metadata?
+            # TODO: We specify where we want the channel axis to be, so can pass this to the viewer
+            # Though if this splits one file to multiple layers...well, that needs addressing anyway
+            try:
+                bioio_metadata = bioio_img.ome_metadata
+            except NotImplementedError:
+                bioio_metadata = bioio_img.metadata
+            # NOTE: https://github.com/bioio-devs/bioio/issues/25 issue for adding units
+            try:
+                pixel_sizes = bioio_img.physical_pixel_sizes
+            except NotImplementedError:
+                pixel_sizes = None
+            # Add various metadata to the image
+            metadata = {
+                "bioio_metadata": bioio_metadata,
+                "pixel_sizes": pixel_sizes,
+                "bioio_dims": bioio_img.dims,
+            }
+            self.viewer.add_image(
+                bioio_img.get_image_dask_data(
+                    dimension_order_out="CZYX"
+                ).squeeze(),
+                name=fpath.stem,
+                metadata=metadata,
+            )
 
     def _finished_loading(self):
         """Signify to user that all images have been loaded."""
