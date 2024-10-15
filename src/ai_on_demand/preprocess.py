@@ -158,12 +158,12 @@ NOTE: The result is just for visualization, and will not be used in the Nextflow
         self.btn_layout.addWidget(self.prep_run_btn, 1, 1, 1, 1)
         # Add a button for rescaling images
         # Best for visually comparing downsampling with masks
-        self.rescale_btn = QPushButton("Rescale")
+        self.rescale_btn = QPushButton("Rescale masks")
         self.rescale_btn.clicked.connect(self.on_click_rescale)
         self.rescale_btn.setToolTip(
             format_tooltip(
                 """
-Rescale all preprocessed layers to their original size. Useful for visually comparing downsampling with masks.
+Rescale mask layers to raw data size (if downsampled). Helps visually compare with the original data.
                 """
             )
         )
@@ -284,18 +284,18 @@ Rescale all preprocessed layers to their original size. Useful for visually comp
 
     def on_click_rescale(self):
         # Gather all the layers on which preprocessing has been applied
-        prep_layers = [
+        mask_layers = [
             layer
             for layer in self.viewer.layers
-            if "preprocess" in layer.metadata
+            if isinstance(layer, napari.layers.Labels)
         ]
-        if len(prep_layers) == 0:
+        if len(mask_layers) == 0:
             show_error(
-                "No preprocessed layers found to rescale!",
+                "No mask layers found to rescale!",
             )
             return
-        for layer in prep_layers:
-            blocksize = layer.metadata.get("downsample_blocksize", None)
+        for layer in mask_layers:
+            blocksize = layer.metadata.get("downsample_factor", None)
             if blocksize is not None:
                 layer.scale = blocksize
 

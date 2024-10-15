@@ -201,6 +201,13 @@ Run segmentation/inference on selected images using one of the available pre-tra
                     ]
                 # Get the resulting shape considering preprocessing options
                 options = self.subwidgets["preprocess"].extract_options()
+                # Check if downsampling
+                metadata = {}
+                for d in options:
+                    if d["name"] == "Downsample":
+                        metadata["downsample_factor"] = d["params"][
+                            "block_size"
+                        ]
                 mask_shape = aiod_utils.preprocess.get_output_shape(
                     options=options, input_shape=img_shape
                 )
