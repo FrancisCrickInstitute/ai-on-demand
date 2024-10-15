@@ -217,6 +217,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                     name=layer_name,
                     visible=False,
                     opacity=0.5,
+                    metadata=metadata,
                 )
             # Move this layer to the top
             self.viewer.layers.move_multiple(
