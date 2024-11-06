@@ -369,13 +369,9 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             layer_list = self.viewer.layers
         # Filter the layers by:
         # Being a Labels layer
-        # Having a name that contains "_masks_"
-        # Having a name that is in the list of images
         valid_mask_layers = [
             layer
             for layer in layer_list
             if isinstance(layer, napari.layers.Labels)
-            if "_masks_" in layer.name
-            if layer.name.split("_masks_")[0] in self.image_path_dict
         ]
         return valid_mask_layers

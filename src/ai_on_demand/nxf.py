@@ -97,6 +97,8 @@ The profile determines where the pipeline is run.
                 "setup": self.setup_finetuning,
             },
         }
+        # Initialise the selected mask layers list
+        self.selected_mask_layers = []
         # Connect viewer to callbacks on events
         self.viewer.layers.selection.events.changed.connect(
             self.on_select_change
@@ -290,7 +292,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
                 "Export the output segmentation masks to a directory. Exports all masks by default, or only the selected masks (if any)."
             )
         )
-        self.export_masks_btn.setEnabled(False)
+        self.export_masks_btn.setEnabled(True)
         export_layout.addWidget(self.export_masks_btn)
 
         self.export_format_dropdown = QComboBox()
@@ -888,12 +890,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         """
         Callback for when the export button is clicked. Opens a dialog to select a directory to save the masks to.
         """
-        export_dir = QFileDialog.getExistingDirectory(
-            self, caption="Select directory to save masks", directory=None
-        )
         # Extract the data from each of the layers, and save the result in the given folder
         # NOTE: Will also need adjusting for the dask/zarr rewrite
         if self.selected_mask_layers:
+            export_dir = QFileDialog.getExistingDirectory(
+                self, caption="Select directory to save masks", directory=None
+            )
             count = 0
             for mask_layer in self.selected_mask_layers:
                 # Get the name of the mask layer as root for the filename
