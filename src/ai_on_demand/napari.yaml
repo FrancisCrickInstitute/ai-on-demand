@@ -15,6 +15,9 @@ contributions:
       title: Example FIB SEM data
       short_title: Example Data
       python_name: ai_on_demand.example_data:load_example_data
+    - id: ai-on-demand.rle_reader
+      title: Read RLE segmentations
+      python_name: ai_on_demand.rle_io:get_rle_reader
   widgets:
     - command: ai-on-demand.inference
       display_name: Inference
@@ -24,3 +27,10 @@ contributions:
     - command: ai-on-demand.example_data
       display_name: Example FIB SEM data
       key: example_fibsem
+  readers:
+    - command: ai-on-demand.rle_reader
+      filename_patterns:
+        - '*.pkl'
+        - '*.pickle'
+        - '*.rle'
+      accepts_directories: false
