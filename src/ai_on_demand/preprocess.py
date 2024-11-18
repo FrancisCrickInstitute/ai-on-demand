@@ -260,12 +260,7 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
             image = data
         # Extract blocksize for rescaling if downsampling used
         # This will be the corrected blocksize based on preview/run and input data shape
-        for option in options:
-            if option["name"] == "Downsample":
-                blocksize = option["params"]["block_size"]
-                break
-        else:
-            blocksize = None
+        blocksize = aiod_utils.preprocess.get_downsample_factor(options)
         # Apply the preprocessing and show the result
         # Convert to numpy array in case it's dask
         image = aiod_utils.run_preprocess(np.array(image), options)

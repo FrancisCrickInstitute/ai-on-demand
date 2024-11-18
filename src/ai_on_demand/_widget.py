@@ -15,6 +15,7 @@ from ai_on_demand.widget_classes import MainWidget
 from ai_on_demand.utils import calc_param_hash
 import aiod_utils.preprocess
 from aiod_utils.io import extract_idxs_from_fname
+import aiod_utils.rle as aiod_rle
 
 
 class Inference(MainWidget):
@@ -154,7 +155,8 @@ Run segmentation/inference on selected images using one of the available pre-tra
             ].mask_dir_path / self._get_mask_name(fpath.stem, executed=True)
             # If it does, load it
             if mask_fpath.exists():
-                mask_data = np.load(mask_fpath, allow_pickle=True)
+                mask_data = aiod_rle.load_encoding(mask_fpath)
+                mask_data, metadata = aiod_rle.decode(mask_data)
                 # Check if the mask layer already exists
                 if layer_name in self.viewer.layers:
                     # If so, update the data just to make sure & ensure visible
@@ -168,6 +170,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                         name=layer_name,
                         visible=True,
                         opacity=0.5,
+                        metadata=metadata["metadata"],
                     )
             else:
                 # If the associated image is present, use its shape
@@ -203,11 +206,11 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 options = self.subwidgets["preprocess"].extract_options()
                 # Check if downsampling
                 metadata = {}
-                for d in options:
-                    if d["name"] == "Downsample":
-                        metadata["downsample_factor"] = d["params"][
-                            "block_size"
-                        ]
+                downsample_factor = (
+                    aiod_utils.preprocess.get_downsample_factor(options)
+                )
+                if downsample_factor is not None:
+                    metadata["downsample_factor"] = downsample_factor
                 mask_shape = aiod_utils.preprocess.get_output_shape(
                     options=options, input_shape=img_shape
                 )
@@ -234,7 +237,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
 
         This is used to update the napari Labels layers with the new masks.
 
-        Currently expects that the slices are stored as .npy files. Deactivates
+        Currently expects that the slices are stored as .rle files. Deactivates
         when it sees each image has the expected number of slices completed.
         """
         # Wait for at least one image to load as layers if not present
@@ -260,7 +263,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
             while self.watcher_enabled:
                 # Get all files
                 current_files = list(
-                    self.subwidgets["nxf"].mask_dir_path.glob("*.npy")
+                    self.subwidgets["nxf"].mask_dir_path.glob("*.rle")
                 )
                 # Filter out any _all files, can occur when process is too fast (i.e. single image)
                 current_files = [
@@ -320,7 +323,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         return fname
 
     def _get_mask_name(
-        self, stem: str, extension: str = "npy", executed=False, truncate=False
+        self, stem: str, extension: str = "rle", executed=False, truncate=False
     ):
         mask_root = self._get_mask_layer_name(
             stem=stem, executed=executed, truncate=truncate
@@ -346,7 +349,8 @@ Run segmentation/inference on selected images using one of the available pre-tra
         for f in new_files:
             # Load the numpy array
             try:
-                mask_arr = np.load(f, allow_pickle=True)
+                mask_arr = aiod_rle.load_encoding(f)
+                mask_arr, _ = aiod_rle.decode(mask_arr)
             # NOTE: This is a temporary fix, and only occurs with fast models and a good GPU
             except FileNotFoundError:
                 print(
@@ -360,11 +364,10 @@ Run segmentation/inference on selected images using one of the available pre-tra
             preprocess_params = aiod_utils.preprocess.load_methods(
                 self.subwidgets["preprocess"].extract_options()
             )
-            # FIXME: Abstract this
-            downsample_factor = None
-            for d in preprocess_params:
-                if d["name"] == "Downsample":
-                    downsample_factor = d["params"]["block_size"]
+            # Get the downsample factor
+            downsample_factor = aiod_utils.preprocess.get_downsample_factor(
+                preprocess_params
+            )
             # Get indices from fname, modified if downsampled
             start_x, end_x, start_y, end_y, start_z, end_z = (
                 extract_idxs_from_fname(
@@ -430,14 +433,13 @@ Run segmentation/inference on selected images using one of the available pre-tra
             self.viewer.layers[mask_layer_name].data = np.zeros_like(
                 self.viewer.layers[mask_layer_name].data
             )
-            # Load the numpy array
-            mask_arr = np.load(
-                self.subwidgets["nxf"].mask_dir_path
-                / self._get_mask_name(
-                    img_fpath.stem, executed=True, truncate=False
-                ),
-                allow_pickle=True,
+            # Load the mask
+            fpath = self.subwidgets["nxf"].mask_dir_path / self._get_mask_name(
+                img_fpath.stem, executed=True, truncate=False
             )
+            mask_arr = aiod_rle.load_encoding(fpath)
+            # NOTE: Mask metadata should be no different, so ignore
+            mask_arr, _ = aiod_rle.decode(mask_arr)
             # Insert mask data
             self.viewer.layers[mask_layer_name].data = mask_arr
             self.viewer.layers[mask_layer_name].visible = True
