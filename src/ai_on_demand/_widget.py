@@ -360,6 +360,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
             except ValueError as e:
                 print(f)
                 print(e)
+                continue
             # Need to get the preprocessing options to check if downsampling was used
             preprocess_params = aiod_utils.preprocess.load_methods(
                 self.subwidgets["preprocess"].extract_options()
