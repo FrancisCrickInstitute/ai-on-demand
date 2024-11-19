@@ -5,6 +5,7 @@ from typing import Optional, Union
 from urllib.parse import urlparse
 
 from aiod_registry import TASK_NAMES
+import aiod_utils.rle as aiod_rle
 import napari
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
@@ -296,7 +297,30 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         export_layout.addWidget(self.export_masks_btn)
 
         self.export_format_dropdown = QComboBox()
-        self.export_format_dropdown.addItems([".npy", ".tiff"])
+        export_options = [
+            (
+                ".rle",
+                "Compressed RLE format. Binarise for most efficient storage and loading, though not recommended for SAM.",
+            ),
+            (
+                ".npy",
+                "NumPy format. Easiest to use elsewhere in Python without AIoD.",
+            ),
+            (
+                ".tiff",
+                "TIFF format. Most generic format for other imaging software.",
+            ),
+        ]
+        for i, (fmt, desc) in enumerate(export_options):
+            self.export_format_dropdown.addItem(fmt)
+            self.export_format_dropdown.setItemData(
+                i, desc, qtpy.QtCore.Qt.ToolTipRole
+            )
+        self.export_format_dropdown.setToolTip(
+            format_tooltip(
+                "Select the format to export the masks in. Hover over each item for a description."
+            )
+        )
         export_layout.addWidget(self.export_format_dropdown)
 
         self.export_binary_check = QCheckBox("Binarise masks?")
@@ -912,19 +936,31 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 else:
                     mask_data = mask_layer.data
                 # Get the extension & add to fname
-                ext = self.export_format_dropdown.currentText().strip(".")
+                ext = self.export_format_dropdown.currentText().split(".")[-1]
                 fname += f".{ext}"
+                fpath = Path(export_dir) / fname
                 if ext == "npy":
                     np.save(
-                        Path(export_dir) / fname,
+                        fpath,
                         mask_data,
                     )
                 elif ext == "tiff":
                     skimage.io.imsave(
-                        Path(export_dir) / fname,
+                        fpath,
                         mask_data,
                         plugin="tifffile",
                     )
+                elif ext == "rle":
+                    encoded_mask = aiod_rle.encode(
+                        mask_data,
+                        mask_type=(
+                            "binary"
+                            if self.export_binary_check.isChecked()
+                            else "instance"
+                        ),
+                        metadata=mask_layer.metadata,
+                    )
+                    aiod_rle.save_encoding(fpath=fpath, rle=encoded_mask)
                 count += 1
             show_info(f"Exported {count} mask files to {export_dir}!")
         else:
