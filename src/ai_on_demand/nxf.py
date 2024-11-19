@@ -652,7 +652,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             proceed, img_paths, load_paths = self.parent.check_masks()
         # If some masks need loading, load them
         if load_paths:
+            self.nxf_run_btn.setEnabled(False)
+            self.nxf_run_btn.setText("Loading already-run masks...")
             self.parent.create_mask_layers(img_paths=load_paths)
+        # Reset the run button after loading just in case
+        self.nxf_run_btn.setText("Run Pipeline!")
+        self.nxf_run_btn.setEnabled(True)
         # If we already have all the masks, don't run the pipeline
         if not proceed:
             show_info(
