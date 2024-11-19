@@ -684,9 +684,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.nxf_run_btn.setEnabled(True)
         # If we already have all the masks, don't run the pipeline
         if not proceed:
-            show_info(
-                f"Masks already exist for all files for segmenting {TASK_NAMES[parent.executed_task]} with {parent.executed_model} ({parent.executed_variant})!"
-            )
+            # NOTE: Include hash in message?
+            msg = f"Masks already exist for all files for segmenting {TASK_NAMES[parent.executed_task]} with {parent.executed_model} ({parent.executed_variant})!"
+            if self.parent.run_hash is not None:
+                msg += f" (Hash: {self.parent.run_hash[:8]})"
+            show_info(msg)
             # Enable the export button as all masks available
             self.export_masks_btn.setEnabled(True)
             # Otherwise, until importing is fully sorted, the user just gets a notification and that's it
