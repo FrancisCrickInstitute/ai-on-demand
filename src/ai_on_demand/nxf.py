@@ -198,6 +198,7 @@ The profile determines where the pipeline is run.
         avail_confs = [str(i.stem) for i in config_dir.glob("*.conf")]
         avail_confs.sort()
         self.nxf_profile_box.addItems(avail_confs)
+        self.nxf_profile_box.setFocusPolicy(qtpy.QtCore.Qt.StrongFocus)
         self.inner_layout.addWidget(self.nxf_profile_label, 0, 0)
         self.inner_layout.addWidget(self.nxf_profile_box, 0, 1)
 
