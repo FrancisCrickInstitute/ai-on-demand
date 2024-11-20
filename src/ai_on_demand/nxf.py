@@ -5,7 +5,6 @@ from typing import Optional, Union
 from urllib.parse import urlparse
 
 from aiod_registry import TASK_NAMES
-import aiod_utils.rle as aiod_rle
 import napari
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
@@ -27,7 +26,6 @@ from qtpy.QtWidgets import (
     QSpinBox,
     QDoubleSpinBox,
 )
-import skimage.io
 import tqdm
 import yaml
 
@@ -138,12 +136,14 @@ The profile determines where the pipeline is run.
         layers_selected = event.source
         # If nothing selected, reset the mask layers
         if len(layers_selected) == 0:
-            # Filter mask layers to ensure they are from AIoD outputs and not external
+            # Filter mask layers to ensure they are Labels layers
             self.selected_mask_layers = self.parent.subwidgets[
                 "data"
             ].get_mask_layers()
             # Reset text on export button
-            self.export_masks_btn.setText("Export all masks")
+            self.parent.subwidgets["export"].export_masks_btn.setText(
+                "Export all masks"
+            )
             # Reset tile size label if nothing selected
             self.update_tile_size(val=None, clear_label=True)
         else:
@@ -159,9 +159,11 @@ The profile determines where the pipeline is run.
                 self.selected_mask_layers = self.parent.subwidgets[
                     "data"
                 ].get_mask_layers()
-                self.export_masks_btn.setText("Export all masks")
+                self.parent.subwidgets["export"].export_masks_btn.setText(
+                    "Export all masks"
+                )
             else:
-                self.export_masks_btn.setText(
+                self.parent.subwidgets["export"].export_masks_btn.setText(
                     f"Export {num_selected} mask{'s' if num_selected > 1 else ''}"
                 )
         return
@@ -198,7 +200,9 @@ The profile determines where the pipeline is run.
         avail_confs = [str(i.stem) for i in config_dir.glob("*.conf")]
         avail_confs.sort()
         self.nxf_profile_box.addItems(avail_confs)
-        self.nxf_profile_box.setFocusPolicy(qtpy.QtCore.Qt.StrongFocus)
+        self.nxf_profile_box.setFocusPolicy(
+            qtpy.QtCore.Qt.FocusPolicy.StrongFocus
+        )
         self.inner_layout.addWidget(self.nxf_profile_label, 0, 0)
         self.inner_layout.addWidget(self.nxf_profile_box, 0, 1)
 
@@ -234,14 +238,6 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             )
         )
         self.inner_layout.addWidget(self.overwrite_btn, 2, 0, 1, 1)
-        # Add a button for importing masks
-        self.import_masks_btn = QPushButton("Import masks")
-        self.import_masks_btn.clicked.connect(self.on_click_import)
-        self.import_masks_btn.setToolTip(
-            format_tooltip("Import segmentation masks.")
-        )
-        self.import_masks_btn.setEnabled(True)
-        self.inner_layout.addWidget(self.import_masks_btn, 2, 1, 1, 1)
 
         # Add widget for advanced options
         self.options_widget = QWidget()
@@ -284,55 +280,6 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         )
         self.inner_layout.addWidget(self.nxf_run_btn, 4, 0, 1, 2)
 
-        # Add a button for exporting masks, with a dropdown for different formats
-        # and checkbox for binarising
-        export_layout = QHBoxLayout()
-        self.export_masks_btn = QPushButton("Export all masks")
-        self.export_masks_btn.clicked.connect(self.on_click_export)
-        self.export_masks_btn.setToolTip(
-            format_tooltip(
-                "Export the output segmentation masks to a directory. Exports all masks by default, or only the selected masks (if any)."
-            )
-        )
-        self.export_masks_btn.setEnabled(True)
-        export_layout.addWidget(self.export_masks_btn)
-
-        self.export_format_dropdown = QComboBox()
-        export_options = [
-            (
-                ".rle",
-                "Compressed RLE format. Binarise for most efficient storage and loading, though not recommended for SAM.",
-            ),
-            (
-                ".npy",
-                "NumPy format. Easiest to use elsewhere in Python without AIoD.",
-            ),
-            (
-                ".tiff",
-                "TIFF format. Most generic format for other imaging software.",
-            ),
-        ]
-        for i, (fmt, desc) in enumerate(export_options):
-            self.export_format_dropdown.addItem(fmt)
-            self.export_format_dropdown.setItemData(
-                i, desc, qtpy.QtCore.Qt.ToolTipRole
-            )
-        self.export_format_dropdown.setToolTip(
-            format_tooltip(
-                "Select the format to export the masks in. Hover over each item for a description."
-            )
-        )
-        export_layout.addWidget(self.export_format_dropdown)
-
-        self.export_binary_check = QCheckBox("Binarise masks?")
-        self.export_binary_check.setToolTip(
-            format_tooltip(
-                "Binarise the masks before exporting (i.e. black background, white masks)."
-            )
-        )
-        export_layout.addWidget(self.export_binary_check)
-        self.inner_layout.addLayout(export_layout, 5, 0, 1, 2)
-
         pbar_layout = QHBoxLayout()
         # Add progress bar
         self.pbar = QProgressBar()
@@ -344,7 +291,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         # Add the label and progress bar to the layout
         pbar_layout.addWidget(self.pbar_label)
         pbar_layout.addWidget(self.pbar)
-        self.inner_layout.addLayout(pbar_layout, 6, 0, 1, 2)
+        self.inner_layout.addLayout(pbar_layout, 5, 0, 1, 2)
         # TQDM progress bar to monitor completion time
         self.tqdm_pbar = None
 
@@ -688,8 +635,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             if self.parent.run_hash is not None:
                 msg += f" (Hash: {self.parent.run_hash[:8]})"
             show_info(msg)
-            # Enable the export button as all masks available
-            self.export_masks_btn.setEnabled(True)
             # Otherwise, until importing is fully sorted, the user just gets a notification and that's it
             return nxf_cmd, nxf_params, proceed, img_paths
         else:
@@ -782,15 +727,13 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         """
         self.nxf_run_btn.setText("Run Pipeline!")
         self.nxf_run_btn.setEnabled(True)
-        self.export_masks_btn.setEnabled(True)
         self._remove_cancel_btn()
 
     def _pipeline_start(self):
         # Add a notification that the pipeline has started
         show_info("Pipeline started!")
         # Modify buttons during run
-        self.export_masks_btn.setEnabled(False)
-        # Disable the button to avoid issues
+        # Disable run button to avoid issues
         # TODO: Enable multiple job execution, may require -bg flag?
         self.nxf_run_btn.setEnabled(False)
         # Update the button to signify it's running
@@ -893,91 +836,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         # Reset the label
         self.pbar_label.setText("Progress: [--:--]")
 
-    def on_click_import(self):
-        """
-        Callback for when the import button is clicked. Opens a dialog to select mask files to import.
-
-        Expectation is that these come from the Nextflow and are therefore .npy files. For anything external, they can be added to Napari as normal.
-
-        TODO: Current disabled, as arbitrary import makes it harder to allow partial pipeline running.
-        """
-        fnames, _ = QFileDialog.getOpenFileNames(
-            self,
-            caption="Select mask files to import",
-            directory=str(Path.home()),
-            filter="Numpy files (*.npy)",  # NOTE: Will need to change when moving away from numpy
-        )
-        for fname in fnames:
-            mask_arr = np.load(fname, allow_pickle=True)
-            self.viewer.add_labels(
-                mask_arr,
-                name=Path(fname).stem.replace("_all", ""),
-                visible=True,
-                opacity=0.5,
-            )
-
-    def on_click_export(self):
-        """
-        Callback for when the export button is clicked. Opens a dialog to select a directory to save the masks to.
-        """
-        # Extract the data from each of the layers, and save the result in the given folder
-        # NOTE: Will also need adjusting for the dask/zarr rewrite
-        if self.selected_mask_layers:
-            export_dir = QFileDialog.getExistingDirectory(
-                self, caption="Select directory to save masks", directory=None
-            )
-            count = 0
-            for mask_layer in self.selected_mask_layers:
-                # Get the name of the mask layer as root for the filename
-                fname = f"{mask_layer.name}"
-                # Check if we are binarising
-                if self.export_binary_check.isChecked():
-                    mask_data = self._binarise_mask(mask_layer)
-                    fname += "_binarised"
-                else:
-                    mask_data = mask_layer.data
-                # Get the extension & add to fname
-                ext = self.export_format_dropdown.currentText().split(".")[-1]
-                fname += f".{ext}"
-                fpath = Path(export_dir) / fname
-                if ext == "npy":
-                    np.save(
-                        fpath,
-                        mask_data,
-                    )
-                elif ext == "tiff":
-                    skimage.io.imsave(
-                        fpath,
-                        mask_data,
-                        plugin="tifffile",
-                    )
-                elif ext == "rle":
-                    encoded_mask = aiod_rle.encode(
-                        mask_data,
-                        mask_type=(
-                            "binary"
-                            if self.export_binary_check.isChecked()
-                            else "instance"
-                        ),
-                        metadata=mask_layer.metadata,
-                    )
-                    aiod_rle.save_encoding(fpath=fpath, rle=encoded_mask)
-                count += 1
-            show_info(f"Exported {count} mask files to {export_dir}!")
-        else:
-            show_info("No mask layers found!")
-
     def cancel_pipeline(self):
         # Trigger Nextflow to cancel the pipeline
         self.process.send_signal(subprocess.signal.SIGTERM)
         # Reset the progress bar
         self.reset_progress_bar()
-
-    def _binarise_mask(self, mask_layer):
-        """
-        Binarises the given mask layer.
-        """
-        return (mask_layer.data).astype(bool).astype(np.uint8) * 255
 
     def update_tile_size(
         self, val: Union[int, float], clear_label: bool = False

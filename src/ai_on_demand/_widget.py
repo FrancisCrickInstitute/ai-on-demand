@@ -8,6 +8,7 @@ import numpy as np
 
 from ai_on_demand.tasks import TaskWidget
 from ai_on_demand.data_selection import DataWidget
+from ai_on_demand.mask_export import ExportWidget
 from ai_on_demand.model_selection import ModelWidget
 from ai_on_demand.nxf import NxfWidget
 from ai_on_demand.preprocess import PreprocessWidget
@@ -69,6 +70,11 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 pipeline="inference",
                 expanded=False,
             )
+        )
+
+        # Add box for exporting masks
+        self.register_widget(
+            ExportWidget(viewer=self.viewer, parent=self, expanded=False)
         )
 
     def get_run_hash(self, nxf_params: dict):
