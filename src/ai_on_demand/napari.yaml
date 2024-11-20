@@ -18,6 +18,9 @@ contributions:
     - id: ai-on-demand.rle_reader
       title: Read RLE segmentations
       python_name: ai_on_demand.rle_io:get_rle_reader
+    - id: ai-on-demand.rle_writer
+      title: Write segmentations to RLE format
+      python_name: ai_on_demand.rle_io:rle_writer
   widgets:
     - command: ai-on-demand.inference
       display_name: Inference
@@ -34,3 +37,11 @@ contributions:
         - '*.pickle'
         - '*.rle'
       accepts_directories: false
+  writers:
+    - command: ai-on-demand.rle_writer
+      layer_types:
+        - labels
+      filename_extensions:
+        - '*.pkl'
+        - '*.pickle'
+        - '*.rle'
