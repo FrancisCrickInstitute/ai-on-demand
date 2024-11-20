@@ -57,6 +57,7 @@ class QCollapsible(QFrame):
 
         # frame layout
         self.setLayout(layout())
+        self.layout().setContentsMargins(QMargins(0, 0, 0, 0))
         self.layout().setAlignment(Qt.AlignmentFlag.AlignTop)
         self.layout().addWidget(self._toggle_btn)
 

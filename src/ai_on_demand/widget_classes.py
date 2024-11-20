@@ -13,6 +13,7 @@ from qtpy.QtWidgets import (
     QGridLayout,
     QLabel,
     QVBoxLayout,
+    QFrame,
 )
 from qtpy.QtGui import QPixmap
 import qtpy.QtCore
@@ -170,6 +171,22 @@ class SubWidget(QCollapsible):
         self.create_box()
         # Add the inner widget to the collapsible widget
         self.addWidget(self.inner_widget)
+        # Add a divider line to better separate subwidgets
+        # NOTE: Currently invisible, but just a spacer
+        # btn_colour = self._toggle_btn.palette().button().color().name()  # Tries to get the button colour
+        divider_line = QFrame()
+        divider_line.setFrameShape(QFrame.HLine)
+        # divider_line.setFrameShadow(QFrame.Sunken)
+        divider_line.setStyleSheet(
+            """
+            QFrame[frameShape='4'] {
+                border: none;
+            }
+        """
+        )
+        # Ensure minimal space taken
+        divider_line.setMaximumHeight(1)
+        self.content().layout().addWidget(divider_line)
 
         # If given a parent at creation, add this widget to the parent's layout
         if self.parent is not None:
