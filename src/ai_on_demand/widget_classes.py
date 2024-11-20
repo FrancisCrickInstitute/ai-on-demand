@@ -144,6 +144,8 @@ class SubWidget(QCollapsible):
             Layout to use for the widget. This is the default layout for the subwidget.
         tooltip : Optional[str], optional
             Tooltip to display for the widget, by default None.
+        kwargs
+            Additional keyword arguments to pass to the QCollapsible widget, such as margins, animation duration, etc.
         """
         super().__init__(
             title=string.capwords(title),
@@ -151,7 +153,7 @@ class SubWidget(QCollapsible):
             collapsedIcon="▶",
             expandedIcon="▼",
             duration=200,
-            margins=(0, 0, 0, 0),
+            margins=(5, 0, 5, 0),
             **kwargs,
         )
         self.viewer = viewer
