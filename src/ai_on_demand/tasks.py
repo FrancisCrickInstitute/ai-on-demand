@@ -46,8 +46,6 @@ class TaskWidget(SubWidget):
             self.inner_layout.addWidget(btn)
             self.task_buttons[name] = btn
 
-        self.inner_widget.setLayout(self.inner_layout)
-
     def on_click_task(self):
         """
         Callback for when a task button is clicked.

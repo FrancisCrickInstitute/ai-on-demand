@@ -142,8 +142,6 @@ class EvalWidget(SubWidget):
             format_tooltip("Export and append results to previous export")
         )
         self.layout().addWidget(self.append_btn, row + 2, 2, 1, 2)
-        # Add the layout to the main layout
-        self.inner_widget.setLayout(self.inner_layout)
 
     def define_metrics(self, start_row: int = 3, width: int = 4):
         """

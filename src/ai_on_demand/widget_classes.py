@@ -171,6 +171,7 @@ class SubWidget(QCollapsible):
             self.setToolTip(format_tooltip(tooltip))
         # Create the initial widgets/elements
         self.create_box()
+        self.inner_widget.setLayout(self.inner_layout)
         # Add the inner widget to the collapsible widget
         self.addWidget(self.inner_widget)
         # Add a divider line to better separate subwidgets

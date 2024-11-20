@@ -171,7 +171,6 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
         # Set the layout for the widget
         self.btn_widget.setLayout(self.btn_layout)
         self.inner_layout.addWidget(self.btn_widget)
-        self.inner_widget.setLayout(self.inner_layout)
 
     def on_click_preprocess(self, name: str):
         # Callback for when a preprocess method is selected

@@ -192,8 +192,6 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.create_model_param_widget()
         self.create_model_config_widget()
 
-        self.inner_widget.setLayout(self.inner_layout)
-
     def on_model_select(self):
         """
         Callback for when a model button is clicked.

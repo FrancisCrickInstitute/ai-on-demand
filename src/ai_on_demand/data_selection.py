@@ -111,9 +111,6 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         # Run the file counter if there are images already loaded
         if len(self.image_path_dict) > 0:
             self.update_file_count()
-        # Add button layout to box layout
-        # Sort out layout and add to main widget
-        self.inner_widget.setLayout(self.inner_layout)
 
     def on_layer_added(self, event):
         """

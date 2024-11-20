@@ -347,8 +347,6 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         self.inner_layout.addLayout(pbar_layout, 6, 0, 1, 2)
         # TQDM progress bar to monitor completion time
         self.tqdm_pbar = None
-        # Add the layout to the main layout
-        self.inner_widget.setLayout(self.inner_layout)
 
     def _add_advanced_options(self):
         self.tile_x_label = QLabel("Number X tiles:")
