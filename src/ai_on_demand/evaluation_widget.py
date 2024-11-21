@@ -53,9 +53,15 @@ class EvalWidget(SubWidget):
         viewer: napari.Viewer,
         parent: Optional[QWidget] = None,
         layout: QLayout = QGridLayout,
+        **kwargs,
     ):
         super().__init__(
-            viewer, "Evaluation", parent, layout, tooltip=parent.tooltip
+            viewer=viewer,
+            title="Evaluation",
+            parent=parent,
+            layout=layout,
+            tooltip=parent.tooltip,
+            **kwargs,
         )
         # Unsure if changed means inserted/removed, or includes moved which we don't care about
         self.viewer.layers.events.inserted.connect(self.add_layer)
@@ -75,8 +81,8 @@ class EvalWidget(SubWidget):
             format_tooltip("Select Labels layer containing masks to evaluate")
         )
         self.mask_layer_dropdown.addItems(init_mask_layers)
-        self.layout().addWidget(self.mask_layer_label, 0, 0, 1, 4)
-        self.layout().addWidget(self.mask_layer_dropdown, 1, 0, 1, 4)
+        self.inner_layout.addWidget(self.mask_layer_label, 0, 0, 1, 4)
+        self.inner_layout.addWidget(self.mask_layer_dropdown, 1, 0, 1, 4)
         # Ground truth layer selection
         self.gt_layer_label = QLabel("True/other mask layer:")
         self.gt_layer_dropdown = QComboBox()
@@ -97,9 +103,9 @@ class EvalWidget(SubWidget):
         # Define behaviour on checking/unchecking box
         self.gt_selected.stateChanged.connect(self.on_gt_select)
         self.gt_selected.setChecked(False)
-        self.layout().addWidget(self.gt_layer_label, 2, 0, 1, 2)
-        self.layout().addWidget(self.gt_selected, 2, 2, 1, 2)
-        self.layout().addWidget(self.gt_layer_dropdown, 3, 0, 1, 4)
+        self.inner_layout.addWidget(self.gt_layer_label, 2, 0, 1, 2)
+        self.inner_layout.addWidget(self.gt_selected, 2, 2, 1, 2)
+        self.inner_layout.addWidget(self.gt_layer_dropdown, 3, 0, 1, 4)
         # Image selection
         # Get all image layers that were already present when the widget was created
         init_img_layers = [
@@ -113,15 +119,15 @@ class EvalWidget(SubWidget):
             format_tooltip("Select image layer to include in analysis")
         )
         self.image_layer_dropdown.addItems(init_img_layers)
-        self.layout().addWidget(self.image_layer_label, 4, 0, 1, 4)
-        self.layout().addWidget(self.image_layer_dropdown, 5, 0, 1, 4)
+        self.inner_layout.addWidget(self.image_layer_label, 4, 0, 1, 4)
+        self.inner_layout.addWidget(self.image_layer_dropdown, 5, 0, 1, 4)
         # Metric selection
-        row = self.define_metrics(start_row=6)
+        row = self.define_metrics(start_row=self.inner_layout.rowCount())
         # Calculate button
         self.calculate_btn = QPushButton("Calculate!")
         self.calculate_btn.clicked.connect(self.calculate_metrics)
         self.calculate_btn.setEnabled(True)
-        self.layout().addWidget(self.calculate_btn, row, 0, 1, 4)
+        self.inner_layout.addWidget(self.calculate_btn, row, 0, 1, 4)
         # Output box
         self.output_box = QTextBrowser()
         font = QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.FixedFont)
@@ -129,19 +135,19 @@ class EvalWidget(SubWidget):
         font.setPointSize(14)
         self.output_box.setFont(font)
         self.output_box.setWordWrapMode(QtGui.QTextOption.NoWrap)
-        self.layout().addWidget(self.output_box, row + 1, 0, 1, 4)
+        self.inner_layout.addWidget(self.output_box, row + 1, 0, 1, 4)
         # Export button
         self.export_btn = QPushButton("Export results")
         self.export_btn.clicked.connect(self.export_results)
         self.export_btn.setToolTip(format_tooltip("Export results to CSV"))
-        self.layout().addWidget(self.export_btn, row + 2, 0, 1, 2)
+        self.inner_layout.addWidget(self.export_btn, row + 2, 0, 1, 2)
         # Append to existing results button
         self.append_btn = QPushButton("Append to existing results")
         self.append_btn.clicked.connect(self.append_results)
         self.append_btn.setToolTip(
             format_tooltip("Export and append results to previous export")
         )
-        self.layout().addWidget(self.append_btn, row + 2, 2, 1, 2)
+        self.inner_layout.addWidget(self.append_btn, row + 2, 2, 1, 2)
 
     def define_metrics(self, start_row: int = 3, width: int = 4):
         """
@@ -156,7 +162,7 @@ class EvalWidget(SubWidget):
             ),
         }
 
-        self.layout().addWidget(
+        self.inner_layout.addWidget(
             QLabel("Unsupervised metrics:"), start_row, 0, 1, width
         )
         row = start_row + 1
@@ -168,14 +174,14 @@ class EvalWidget(SubWidget):
             checkbox.setChecked(True)
             checkbox.setToolTip(format_tooltip(func.__doc__))
             self.base_metric_widgets[name] = checkbox
-            self.layout().addWidget(
+            self.inner_layout.addWidget(
                 checkbox, row + (i // width), i % width, 1, 1
             )
 
         # Update the row and increment for GT metrics
         row += (i // width) + 1
 
-        self.layout().addWidget(
+        self.inner_layout.addWidget(
             QLabel("Supervised metrics:"), row, 0, 1, width
         )
         row += 1
@@ -197,7 +203,7 @@ class EvalWidget(SubWidget):
                 checkbox.setChecked(False)
             checkbox.setToolTip(format_tooltip(func.__doc__))
             self.gt_metric_widgets[name] = checkbox
-            self.layout().addWidget(
+            self.inner_layout.addWidget(
                 checkbox, row + (i // width), i % width, 1, 1
             )
 
