@@ -1,5 +1,6 @@
 from collections import defaultdict
 from pathlib import Path
+import shutil
 import subprocess
 from typing import Optional, Union
 from urllib.parse import urlparse
@@ -25,6 +26,8 @@ from qtpy.QtWidgets import (
     QCheckBox,
     QSpinBox,
     QDoubleSpinBox,
+    QGroupBox,
+    QMessageBox,
 )
 import tqdm
 import yaml
@@ -189,6 +192,60 @@ The profile determines where the pipeline is run.
         self.nxf_work_dir.mkdir(parents=True, exist_ok=True)
 
     def create_box(self, variant: Optional[str] = None):
+        # Create box for the cache settings
+        self.cache_box = QGroupBox("Cache Settings")
+        self.cache_box.setToolTip(
+            format_tooltip(
+                "Settings for the AIoD/Nextflow cache for storing models and results."
+            )
+        )
+        self.cache_layout = QGridLayout()
+        self.cache_box.setLayout(self.cache_layout)
+        # Create the option for selecting base directory
+        self.nxf_dir_label = QLabel("Base directory:")
+        base_dir_tooltip = "Select the base directory to store the Nextflow cache (i.e. all models & results) in."
+        self.nxf_dir_label.setToolTip(format_tooltip(base_dir_tooltip))
+        self.nxf_dir_text = QLabel(str(self.nxf_base_dir))
+        self.nxf_dir_text.setWordWrap(True)
+        self.nxf_dir_text.setToolTip(
+            format_tooltip("The selected base directory.")
+        )
+        self.nxf_dir_text.setMaximumWidth(400)
+        # Button to change the base directory
+        self.nxf_dir_btn = QPushButton("Change")
+        self.nxf_dir_btn.clicked.connect(self.on_click_base_dir)
+        self.nxf_dir_btn.setToolTip(format_tooltip(base_dir_tooltip))
+        # Button to inspect the base directory/cache
+        self.nxf_dir_inspect_btn = QPushButton("Inspect cache")
+        self.nxf_dir_inspect_btn.clicked.connect(self.on_click_inspect_cache)
+        self.nxf_dir_inspect_btn.setToolTip(
+            format_tooltip(
+                """
+Open the base directory in the file explorer to inspect the cache.
+
+Note that 'opening' won't do anything, this is just to see what files are present.
+"""
+            )
+        )
+        # Button to clear the cache
+        self.nxf_dir_clear_btn = QPushButton("Clear cache")
+        self.nxf_dir_clear_btn.clicked.connect(self.on_click_clear_cache)
+        self.nxf_dir_clear_btn.setToolTip(
+            format_tooltip(
+                "Clear the cache of all models and results. WARNING: This will remove all models and results from the cache."
+            )
+        )
+
+        # Layout all the cache settings
+        self.cache_layout.addWidget(self.nxf_dir_label, 0, 0, 1, 2)
+        self.cache_layout.addWidget(self.nxf_dir_text, 0, 2, 1, 3)
+        self.cache_layout.addWidget(self.nxf_dir_btn, 0, 5, 1, 1)
+        self.cache_layout.addWidget(self.nxf_dir_inspect_btn, 1, 0, 1, 3)
+        self.cache_layout.addWidget(self.nxf_dir_clear_btn, 1, 3, 1, 3)
+
+        # Add the cache box to the main layout
+        self.inner_layout.addWidget(self.cache_box, 0, 0, 1, 2)
+
         # Create a drop-down box to select the execution profile
         self.nxf_profile_label = QLabel("Execution profile:")
         self.nxf_profile_label.setToolTip(
@@ -203,28 +260,8 @@ The profile determines where the pipeline is run.
         self.nxf_profile_box.setFocusPolicy(
             qtpy.QtCore.Qt.FocusPolicy.StrongFocus
         )
-        self.inner_layout.addWidget(self.nxf_profile_label, 0, 0)
-        self.inner_layout.addWidget(self.nxf_profile_box, 0, 1)
-
-        # Create the option for selecting base directory
-        base_dir_layout = QGridLayout()
-        self.nxf_dir_label = QLabel("Base directory:")
-        base_dir_tooltip = "Select the base directory to store the Nextflow cache (i.e. all models & results) in."
-        self.nxf_dir_label.setToolTip(format_tooltip(base_dir_tooltip))
-        self.nxf_dir_text = QLabel(str(self.nxf_base_dir))
-        self.nxf_dir_text.setWordWrap(True)
-        self.nxf_dir_text.setToolTip(
-            format_tooltip("The selected base directory.")
-        )
-        self.nxf_dir_text.setMaximumWidth(400)
-        self.nxf_dir_btn = QPushButton("Change")
-        self.nxf_dir_btn.clicked.connect(self.on_click_base_dir)
-        self.nxf_dir_btn.setToolTip(format_tooltip(base_dir_tooltip))
-
-        base_dir_layout.addWidget(self.nxf_dir_label, 0, 0, 1, 2)
-        base_dir_layout.addWidget(self.nxf_dir_text, 0, 2, 1, 4)
-        base_dir_layout.addWidget(self.nxf_dir_btn, 0, 6, 1, 1)
-        self.inner_layout.addLayout(base_dir_layout, 1, 0, 1, 2)
+        self.inner_layout.addWidget(self.nxf_profile_label, 1, 0)
+        self.inner_layout.addWidget(self.nxf_profile_box, 1, 1)
 
         # Add a checkbox for overwriting existing results
         self.overwrite_btn = QCheckBox("Overwrite existing results")
@@ -267,6 +304,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         self.options_layout.addWidget(self.advanced_box)
         self.options_layout.addWidget(self.advanced_widget)
         self.options_layout.setContentsMargins(0, 0, 0, 0)
+        self.advanced_layout.setContentsMargins(4, 0, 4, 0)
         self.options_widget.setLayout(self.options_layout)
         self.inner_layout.addWidget(self.options_widget, 3, 0, 1, 2)
 
@@ -918,3 +956,46 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 width=40,
             )
         )
+
+    def on_click_inspect_cache(self):
+        """
+        Open the cache directory in the file explorer for a user to inspect, if they want.
+
+        Doesn't do anything else, just opens the directory.
+        """
+        dialog = QFileDialog(self)
+        dialog.setFileMode(QFileDialog.AnyFile)
+        dialog.setDirectory(str(self.nxf_base_dir))
+        dialog.exec()
+
+    def on_click_clear_cache(self):
+        """
+        Confirm with the user before clearing the cache.
+
+        Note that the order/location of the buttons depends on OS.
+        """
+        # Prompt the user to confirm deletion
+        prompt_window = QMessageBox()
+        prompt_window.setIcon(QMessageBox.Question)
+        prompt_window.setText("Are you sure you want to clear the cache?")
+        prompt_window.setInformativeText(
+            "This will remove all models and results from the cache."
+        )
+        prompt_window.setDetailedText(
+            f"The following folder with all contents/sub-folders will be deleted:\n{self.nxf_base_dir}"
+        )
+        prompt_window.setWindowTitle("Clear cache")
+        prompt_window.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        prompt_window.setDefaultButton(QMessageBox.StandardButton.No)
+        retval = prompt_window.exec()
+        if (
+            retval == QMessageBox.StandardButton.Close
+            or retval == QMessageBox.StandardButton.No
+        ):
+            return
+        # Delete the cache directory and all its contents
+        shutil.rmtree(self.nxf_base_dir)
+        # Reset the base directory
+        self.setup_nxf_dir_cmd(base_dir=self.nxf_base_dir)
