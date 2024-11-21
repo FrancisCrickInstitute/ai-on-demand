@@ -981,21 +981,51 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         prompt_window.setInformativeText(
             "This will remove all models and results from the cache."
         )
+        # TODO: Could extract numbers of different files to delete, to provide more info
         prompt_window.setDetailedText(
             f"The following folder with all contents/sub-folders will be deleted:\n{self.nxf_base_dir}"
         )
         prompt_window.setWindowTitle("Clear cache")
-        prompt_window.setStandardButtons(
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        # Create different buttons for different levels of deletion
+        clear_models = prompt_window.addButton(
+            "Clear models only", QMessageBox.ButtonRole.ActionRole
         )
-        prompt_window.setDefaultButton(QMessageBox.StandardButton.No)
+        clear_masks = prompt_window.addButton(
+            "Clear masks only", QMessageBox.ButtonRole.ActionRole
+        )
+        clear_all = prompt_window.addButton(
+            "Clear all", QMessageBox.ButtonRole.ActionRole
+        )
+        cancel = prompt_window.addButton(QMessageBox.StandardButton.Cancel)
+        prompt_window.setDefaultButton(cancel)
         retval = prompt_window.exec()
+        # Check which button was pressed
+        clicked_btn = prompt_window.clickedButton()
         if (
-            retval == QMessageBox.StandardButton.Close
-            or retval == QMessageBox.StandardButton.No
+            clicked_btn == QMessageBox.StandardButton.Close
+            or clicked_btn == cancel
         ):
             return
-        # Delete the cache directory and all its contents
-        shutil.rmtree(self.nxf_base_dir)
-        # Reset the base directory
-        self.setup_nxf_dir_cmd(base_dir=self.nxf_base_dir)
+        elif clicked_btn == clear_models:
+            # Delete all 'checkpoints' folders
+            chkpt_dirs = [
+                i
+                for i in (self.nxf_base_dir / "aiod_cache").rglob("*")
+                if i.is_dir() and i.name == "checkpoints"
+            ]
+            for chkpt_dir in chkpt_dirs:
+                shutil.rmtree(chkpt_dir)
+        elif clicked_btn == clear_masks:
+            # Delete all mask subdirectories
+            mask_dirs = [
+                i
+                for i in (self.nxf_base_dir / "aiod_cache").rglob("*")
+                if i.is_dir() and i.name.endswith("_masks")
+            ]
+            for mask_dir in mask_dirs:
+                shutil.rmtree(mask_dir)
+        elif clicked_btn == clear_all:
+            # Delete the cache directory and all its contents
+            shutil.rmtree(self.nxf_base_dir)
+            # Reset the base directory
+            self.setup_nxf_dir_cmd(base_dir=self.nxf_base_dir)
