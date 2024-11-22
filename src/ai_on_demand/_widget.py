@@ -181,14 +181,13 @@ Run segmentation/inference on selected images using one of the available pre-tra
             else:
                 # If the associated image is present, use its shape
                 # Get ndim of the layer (this accounts for RGB)
-                ndim = self.viewer.layers[f"{fpath.stem}"].ndim
-                metadata = self.viewer.layers[f"{fpath.stem}"].metadata
+                img_layer = self.viewer.layers[f"{fpath.stem}"]
+                ndim = img_layer.ndim
+                metadata = img_layer.metadata
                 # Channels (non-RGB) & Z
                 if ndim == 4:
                     # Channels should be first, don't care for labels so remove
-                    img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape[
-                        1:
-                    ]
+                    img_shape = img_layer.data.shape[1:]
                 elif ndim == 3:
                     # If we have a Z, no problem
                     if ("bioio_dims" in metadata) and (
@@ -197,11 +196,19 @@ Run segmentation/inference on selected images using one of the available pre-tra
                         img_shape = self.viewer.layers[
                             f"{fpath.stem}"
                         ].data.shape
-                    # Otherwise it's a non-RGB multi-channel 2D image
+                    # Otherwise not loaded with bioio, so handle as Napari interprets
                     else:
-                        img_shape = self.viewer.layers[
-                            f"{fpath.stem}"
-                        ].data.shape[1:]
+                        # If RGB, then 2D RGB image
+                        # NOTE: This does not handle multi-channel 2D images
+                        if img_layer.rgb:
+                            img_shape = self.viewer.layers[
+                                f"{fpath.stem}"
+                            ].data.shape[1:]
+                        # Otherwise it's 3D single-channel image
+                        else:
+                            img_shape = self.viewer.layers[
+                                f"{fpath.stem}"
+                            ].data.shape
                 # Otherwise take the 2D image shape
                 # NOTE: [:ndim] is to handle RGB images as Napari interprets
                 else:
