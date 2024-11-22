@@ -984,9 +984,42 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             "This will remove all models and results from the cache."
         )
         # TODO: Could extract numbers of different files to delete, to provide more info
-        prompt_window.setDetailedText(
-            f"The following folder with all contents/sub-folders will be deleted:\n{self.nxf_base_dir}"
+        # Get details about key files
+        mask_dirs = [
+            i
+            for i in (self.nxf_base_dir / "aiod_cache").rglob("*")
+            if i.is_dir() and i.name.endswith("_masks")
+        ]
+        # Count the number of masks
+        num_masks = sum(
+            len(list(mask_dir.glob("*.rle"))) for mask_dir in mask_dirs
         )
+        # Count number of configs
+        num_configs = len(
+            list((self.nxf_base_dir / "aiod_cache").glob("nxf_params_*.yml"))
+        )
+        # Count number of checkpoints
+        chkpt_dirs = [
+            i
+            for i in (self.nxf_base_dir / "aiod_cache").rglob("*")
+            if i.is_dir() and i.name == "checkpoints"
+        ]
+        num_chkpts = sum(
+            len(list(chkpt_dir.glob("*"))) for chkpt_dir in chkpt_dirs
+        )
+        # Create message for detailed text
+        msg = (
+            f"Your cache ({self.nxf_base_dir}) contains the following files:\n"
+            + "\n".join(
+                [
+                    f"{num_masks} masks",
+                    f"{num_chkpts} model checkpoints (or related files)",
+                    f"{num_configs} Nextflow parameter files",
+                ]
+            )
+        )
+
+        prompt_window.setDetailedText(msg)
         prompt_window.setWindowTitle("Clear cache")
         # Create different buttons for different levels of deletion
         clear_models = prompt_window.addButton(
@@ -1010,20 +1043,10 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             return
         elif clicked_btn == clear_models:
             # Delete all 'checkpoints' folders
-            chkpt_dirs = [
-                i
-                for i in (self.nxf_base_dir / "aiod_cache").rglob("*")
-                if i.is_dir() and i.name == "checkpoints"
-            ]
             for chkpt_dir in chkpt_dirs:
                 shutil.rmtree(chkpt_dir)
         elif clicked_btn == clear_masks:
             # Delete all mask subdirectories
-            mask_dirs = [
-                i
-                for i in (self.nxf_base_dir / "aiod_cache").rglob("*")
-                if i.is_dir() and i.name.endswith("_masks")
-            ]
             for mask_dir in mask_dirs:
                 shutil.rmtree(mask_dir)
         elif clicked_btn == clear_all:
