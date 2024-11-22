@@ -879,6 +879,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.process.send_signal(subprocess.signal.SIGTERM)
         # Reset the progress bar
         self.reset_progress_bar()
+        # Remove mask layers that were added
+        self.parent.remove_mask_layers()
 
     def update_tile_size(
         self, val: Union[int, float], clear_label: bool = False

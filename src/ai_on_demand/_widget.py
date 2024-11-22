@@ -237,6 +237,20 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 -1,
             )
 
+    def remove_mask_layers(self, img_paths=None):
+        if img_paths is None:
+            img_paths = self.subwidgets["data"].image_path_dict.values()
+        # Construct the mask layer names
+        layer_names = [
+            self._get_mask_layer_name(Path(i).stem, executed=True)
+            for i in img_paths
+        ]
+        # Create the Labels layers for each image
+        for layer_name in layer_names:
+            # Check if the mask layer already exists
+            if layer_name in self.viewer.layers:
+                self.viewer.layers.remove(self.viewer.layers[layer_name])
+
     def watch_mask_files(self):
         """
         File watcher to watch for new mask files being created during the Nextflow run.
