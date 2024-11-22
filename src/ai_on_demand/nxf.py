@@ -246,6 +246,14 @@ Note that 'opening' won't do anything, this is just to see what files are presen
         # Add the cache box to the main layout
         self.inner_layout.addWidget(self.cache_box, 0, 0, 1, 2)
 
+        # Create box for the cache settings
+        self.pipeline_box = QGroupBox("Pipeline Settings")
+        self.pipeline_box.setToolTip(
+            format_tooltip("Settings for the Segment-Flow pipeline itself.")
+        )
+        self.pipeline_layout = QGridLayout()
+        self.pipeline_box.setLayout(self.pipeline_layout)
+
         # Create a drop-down box to select the execution profile
         self.nxf_profile_label = QLabel("Execution profile:")
         self.nxf_profile_label.setToolTip(
@@ -260,8 +268,8 @@ Note that 'opening' won't do anything, this is just to see what files are presen
         self.nxf_profile_box.setFocusPolicy(
             qtpy.QtCore.Qt.FocusPolicy.StrongFocus
         )
-        self.inner_layout.addWidget(self.nxf_profile_label, 1, 0)
-        self.inner_layout.addWidget(self.nxf_profile_box, 1, 1)
+        self.pipeline_layout.addWidget(self.nxf_profile_label, 0, 0)
+        self.pipeline_layout.addWidget(self.nxf_profile_box, 0, 1)
 
         # Add a checkbox for overwriting existing results
         self.overwrite_btn = QCheckBox("Overwrite existing results")
@@ -274,7 +282,7 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         """
             )
         )
-        self.inner_layout.addWidget(self.overwrite_btn, 2, 0, 1, 1)
+        self.pipeline_layout.addWidget(self.overwrite_btn, 1, 0, 1, 1)
 
         # Add widget for advanced options
         self.options_widget = QWidget()
@@ -306,7 +314,9 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         self.options_layout.setContentsMargins(0, 0, 0, 0)
         self.advanced_layout.setContentsMargins(4, 0, 4, 0)
         self.options_widget.setLayout(self.options_layout)
-        self.inner_layout.addWidget(self.options_widget, 3, 0, 1, 2)
+        self.pipeline_layout.addWidget(self.options_widget, 3, 0, 1, 2)
+
+        self.inner_layout.addWidget(self.pipeline_box, 1, 0, 1, 2)
 
         # Create a button to navigate to a directory to take images from
         self.nxf_run_btn = QPushButton("Run Pipeline!")
@@ -316,7 +326,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
                 "Run the pipeline with the chosen organelle(s), model, and images."
             )
         )
-        self.inner_layout.addWidget(self.nxf_run_btn, 4, 0, 1, 2)
+        self.inner_layout.addWidget(self.nxf_run_btn, 2, 0, 1, 2)
 
         pbar_layout = QHBoxLayout()
         # Add progress bar
@@ -983,7 +993,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         prompt_window.setInformativeText(
             "This will remove all models and results from the cache."
         )
-        # TODO: Could extract numbers of different files to delete, to provide more info
         # Get details about key files
         mask_dirs = [
             i
