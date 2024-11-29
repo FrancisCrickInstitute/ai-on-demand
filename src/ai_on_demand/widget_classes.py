@@ -196,6 +196,9 @@ class SubWidget(QCollapsible):
             # Add to the content widget (i.e. scrollable area)
             self.parent.content_widget.layout().addWidget(self)
 
+        if kwargs.get("expanded", False):
+            self.expand(animate=False)
+
         # Load any previous settings for this widget if available
         self.load_settings()
 

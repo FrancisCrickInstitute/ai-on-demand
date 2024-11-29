@@ -76,10 +76,6 @@ class QCollapsible(QFrame):
         _content.layout().setContentsMargins(QMargins(*margins))
         self.setContent(_content)
 
-        # Set the initial state
-        if expanded:
-            self.expand(animate=False)
-
     def setText(self, text: str) -> None:
         """Set the text of the toggle button."""
         self._toggle_btn.setText(text)
