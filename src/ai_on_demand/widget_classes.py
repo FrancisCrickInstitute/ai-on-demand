@@ -112,6 +112,19 @@ class MainWidget(QWidget):
         """
         raise NotImplementedError
 
+    def store_widget_settings(self):
+        """
+        Store the settings for the widget.
+        """
+        pass
+
+    def store_subwidget_settings(self):
+        """
+        Store the settings for the subwidgets.
+        """
+        for widget in self.subwidgets.values():
+            widget.store_settings()
+
 
 class SubWidget(QCollapsible):
     # Define a shorthand name to be used to register the widget
