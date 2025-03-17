@@ -556,3 +556,38 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # Insert mask data
             self.viewer.layers[mask_layer_name].data = mask_arr
             self.viewer.layers[mask_layer_name].visible = True
+        # Now we'll sort all the layers, grouping together the image and mask layers for each image
+        # Get the image layer names
+        image_layers = sorted(
+            [
+                i
+                for i in self.viewer.layers
+                if isinstance(i, napari.layers.Image)
+            ],
+            key=lambda x: x.name,
+            reverse=True,  # Lowest alphabetically is at bottom of Napari layerlist
+        )
+        idx = 0
+        for img_layer in image_layers:
+            # First, move the current image layer to next position
+            self.viewer.layers.move(self.viewer.layers.index(img_layer), idx)
+            # Grab all relevant mask layers
+            mask_layer_names = [
+                i["layer_name"]
+                for i in self.img_mask_info
+                if i["img_path"].stem == img_layer.name
+            ]
+            # Sort the mask layers
+            mask_layers = sorted(
+                [i for i in self.viewer.layers if i.name in mask_layer_names],
+                key=lambda x: x.name,
+                reverse=True,
+            )
+            for mask_layer in mask_layers:
+                idx += 1
+                # Move the mask layer to the next position
+                self.viewer.layers.move(
+                    self.viewer.layers.index(mask_layer), idx
+                )
+            # Increment the index for next image layer
+            idx += 1
