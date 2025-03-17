@@ -1,6 +1,8 @@
 import numpy as np
 from skimage.metrics import hausdorff_distance
 
+# TODO: Switch to Dask for calculation
+
 
 def dice(masks1: np.ndarray, masks2: np.ndarray) -> float:
     """Dice coefficient, a quotient of similarity in the range [0, 1]. 1 is perfect overlap, 0 is no overlap."""
