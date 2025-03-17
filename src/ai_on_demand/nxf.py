@@ -646,25 +646,27 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         # Get the preprocessing options
         nxf_params["preprocess"] = parent.subwidgets[
             "preprocess"
-        ].extract_options()
+        ].get_all_options()
         # Now have everything for the run hash
-        self.parent.get_run_hash(nxf_params)
-        # No need to check if we are ovewriting
+        parent.get_run_hash(nxf_params)
+        # If overwriting, delete existing mask layers and files
         if self.overwrite_btn.isChecked():
             proceed = True
             load_paths = []
             img_paths = self.parent.subwidgets["data"].image_path_dict.values()
+            # Extract layer names, considering current preprocessing sets etc.
+            parent.get_img_mask_preps()
+            all_layer_names = [i["layer_name"] for i in parent.img_mask_info]
             # Delete data in mask layers if present
-            for img_path in img_paths:
-                # Get the mask layer name
-                layer_name = self.parent._get_mask_layer_name(
-                    Path(img_path).stem
-                )
+            for layer_name in all_layer_names:
                 if layer_name in self.viewer.layers:
                     self.viewer.layers.remove(layer_name)
-            # Delete current masks
+            # Delete masks that match determined layer names (this'll remove partial and full masks, if present)
             for mask_path in self.mask_dir_path.glob("*.rle"):
-                mask_path.unlink()
+                for layer_name in all_layer_names:
+                    if layer_name in mask_path.stem:
+                        mask_path.unlink()
+                        break
         # Check if we already have all the masks
         else:
             proceed, img_paths, load_paths = self.parent.check_masks()
@@ -678,7 +680,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.nxf_run_btn.setEnabled(True)
         # If we already have all the masks, don't run the pipeline
         if not proceed:
-            # NOTE: Include hash in message?
             msg = f"Masks already exist for all files for segmenting {TASK_NAMES[parent.executed_task]} with {parent.executed_model} ({parent.executed_variant})!"
             if self.parent.run_hash is not None:
                 msg += f" (Hash: {self.parent.run_hash[:8]})"
