@@ -88,3 +88,6 @@ venv/
 # Nextflow ignores
 .nextflow*
 **/work/*
+
+# Ew
+**/*.pkl
