@@ -2,7 +2,8 @@ from functools import partial
 from typing import Optional
 
 import napari
-from napari.utils.notifications import show_error, show_info
+from napari.utils.notifications import show_error, show_info, show_warning
+from napari._qt.qt_resources import get_stylesheet
 import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
@@ -15,6 +16,8 @@ from qtpy.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QPlainTextEdit,
+    QDialog,
 )
 import qtpy.QtCore
 
@@ -41,8 +44,11 @@ class PreprocessWidget(SubWidget):
         self.preprocess_boxes = {}
         # Store the order of the preprocessing
         self.preprocess_order = None
+        self.init_order = "None selected!"
         # Store the order as a list for easier manipulation
-        self.order_list = []
+        self.order_list = None
+        # Container for multiple sets of preprocessing options
+        self.preprocess_sets = []
 
         super().__init__(
             viewer=viewer,
@@ -62,7 +68,6 @@ Any preprocessing applied here is for visualization purposes only, only the orig
         self.order_label = QLabel("Preprocessing order:")
         self.preprocess_order = QLineEdit()
         self.preprocess_order.setReadOnly(True)
-        self.init_order = "None selected!"
         self.preprocess_order.setText(self.init_order)
         # Go through each method, creating a box and populating the UI elements for each parameter
         for name, d in self.preprocess_methods.items():
@@ -75,7 +80,7 @@ Any preprocessing applied here is for visualization purposes only, only the orig
                 group_box.setToolTip(format_tooltip(d["object"].tooltip))
             group_box.setCheckable(True)
             group_box.setChecked(False)
-            group_box.toggled.connect(self.on_click_preprocess(name))
+            group_box.clicked.connect(self.on_click_preprocess(name))
             group_layout = QGridLayout()
             group_box.setLayout(group_layout)
 
@@ -123,13 +128,18 @@ Any preprocessing applied here is for visualization purposes only, only the orig
 
             # Add the group box to the inner layout
             self.inner_layout.addWidget(group_box)
-        # Create a layout for the order and preview btns
+        # Create a layout for the order
+        self.order_widget = QWidget()
+        self.order_layout = QGridLayout()
+        self.order_layout.setAlignment(qtpy.QtCore.Qt.AlignTop)
+        # Add text box to show current order of preprocessing
+        self.order_layout.addWidget(self.order_label, 0, 0, 1, 1)
+        self.order_layout.addWidget(self.preprocess_order, 0, 1, 1, 3)
+        self.order_widget.setLayout(self.order_layout)
+        self.inner_layout.addWidget(self.order_widget)
+        # Create separate layout for buttons to be cleaner
         self.btn_widget = QWidget()
         self.btn_layout = QGridLayout()
-        self.btn_layout.setAlignment(qtpy.QtCore.Qt.AlignTop)
-        # Add text box to show current order of preprocessing
-        self.btn_layout.addWidget(self.order_label, 0, 0, 1, 1)
-        self.btn_layout.addWidget(self.preprocess_order, 0, 1, 1, 2)
         # Add preview button
         self.preview_btn = QPushButton("Preview")
         self.preview_btn.clicked.connect(
@@ -140,7 +150,7 @@ Any preprocessing applied here is for visualization purposes only, only the orig
                 "Preview the effect of the selected preprocessing options on the currently selected image (or first image layer if none selected)."
             )
         )
-        self.btn_layout.addWidget(self.preview_btn, 1, 0, 1, 1)
+        self.btn_layout.addWidget(self.preview_btn, 0, 0, 1, 1)
         # Add a run button to apply the preprocessing entirely
         self.prep_run_btn = QPushButton("Run")
         self.prep_run_btn.clicked.connect(
@@ -155,7 +165,7 @@ NOTE: The result is just for visualization, and will not be used in the Nextflow
                 """
             )
         )
-        self.btn_layout.addWidget(self.prep_run_btn, 1, 1, 1, 1)
+        self.btn_layout.addWidget(self.prep_run_btn, 0, 1, 1, 1)
         # Add a button for rescaling images
         # Best for visually comparing downsampling with masks
         self.rescale_btn = QPushButton("Rescale masks")
@@ -167,7 +177,17 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
                 """
             )
         )
-        self.btn_layout.addWidget(self.rescale_btn, 1, 2, 1, 1)
+        self.btn_layout.addWidget(self.rescale_btn, 0, 2, 1, 1)
+        # Add some draft buttons for preprocessing sets
+        self.save_set_btn = QPushButton("Save preprocessing set")
+        self.save_set_btn.clicked.connect(self.on_click_preprocess_save)
+        self.btn_layout.addWidget(self.save_set_btn, 1, 0, 1, 1)
+        self.view_sets_btn = QPushButton("View saved sets")
+        self.view_sets_btn.clicked.connect(self.on_click_preprocess_view)
+        self.btn_layout.addWidget(self.view_sets_btn, 1, 1, 1, 1)
+        self.clear_sets_btn = QPushButton("Clear saved sets")
+        self.clear_sets_btn.clicked.connect(self.on_click_preprocess_clear)
+        self.btn_layout.addWidget(self.clear_sets_btn, 1, 2, 1, 1)
         # Set the layout for the widget
         self.btn_widget.setLayout(self.btn_layout)
         self.inner_layout.addWidget(self.btn_widget)
@@ -294,6 +314,9 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
                 layer.scale = blocksize
 
     def extract_options(self):
+        # Shortcut for when no postprocessing has been done
+        if self.order_list is None:
+            return
         # Extract the options from the UI elements
         options = []
         # Loop over the specified order
@@ -330,3 +353,92 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
             # Add the method dict to the options list
             options.append(option_dict)
         return options
+
+    def get_all_options(self):
+        if len(self.preprocess_sets) > 0:
+            res = self.preprocess_sets
+            extras = self.extract_options()
+            if extras is not None:
+                show_warning(
+                    f"Additional preprocessing options found but not saved as new set while using sets; they will be ignored."
+                )
+        else:
+            # Need to extract options and wrap into a list to align with sets above
+            res = self.extract_options()
+            res = [res] if res is not None else None
+        return res
+
+    def on_click_preprocess_save(self):
+        current_options = self.extract_options()
+        if len(current_options) == 0:
+            show_error(
+                "No preprocessing methods selected! Please select at least one preprocessing method to save a set.",
+            )
+            return
+        # Add the current set to the list of sets
+        self.preprocess_sets.append(current_options)
+        # Reset the order list, order text, and all preprocessing options/checkboxes
+        self._reset_preprocess()
+        show_info("Saved the current preprocessing set!")
+
+    def _reset_preprocess(self):
+        self.preprocess_order.setText(self.init_order)
+        self.order_list = None
+        for name, widget_dict in self.preprocess_boxes.items():
+            widget_dict["box"].setChecked(False)
+            for param_name, widget in widget_dict["params"].items():
+                param_dict = self.preprocess_methods[name]["params"][
+                    param_name
+                ]
+                if isinstance(widget, QCheckBox):
+                    widget.setChecked(False)
+                elif isinstance(widget, QLineEdit):
+                    default_value = param_dict["default"]
+                    if isinstance(default_value, (int, float, str)):
+                        widget.setText(str(default_value))
+                    elif isinstance(default_value, (list, tuple)):
+                        widget.setText(", ".join(map(str, default_value)))
+                elif isinstance(widget, QComboBox):
+                    widget.setCurrentIndex(
+                        param_dict["values"].index(param_dict["default"])
+                    )
+
+    def on_click_preprocess_view(self):
+        display_text = ""
+        if len(self.preprocess_sets) == 0:
+            display_text = "No saved preprocessing sets!"
+        else:
+            for i, pp_set in enumerate(self.preprocess_sets):
+                display_text += f"Set {i+1}:\n"
+                for pp in pp_set:
+                    display_text += f"  {pp['name']}:\n"
+                    for param, value in pp["params"].items():
+                        display_text += f"    {param}: {value}\n"
+                display_text += "\n"
+        # Create a dialog to display the text
+        self.preprocess_set_popout = PreprocessSetWindow(
+            self, preprocess_txt=display_text
+        )
+        self.preprocess_set_popout.show()
+
+    def on_click_preprocess_clear(self):
+        self.preprocess_sets = []
+        show_info("Cleared all saved preprocessing sets!")
+
+
+class PreprocessSetWindow(QDialog):
+    def __init__(self, parent=None, preprocess_txt: str = ""):
+        super().__init__(parent)
+
+        # Set style/look to be same as Napari
+        self.setStyleSheet(get_stylesheet("dark"))
+        # Set the layout
+        self.layout = QVBoxLayout()
+        # Set the window title
+        self.setWindowTitle("Preprocess Sets")
+        self.set_text = QPlainTextEdit()
+        # Make the text selectable, but not editable
+        self.set_text.setReadOnly(True)
+        self.set_text.setPlainText(preprocess_txt)
+        self.layout.addWidget(self.set_text)
+        self.setLayout(self.layout)
