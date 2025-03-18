@@ -528,23 +528,42 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             output["channels"].append(channels)
             # Initialise the progress dict
             self.progress_dict[img_path.stem] = 0
-            # Get the actual stack size
-            img_shape = Stack(
-                height=H, width=W, depth=num_slices, channels=channels
-            )
-            num_substacks, eff_shape = calc_num_stacks(
-                image_shape=img_shape,
-                req_stacks=stack_size,
-                overlap_fraction=overlap_frac,
-            )
-            # Get the number of substacks
-            _, num_substacks, _ = generate_stack_indices(
-                image_shape=img_shape,
-                num_substacks=num_substacks,
-                overlap_fraction=overlap_frac,
-                eff_shape=eff_shape,
-            )
-            total_substacks += num_substacks
+            # Need to take account for multiple runs due to preprocessing
+            relevant_runs = [
+                i
+                for i in self.parent.img_mask_info
+                if i["img_path"].stem == img_path.stem
+            ]
+            for d in relevant_runs:
+                # Get the shape after preprocessing (if any)
+                if d["prep_set"] is None:
+                    final_shape = Stack(
+                        height=H, width=W, depth=num_slices, channels=channels
+                    )
+                else:
+                    output_shape = aiod_utils.preprocess.get_output_shape(
+                        d["prep_set"], input_shape=(num_slices, H, W)
+                    )
+                    final_shape = Stack(
+                        height=output_shape[1],
+                        width=output_shape[2],
+                        depth=output_shape[0],
+                        channels=channels,
+                    )
+                # Calculate the number of substacks
+                num_substacks, eff_shape = calc_num_stacks(
+                    image_shape=final_shape,
+                    req_stacks=stack_size,
+                    overlap_fraction=overlap_frac,
+                )
+                # Get the number of substacks
+                _, num_substacks, _ = generate_stack_indices(
+                    image_shape=final_shape,
+                    num_substacks=num_substacks,
+                    overlap_fraction=overlap_frac,
+                    eff_shape=eff_shape,
+                )
+                total_substacks += num_substacks
         # Convert to a DataFrame and save
         df = pd.DataFrame(output)
         df.to_csv(self.img_list_fpath, index=False)
