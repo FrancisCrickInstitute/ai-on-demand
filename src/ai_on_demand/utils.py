@@ -123,7 +123,7 @@ def get_image_layer_path(
 
 
 def get_img_dims(
-    layer: Image, img_path: Optional[Path] = None
+    layer: Image, img_path: Optional[Path] = None, verbose: bool = True
 ) -> tuple[int, int, int, Optional[int]]:
     # Squeeze the data to remove any singleton dimensions
     arr = layer.data.squeeze()
@@ -148,16 +148,18 @@ def get_img_dims(
         num_slices, H, W = res
         channels = 1 if channels is None else channels
         # NOTE: This can get triggered a lot through nxf.update_tile_size
-        warnings.warn(
-            f"Assuming the first dimension is slices for {layer.name} image layer ({layer} with shape {res})."
-        )
+        if verbose:
+            warnings.warn(
+                f"Assuming the first dimension is slices for {layer.name} image layer ({layer} with shape {res})."
+            )
     # 4D
     elif len(res) == 4:
         # We assume the first two dims are slices and channels, in some order
         # Assume whichever is smaller are the channels
-        warnings.warn(
-            f"Assuming the first two dimensions are channels and slices for {layer.name} image layer ({layer}), and using the smaller of the two as the number of channels."
-        )
+        if verbose:
+            warnings.warn(
+                f"Assuming the first two dimensions are channels and slices for {layer.name} image layer ({layer}), and using the smaller of the two as the number of channels."
+            )
         if channels is not None:
             num_slices, H, W = res
         else:

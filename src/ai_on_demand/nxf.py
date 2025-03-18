@@ -948,7 +948,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self.tile_size_label.setText("No image layers found!")
             return
         # Otherwise just take the first one
-        H, W, num_slices, channels = get_img_dims(layers[0])
+        H, W, num_slices, channels = get_img_dims(layers[0], verbose=False)
         img_shape = Stack(
             height=H, width=W, depth=num_slices, channels=channels
         )
