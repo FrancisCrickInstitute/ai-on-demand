@@ -34,24 +34,8 @@ import yaml
 
 from ai_on_demand.utils import sanitise_name, format_tooltip, get_img_dims
 from ai_on_demand.widget_classes import SubWidget
-
-# We need to import from the submodule
-# But it's not a package...lots of issues no __init__'ing can fix it seems
-# And I don't want to touch sys.path
-import importlib
-import sys
-
-# TODO: Create aiod_utils package to handle this
-spec = importlib.util.spec_from_file_location(
-    name="create_splits",
-    location=Path(__file__).parent
-    / "Segment-Flow/modules/models/resources/usr/bin/create_splits.py",
-)
-module = importlib.util.module_from_spec(spec)
-sys.modules["create_splits"] = module
-spec.loader.exec_module(module)
-# This will now be imported
-from create_splits import generate_stack_indices, calc_num_stacks, Stack
+import aiod_utils.preprocess
+from aiod_utils.stacks import generate_stack_indices, calc_num_stacks, Stack
 
 
 class NxfWidget(SubWidget):
