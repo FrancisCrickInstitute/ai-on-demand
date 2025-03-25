@@ -4,11 +4,11 @@ on_activate: ai_on_demand.load_manifests:activate_plugin
 contributions:
   commands:
     - id: ai-on-demand.inference
-      python_name: ai_on_demand._widget:Inference
+      python_name: ai_on_demand.inference:Inference
       title: Segment using pre-trained models
       short_title: Inference
     - id: ai-on-demand.evaluation
-      python_name: ai_on_demand.evaluation_widget:Evaluation
+      python_name: ai_on_demand.evaluation:Evaluation
       title: Evaluate segmentations
       short_title: Evaluation
     - id: ai-on-demand.example_data

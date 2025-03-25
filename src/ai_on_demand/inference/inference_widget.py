@@ -6,12 +6,14 @@ import napari
 from napari.qt.threading import thread_worker
 import numpy as np
 
-from ai_on_demand.tasks import TaskWidget
-from ai_on_demand.data_selection import DataWidget
-from ai_on_demand.mask_export import ExportWidget
-from ai_on_demand.model_selection import ModelWidget
-from ai_on_demand.nxf import NxfWidget
-from ai_on_demand.preprocess import PreprocessWidget
+from ai_on_demand.inference import (
+    TaskWidget,
+    DataWidget,
+    ExportWidget,
+    ModelWidget,
+    NxfWidget,
+    PreprocessWidget,
+)
 from ai_on_demand.widget_classes import MainWidget
 from ai_on_demand.utils import calc_param_hash
 import aiod_utils.preprocess
@@ -205,6 +207,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 ndim = img_layer.ndim
                 metadata = img_layer.metadata
                 # Channels (non-RGB) & Z
+                # TODO: Switch to using utils.get_img_dims
                 if ndim == 4:
                     # Channels should be first, don't care for labels so remove
                     img_shape = img_layer.data.shape[1:]

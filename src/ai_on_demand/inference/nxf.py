@@ -51,7 +51,10 @@ class NxfWidget(SubWidget):
     ):
         # Define attributes that may be useful outside of this class
         # or throughout it
-        self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
+        # self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
+        self.nxf_repo = (
+            "/Users/shandc/Documents/ai_ondemand/Segment-Flow/main.nf"
+        )
         # Set the base Nextflow command
         self.setup_nxf_dir_cmd()
         super().__init__(
@@ -245,9 +248,13 @@ Note that 'opening' won't do anything, this is just to see what files are presen
         )
         self.nxf_profile_box = QComboBox()
         # Get the available profiles from config dir
-        config_dir = Path(__file__).parent / "Segment-Flow" / "profiles"
+        config_dir = Path(__file__).parent.parent / "Segment-Flow" / "profiles"
         avail_confs = [str(i.stem) for i in config_dir.glob("*.conf")]
         avail_confs.sort()
+        if len(avail_confs) == 0:
+            raise FileNotFoundError(
+                f"No Nextflow profiles found in {config_dir}!"
+            )
         self.nxf_profile_box.addItems(avail_confs)
         self.nxf_profile_box.setFocusPolicy(
             qtpy.QtCore.Qt.FocusPolicy.StrongFocus
