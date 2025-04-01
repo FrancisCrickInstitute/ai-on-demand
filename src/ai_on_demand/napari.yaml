@@ -11,6 +11,10 @@ contributions:
       python_name: ai_on_demand.evaluation:Evaluation
       title: Evaluate segmentations
       short_title: Evaluation
+    - id: ai-on-demand.postprocess
+      python_name: ai_on_demand.postprocessing:Postprocess
+      title: Postprocess segmentations
+      short_title: Postprocess
     - id: ai-on-demand.example_data
       title: Example FIB SEM data
       short_title: Example Data
@@ -26,6 +30,8 @@ contributions:
       display_name: Inference
     - command: ai-on-demand.evaluation
       display_name: Segmentation Evaluation
+    - command: ai-on-demand.postprocess
+      display_name: Postprocess
   sample_data:
     - command: ai-on-demand.example_data
       display_name: Example FIB SEM data

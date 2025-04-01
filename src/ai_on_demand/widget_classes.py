@@ -14,6 +14,7 @@ from qtpy.QtWidgets import (
     QLabel,
     QVBoxLayout,
     QFrame,
+    QGroupBox,
 )
 from qtpy.QtGui import QPixmap
 import qtpy.QtCore
@@ -235,3 +236,31 @@ class SubWidget(QCollapsible):
         Get settings for the subwidget.
         """
         pass
+
+    def _make_separator(self):
+        """
+        Create a thin separator line to better separate elements within a subwidget.
+        """
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Raised)
+        separator.setSizePolicy(
+            qtpy.QtWidgets.QSizePolicy.Expanding,
+            qtpy.QtWidgets.QSizePolicy.Minimum,
+        )
+        colour = napari.utils.theme.get_theme("dark").secondary.as_rgb()
+        separator.setStyleSheet(
+            f"border: 1px solid {colour}; background-color: {colour};"
+        )
+        return separator
+
+    def _make_groupbox(self, title: str, tooltip: Optional[str] = None):
+        group_box = QGroupBox(title)
+        if tooltip is not None:
+            group_box.setToolTip(format_tooltip(tooltip))
+        group_box.setCheckable(False)
+        group_layout = QGridLayout()
+        group_layout.setAlignment(qtpy.QtCore.Qt.AlignTop)
+        group_box.setLayout(group_layout)
+        group_box.setContentsMargins(0, 0, 0, 0)
+        return group_box
