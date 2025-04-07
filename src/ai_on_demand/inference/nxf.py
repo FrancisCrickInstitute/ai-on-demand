@@ -51,10 +51,7 @@ class NxfWidget(SubWidget):
     ):
         # Define attributes that may be useful outside of this class
         # or throughout it
-        # self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
-        self.nxf_repo = (
-            "/Users/shandc/Documents/ai_ondemand/Segment-Flow/main.nf"
-        )
+        self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
         # Set the base Nextflow command
         self.setup_nxf_dir_cmd()
         super().__init__(
