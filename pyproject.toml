@@ -5,8 +5,7 @@ description = "A plugin for segmenting images using AI models via the Segment-Fl
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
-  {name = "Cameron Shand"},
-  {email = "cameron.shand@crick.ac.uk"},
+  {name = "Cameron Shand", email = "cameron.shand@crick.ac.uk"},
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -28,6 +27,14 @@ dependencies = [
     "qtpy",
     "scikit-image",
     "platformdirs",
+    "requests",
+    "napari>=0.4.19",
+    "scipy",
+    "pyyaml",
+    "pandas",
+    "tabulate",
+    "aiod_utils @ git+https://github.com/FrancisCrickInstitute/aiod_utils.git",
+    "aiod_registry @ git+https://github.com/FrancisCrickInstitute/AIoD-Model-Registry.git",
 ]
 
 [project.optional-dependencies]
