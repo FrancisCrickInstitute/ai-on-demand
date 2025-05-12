@@ -125,7 +125,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Loop over each image-mask-preprocess combo and check if the mask exists
         for img_dict in self.img_mask_info:
             # Extract the save string from the preprocessing options
-            preprocess_str = aiod_utils.preprocess.get_preprocess_params(
+            preprocess_str = aiod_utils.preprocess.get_params_str(
                 img_dict["prep_set"], to_save=True
             )
             mask_layer_name = self._get_mask_layer_name(
@@ -169,7 +169,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 img_dict["layer_name"],
                 img_dict["prep_set"],
             )
-            preprocess_str = aiod_utils.preprocess.get_preprocess_params(
+            preprocess_str = aiod_utils.preprocess.get_params_str(
                 prep_options, to_save=True
             )
             # Check if the mask file already exists
@@ -293,7 +293,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 for prep_set in options:
                     all_img_paths.append(img_path)
                     # Get the preprocess param string to add to the layer name
-                    suffix = aiod_utils.preprocess.get_preprocess_params(
+                    suffix = aiod_utils.preprocess.get_params_str(
                         prep_set, to_save=True
                     )
                     layer_name = self._get_mask_layer_name(
@@ -533,7 +533,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Loop over each image and insert the final mask
         for img_dict in self.img_mask_info:
             # Extract the save string from the preprocessing options
-            preprocess_str = aiod_utils.preprocess.get_preprocess_params(
+            preprocess_str = aiod_utils.preprocess.get_params_str(
                 img_dict["prep_set"], to_save=True
             )
             # Get the mask layer name, considering any preprocessing
