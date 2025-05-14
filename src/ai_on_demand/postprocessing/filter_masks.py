@@ -32,6 +32,14 @@ class FilterMasks(SubWidget):
     """
 
     _name = "filter"
+    operators = {
+        "==": operator.eq,
+        "!=": operator.ne,
+        "<": operator.lt,
+        "<=": operator.le,
+        ">": operator.gt,
+        ">=": operator.ge,
+    }
 
     def __init__(
         self,
@@ -132,26 +140,28 @@ Filter masks using various methods. Each function works on the currently selecte
         )
         self.regionprops_value_label = QLabel("Threshold:")
         self.regionprops_value = QLineEdit()
+        self.regionprops_value.setPlaceholderText("0")
         self.regionprops_value.setToolTip(
             format_tooltip(
                 "Set the threshold for the selected region property. This will filter the currently selected Labels layer."
             )
         )
-        self.regionprops_checkbox = QCheckBox("Max threshold?")
-        self.regionprops_checkbox.setToolTip(
+        self.regionprops_ops = QComboBox()
+        self.regionprops_ops.addItems(list(self.operators.keys()))
+        self.regionprops_ops.setCurrentIndex(5)
+        self.regionprops_ops.setToolTip(
             format_tooltip(
-                "If checked, will filter out labels that are above the threshold (rather than below)."
+                "Select the operator to use with the given value for filtering."
             )
         )
-        self.regionprops_checkbox.setChecked(True)
         self.regionprops_btn = QPushButton("Filter labels")
         self.regionprops_btn.clicked.connect(self.filter_regionprops)
         self.regionprops_cb = QCheckBox("In-place?")
         layout.addWidget(self.regionprops_prop_label, 0, 0, 1, 2)
         layout.addWidget(self.regionprops_dropdown, 0, 2, 1, 2)
         layout.addWidget(self.regionprops_value_label, 1, 0, 1, 2)
-        layout.addWidget(self.regionprops_value, 1, 2, 1, 1)
-        layout.addWidget(self.regionprops_checkbox, 1, 3, 1, 1)
+        layout.addWidget(self.regionprops_ops, 1, 2, 1, 1)
+        layout.addWidget(self.regionprops_value, 1, 3, 1, 1)
         layout.addWidget(self.regionprops_btn, 2, 0, 1, 3)
         layout.addWidget(self.regionprops_cb, 2, 3, 1, 1)
         # TODO: Would be nice to have a pop-out table to show values of these properties for each label
@@ -206,20 +216,14 @@ Filter masks using various methods. Each function works on the currently selecte
         labels = layers[0].data.copy()
         props = regionprops(labels)
 
-        if self.regionprops_checkbox.isChecked():
-            op = operator.ge
-        else:
-            op = operator.le
+        op = self.operators[self.regionprops_ops.currentText()]
 
         selected_prop = self.regionprops_dropdown.currentText()
-        # res = getattr(props, selected_prop)
+        threshold = COL_DTYPES[selected_prop](self.regionprops_value.text())
         matching_labels = [
             prop.label
             for prop in props
-            if op(
-                getattr(prop, selected_prop),
-                COL_DTYPES[selected_prop](self.regionprops_value.text()),
-            )
+            if op(getattr(prop, selected_prop), threshold)
         ]
         labels[~np.isin(labels, matching_labels)] = 0
         if self.regionprops_cb.isChecked():
