@@ -213,7 +213,7 @@ Filter masks using various methods. Each function works on the currently selecte
             show_error("Only one label layer can be selected for filtering!")
             return
         # Get the selected labels layer
-        labels = layers[0].data.copy()
+        labels = layers[0].data
         props = regionprops(labels)
 
         op = self.operators[self.regionprops_ops.currentText()]
@@ -225,10 +225,13 @@ Filter masks using various methods. Each function works on the currently selecte
             for prop in props
             if op(getattr(prop, selected_prop), threshold)
         ]
-        labels[~np.isin(labels, matching_labels)] = 0
         if self.regionprops_cb.isChecked():
-            # In-place, so we need to remove the old layer
+            # In-place, so we need to update and reinsert the layer to trigger update events
+            labels[~np.isin(labels, matching_labels)] = 0
             layers[0].data = labels
         else:
+            # Not in-place, so ensure that a copy is modified
+            labels = labels.copy()
+            labels[~np.isin(labels, matching_labels)] = 0
             # Add the new layer
             self.viewer.add_labels(labels, name=f"{layers[0].name}_filtered")
