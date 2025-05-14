@@ -1,6 +1,7 @@
 import operator
 from typing import Optional
 
+from app_model.types import KeyCode
 import napari
 from napari.utils.notifications import show_error
 from napari.layers import Labels
@@ -68,6 +69,7 @@ Filter masks using various methods. Each function works on the currently selecte
                     layer.events.selected_label.connect(
                         self._update_selected_label
                     )
+                    layer.bind_key(KeyCode.Delete, self.filter_label)
 
     def add_layer(self, event):
         if isinstance(event.value, Labels):
@@ -75,6 +77,8 @@ Filter masks using various methods. Each function works on the currently selecte
             event.value.events.selected_label.connect(
                 self._update_selected_label
             )
+            # Add a shortcut for deleting the currently selected label
+            event.value.bind_key(KeyCode.Delete, self.filter_label)
 
     def _update_selected_label(self, event):
         # NOTE: The vars within the event do not seem what we want, so grab directly
@@ -167,7 +171,7 @@ Filter masks using various methods. Each function works on the currently selecte
         # TODO: Would be nice to have a pop-out table to show values of these properties for each label
         self.inner_layout.addWidget(self.regionprops_box, 1, 0)
 
-    def filter_label(self):
+    def filter_label(self, layer: Optional[Labels] = None):
         layers = self.parent._get_selected_layers()
         if len(layers) > 1:
             show_error("Only one label layer can be selected for filtering!")
