@@ -41,6 +41,13 @@ class ExportWidget(SubWidget):
             **kwargs,
         )
 
+        # Initialise the selected mask layers list
+        self.selected_mask_layers = []
+        # Connect viewer to callbacks on events
+        self.viewer.layers.selection.events.changed.connect(
+            self.on_select_change
+        )
+
     def create_box(self, variant: Optional[str] = None):
         self.export_masks_btn = QPushButton("Export all masks")
         self.export_masks_btn.clicked.connect(self.on_click_export)
@@ -95,6 +102,57 @@ class ExportWidget(SubWidget):
         Binarises the given mask layer.
         """
         return (mask_layer.data).astype(bool).astype(np.uint8) * 255
+
+    def on_select_change(self, event):
+        layers_selected = event.source
+        # If nothing selected, reset the mask layers
+        if len(layers_selected) == 0:
+            # Filter mask layers to ensure they are Labels layers
+            self.selected_mask_layers = self.get_mask_layers()
+            # Reset text on export button
+            self.export_masks_btn.setText("Export all masks")
+            # Reset tile size label if nothing selected
+            if "nxf" in self.parent.subwidgets:
+                self.parent.subwidgets["nxf"].update_tile_size(
+                    val=None, clear_label=True
+                )
+        else:
+            # Update the tile size label based on the selected layers
+            if "nxf" in self.parent.subwidgets:
+                self.parent.subwidgets["nxf"].update_tile_size(
+                    val=None, clear_label=False
+                )
+            # Filter mask layers to ensure they are from AIoD outputs and not external
+            self.selected_mask_layers = self.get_mask_layers()
+            num_selected = len(self.selected_mask_layers)
+            # In case non-Labels layers are selected, reset
+            if num_selected == 0:
+                self.selected_mask_layers = self.get_mask_layers()
+                self.export_masks_btn.setText("Export all masks")
+            else:
+                self.export_masks_btn.setText(
+                    f"Export {num_selected} mask{'s' if num_selected > 1 else ''}"
+                )
+        return
+
+    def get_mask_layers(
+        self, layer_list: Optional[napari.components.LayerList] = None
+    ) -> list[napari.layers.Labels]:
+        """
+        Return all the mask layers in the viewer.
+
+        This is used to get the masks to evaluate against.
+        """
+        # If no layer list given, use all layers in the Napari viewer
+        if layer_list is None:
+            layer_list = self.viewer.layers
+        # Select only the Labels layers
+        valid_mask_layers = [
+            layer
+            for layer in layer_list
+            if isinstance(layer, napari.layers.Labels)
+        ]
+        return valid_mask_layers
 
     def on_click_export(self):
         """

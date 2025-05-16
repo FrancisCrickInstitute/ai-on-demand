@@ -83,12 +83,6 @@ The profile determines where the pipeline is run.
                 "setup": self.setup_finetuning,
             },
         }
-        # Initialise the selected mask layers list
-        self.selected_mask_layers = []
-        # Connect viewer to callbacks on events
-        self.viewer.layers.selection.events.changed.connect(
-            self.on_select_change
-        )
 
     def load_settings(self):
         """
@@ -118,42 +112,6 @@ The profile determines where the pipeline is run.
             "base_dir": str(self.nxf_base_dir),
         }
         return settings
-
-    def on_select_change(self, event):
-        layers_selected = event.source
-        # If nothing selected, reset the mask layers
-        if len(layers_selected) == 0:
-            # Filter mask layers to ensure they are Labels layers
-            self.selected_mask_layers = self.parent.subwidgets[
-                "data"
-            ].get_mask_layers()
-            # Reset text on export button
-            self.parent.subwidgets["export"].export_masks_btn.setText(
-                "Export all masks"
-            )
-            # Reset tile size label if nothing selected
-            self.update_tile_size(val=None, clear_label=True)
-        else:
-            # Update the tile size label based on the selected layers
-            self.update_tile_size(val=None, clear_label=False)
-            # Filter mask layers to ensure they are from AIoD outputs and not external
-            self.selected_mask_layers = self.parent.subwidgets[
-                "data"
-            ].get_mask_layers(layer_list=layers_selected)
-            num_selected = len(self.selected_mask_layers)
-            # In case non-Labels layers are selected, reset
-            if num_selected == 0:
-                self.selected_mask_layers = self.parent.subwidgets[
-                    "data"
-                ].get_mask_layers()
-                self.parent.subwidgets["export"].export_masks_btn.setText(
-                    "Export all masks"
-                )
-            else:
-                self.parent.subwidgets["export"].export_masks_btn.setText(
-                    f"Export {num_selected} mask{'s' if num_selected > 1 else ''}"
-                )
-        return
 
     def setup_nxf_dir_cmd(self, base_dir: Optional[Path] = None):
         # Set the basepath to store masks/checkpoints etc. in
