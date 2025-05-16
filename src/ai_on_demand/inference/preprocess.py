@@ -368,15 +368,20 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
         else:
             # Need to extract options and wrap into a list to align with sets above
             res = self.extract_options()
-            res = [res] if res is not None else None
+            res = [res] if res is not None and len(res) > 0 else None
         # Now check all images are compatible with the options
         self.check_all_images(prep_params=res)
         return res
 
     def check_all_images(self, prep_params):
+        # Skip if no preprocessing
+        if prep_params is None:
+            return
+        # Get all image layers
         img_layers = [
             i for i in self.viewer.layers if isinstance(i, napari.layers.Image)
         ]
+        # Check each param set against each image layer
         for layer in img_layers:
             for d in prep_params:
                 aiod_utils.preprocess.run_preprocess(
