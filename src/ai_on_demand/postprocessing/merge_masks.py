@@ -246,6 +246,7 @@ Merge masks using various methods. Note that all buttons will use whatever Label
         # Merge the labels
         arr = layers[0].data
         arr[arr == merge_label] = base_label
+        layers[0].data = arr
 
     def visualize_sets(self):
         # Grab selected layers
