@@ -1,5 +1,6 @@
 from collections import defaultdict
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 from typing import Optional, Union
@@ -724,8 +725,13 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         )
         def _run_pipeline(nxf_cmd: str):
             # Run the command
+            # We use shlex to ensure the command is properly escaped
+            # We use shell=False to avoid shell injection issues
+            # We use -l to ensure the command is run in a login shell, avoiding conda issues
             self.process = subprocess.Popen(
-                nxf_cmd, shell=True, cwd=Path.home()
+                ["/bin/sh", "-l", "-c"] + shlex.split(shlex.quote(nxf_cmd)),
+                shell=False,
+                cwd=Path.home(),
             )
             self.process.wait()
             # Check if the process was successful
