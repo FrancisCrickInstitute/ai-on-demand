@@ -10,7 +10,6 @@ from aiod_registry import TASK_NAMES
 import napari
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
-import numpy as np
 import pandas as pd
 import qtpy.QtCore
 from qtpy.QtWidgets import (

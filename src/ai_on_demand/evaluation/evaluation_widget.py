@@ -19,7 +19,6 @@ from qtpy.QtWidgets import (
     QFileDialog,
 )
 from qtpy import QtGui
-import skimage.metrics
 import skimage.measure
 
 from ai_on_demand.widget_classes import MainWidget, SubWidget

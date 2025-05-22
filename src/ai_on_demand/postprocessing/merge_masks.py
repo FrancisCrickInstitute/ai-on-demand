@@ -4,7 +4,6 @@ from typing import Optional
 import glasbey
 import napari
 from napari.utils.notifications import show_warning, show_error
-from napari.layers import Labels
 from napari._qt.qt_resources import get_stylesheet
 import numpy as np
 import qtpy.QtCore
@@ -20,7 +19,6 @@ from qtpy.QtWidgets import (
 )
 from qtpy.QtGui import QIcon
 import pandas as pd
-import qtpy.QtWidgets
 import scipy.ndimage as ndi
 
 from ai_on_demand.widget_classes import SubWidget

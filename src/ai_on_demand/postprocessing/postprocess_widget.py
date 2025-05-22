@@ -7,7 +7,7 @@ from ai_on_demand.inference import ExportWidget
 from ai_on_demand.postprocessing.merge_masks import MergeMasks
 from ai_on_demand.postprocessing.filter_masks import FilterMasks
 from ai_on_demand.postprocessing.morph_masks import MorphMasks
-from ai_on_demand.widget_classes import MainWidget, SubWidget
+from ai_on_demand.widget_classes import MainWidget
 
 
 class Postprocess(MainWidget):
@@ -61,15 +61,3 @@ Postprocess masks using various methods. This includes merging, splitting, and f
 
     def _binarize_mask(self, layer):
         return layer.data > 0
-
-
-# class ExportMasks(SubWidget):
-#     """
-#     1. Export bounding boxes?
-#     2. Export masks as RLE  Done in inference
-#     3. Export masks as images  Done in inference
-#     4. Export as binary  Done in inference
-#     5. Export as labelled  Done in inference
-#     """
-
-#     pass

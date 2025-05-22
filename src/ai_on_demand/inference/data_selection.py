@@ -5,7 +5,6 @@ from typing import Optional, Union
 import napari
 from napari.layers import Image
 from napari.qt.threading import thread_worker
-from napari.utils.notifications import show_info
 import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
