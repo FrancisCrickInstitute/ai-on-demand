@@ -123,7 +123,7 @@ class ExportWidget(SubWidget):
                     val=None, clear_label=False
                 )
             # Filter mask layers to ensure they are from AIoD outputs and not external
-            self.selected_mask_layers = self.get_mask_layers()
+            self.selected_mask_layers = self.get_mask_layers(layers_selected)
             num_selected = len(self.selected_mask_layers)
             # In case non-Labels layers are selected, reset
             if num_selected == 0:
@@ -159,17 +159,15 @@ class ExportWidget(SubWidget):
         Callback for when the export button is clicked. Opens a dialog to select a directory to save the masks to.
         """
         # Extract the data from each of the selected layers, and save the result in the given folder
-        selected_mask_layers = self.parent.subwidgets[
-            "nxf"
-        ].selected_mask_layers
-        print(selected_mask_layers)
-        if selected_mask_layers:
+        if self.selected_mask_layers:
             export_dir = QFileDialog.getExistingDirectory(
                 self, caption="Select directory to save masks", directory=None
             )
-            print(export_dir)
+            if not export_dir or export_dir is None:
+                show_info("No directory selected!")
+                return
             count = 0
-            for mask_layer in selected_mask_layers:
+            for mask_layer in self.selected_mask_layers:
                 # Get the name of the mask layer as root for the filename
                 fname = f"{mask_layer.name}"
                 # Check if we are binarising
@@ -186,7 +184,6 @@ class ExportWidget(SubWidget):
                 )
                 fname += f".{ext}"
                 fpath = Path(export_dir) / fname
-                print(fpath)
                 if ext == "npy":
                     np.save(
                         fpath,

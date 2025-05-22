@@ -21,7 +21,6 @@ from qtpy.QtWidgets import (
     QDialog,
     QTextEdit,
 )
-from qtpy.QtGui import QIcon
 import yaml
 
 from ai_on_demand.widget_classes import SubWidget
