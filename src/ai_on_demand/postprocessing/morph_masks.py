@@ -153,6 +153,15 @@ Morph masks using various methods. Each function works on the currently selected
         # Label
         self.label_box = self._make_groupbox("Label Masks")
         layout = self.label_box.layout()
+        self.label_dilation = QCheckBox("Label across skipped slices?")
+        self.label_dilation.setToolTip(
+            format_tooltip(
+                """
+If checked, a dilation in the z-axis will first be applied, allowing for objects that may disappear
+for a single frame/slice to still be labelled the same.
+            """
+            )
+        )
         # TODO: Give some control over footprint/structure used
         self.label_btn = QPushButton("Label")
         self.label_btn.clicked.connect(self.label_masks)
@@ -163,8 +172,9 @@ Morph masks using various methods. Each function works on the currently selected
             )
         )
         self.label_cb.setChecked(True)
-        layout.addWidget(self.label_btn, 0, 0, 1, 3)
-        layout.addWidget(self.label_cb, 0, 3, 1, 1)
+        layout.addWidget(self.label_dilation, 0, 0, 1, 4)
+        layout.addWidget(self.label_btn, 1, 0, 1, 3)
+        layout.addWidget(self.label_cb, 1, 3, 1, 1)
         self.inner_layout.addWidget(self.label_box, 3, 0)
 
     def morph_masks(self):
@@ -307,8 +317,39 @@ Morph masks using various methods. Each function works on the currently selected
             data = layer.data
         else:
             data = layer.data.copy()
+
+        if not isinstance(data, da.Array):
+            orig = "numpy" if isinstance(data, np.ndarray) else "dask"
+            data = da.from_array(data)
+
+        def _simple_label(data):
+            return dask_ndi.label(
+                data, structure=ndi.generate_binary_structure(3, 1)
+            )[0]
+
+        def _dilate_label(data):
+            # Create a structure that dilates to the next slice/frame only
+            dilation_structure = np.zeros((3, 3, 3), dtype=bool)
+            dilation_structure[1:, 1, 1] = True
+            dilated = dask_morph.binary_dilation(
+                data, structure=dilation_structure
+            )
+            # Now label the dilated data
+            dilated = dask_ndi.label(
+                dilated, structure=ndi.generate_binary_structure(3, 1)
+            )[0]
+            # Remove what was dilated by setting to 0 where original was 0
+            dilated[data == 0] = 0
+            return dilated
+
         # Apply the labeling
-        data = ndi.label(data)[0]
+        if self.label_dilation.isChecked():
+            data = _dilate_label(data)
+        else:
+            data = _simple_label(data)
+        # If it's small data and was in memory anyway, Napari works faster with numpy so just convert back
+        if orig == "numpy":
+            data = data.compute()
         # If in-place is not checked, create a new layer
         if not self.label_cb.isChecked():
             self.viewer.add_labels(
@@ -317,7 +358,7 @@ Morph masks using various methods. Each function works on the currently selected
                 metadata=layer.metadata,
             )
         else:
-            # In-place, so we need to remove the old layer
+            # In-place, so we need to replace the underlying data and trigger a refresh
             layer.data = data
 
     def contour_fill(self):
