@@ -42,7 +42,12 @@ def format_tooltip(text: str, width: int = 70) -> str:
 
     Necessary because Qt only automatically wordwraps rich text, which has it's own issues.
     """
-    return textwrap.fill(text.strip(), width=width, drop_whitespace=True)
+    return textwrap.fill(
+        text.strip(),
+        width=width,
+        drop_whitespace=True,
+        replace_whitespace=True,
+    )
 
 
 def filter_empty_dict(d: dict) -> dict:

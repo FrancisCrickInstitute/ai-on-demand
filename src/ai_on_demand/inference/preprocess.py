@@ -25,7 +25,10 @@ from ai_on_demand.widget_classes import SubWidget
 from ai_on_demand.utils import format_tooltip
 
 import aiod_utils
-from aiod_utils.preprocess import get_preprocess_methods, get_preprocess_params
+from aiod_utils.preprocess import (
+    get_all_preprocess_methods,
+    get_params_str,
+)
 
 
 class PreprocessWidget(SubWidget):
@@ -39,7 +42,7 @@ class PreprocessWidget(SubWidget):
         **kwargs,
     ):
         # Load and extract all the available preprocessing options
-        self.preprocess_methods = get_preprocess_methods()
+        self.preprocess_methods = get_all_preprocess_methods()
         # Store the elements for later extraction
         self.preprocess_boxes = {}
         # Store the order of the preprocessing
@@ -283,7 +286,7 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
         # Apply the preprocessing and show the result
         # Convert to numpy array in case it's dask
         image = aiod_utils.run_preprocess(np.array(image), options)
-        prep_str = get_preprocess_params(options)
+        prep_str = get_params_str(options)
         # Add metadata to skip file path checks in plugin
         self.viewer.add_image(
             data=image,
@@ -365,8 +368,25 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
         else:
             # Need to extract options and wrap into a list to align with sets above
             res = self.extract_options()
-            res = [res] if res is not None else None
+            res = [res] if res is not None and len(res) > 0 else None
+        # Now check all images are compatible with the options
+        self.check_all_images(prep_params=res)
         return res
+
+    def check_all_images(self, prep_params):
+        # Skip if no preprocessing
+        if prep_params is None:
+            return
+        # Get all image layers
+        img_layers = [
+            i for i in self.viewer.layers if isinstance(i, napari.layers.Image)
+        ]
+        # Check each param set against each image layer
+        for layer in img_layers:
+            for d in prep_params:
+                aiod_utils.preprocess.run_preprocess(
+                    img=layer.data, methods=d, only_check=True
+                )
 
     def on_click_preprocess_save(self):
         current_options = self.extract_options()

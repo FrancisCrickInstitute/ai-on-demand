@@ -1,5 +1,6 @@
 from collections import defaultdict
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 from typing import Optional, Union
@@ -83,12 +84,6 @@ The profile determines where the pipeline is run.
                 "setup": self.setup_finetuning,
             },
         }
-        # Initialise the selected mask layers list
-        self.selected_mask_layers = []
-        # Connect viewer to callbacks on events
-        self.viewer.layers.selection.events.changed.connect(
-            self.on_select_change
-        )
 
     def load_settings(self):
         """
@@ -118,42 +113,6 @@ The profile determines where the pipeline is run.
             "base_dir": str(self.nxf_base_dir),
         }
         return settings
-
-    def on_select_change(self, event):
-        layers_selected = event.source
-        # If nothing selected, reset the mask layers
-        if len(layers_selected) == 0:
-            # Filter mask layers to ensure they are Labels layers
-            self.selected_mask_layers = self.parent.subwidgets[
-                "data"
-            ].get_mask_layers()
-            # Reset text on export button
-            self.parent.subwidgets["export"].export_masks_btn.setText(
-                "Export all masks"
-            )
-            # Reset tile size label if nothing selected
-            self.update_tile_size(val=None, clear_label=True)
-        else:
-            # Update the tile size label based on the selected layers
-            self.update_tile_size(val=None, clear_label=False)
-            # Filter mask layers to ensure they are from AIoD outputs and not external
-            self.selected_mask_layers = self.parent.subwidgets[
-                "data"
-            ].get_mask_layers(layer_list=layers_selected)
-            num_selected = len(self.selected_mask_layers)
-            # In case non-Labels layers are selected, reset
-            if num_selected == 0:
-                self.selected_mask_layers = self.parent.subwidgets[
-                    "data"
-                ].get_mask_layers()
-                self.parent.subwidgets["export"].export_masks_btn.setText(
-                    "Export all masks"
-                )
-            else:
-                self.parent.subwidgets["export"].export_masks_btn.setText(
-                    f"Export {num_selected} mask{'s' if num_selected > 1 else ''}"
-                )
-        return
 
     def setup_nxf_dir_cmd(self, base_dir: Optional[Path] = None):
         # Set the basepath to store masks/checkpoints etc. in
@@ -245,9 +204,13 @@ Note that 'opening' won't do anything, this is just to see what files are presen
         )
         self.nxf_profile_box = QComboBox()
         # Get the available profiles from config dir
-        config_dir = Path(__file__).parent / "Segment-Flow" / "profiles"
+        config_dir = Path(__file__).parent.parent / "Segment-Flow" / "profiles"
         avail_confs = [str(i.stem) for i in config_dir.glob("*.conf")]
         avail_confs.sort()
+        if len(avail_confs) == 0:
+            raise FileNotFoundError(
+                f"No Nextflow profiles found in {config_dir}!"
+            )
         self.nxf_profile_box.addItems(avail_confs)
         self.nxf_profile_box.setFocusPolicy(
             qtpy.QtCore.Qt.FocusPolicy.StrongFocus
@@ -762,8 +725,13 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         )
         def _run_pipeline(nxf_cmd: str):
             # Run the command
+            # We use shlex to ensure the command is properly escaped
+            # We use shell=False to avoid shell injection issues
+            # We use -l to ensure the command is run in a login shell, avoiding conda issues
             self.process = subprocess.Popen(
-                nxf_cmd, shell=True, cwd=Path.home()
+                ["/bin/sh", "-l", "-c"] + shlex.split(shlex.quote(nxf_cmd)),
+                shell=False,
+                cwd=Path.home(),
             )
             self.process.wait()
             # Check if the process was successful

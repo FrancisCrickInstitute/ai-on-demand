@@ -4,7 +4,7 @@ from typing import Optional
 
 import napari
 from napari.utils.notifications import show_error
-from napari._qt.qt_resources import get_stylesheet
+from napari._qt.qt_resources import get_stylesheet, QColoredSVGIcon
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QWidget,
@@ -21,7 +21,6 @@ from qtpy.QtWidgets import (
     QDialog,
     QTextEdit,
 )
-from qtpy.QtGui import QIcon
 import yaml
 
 from ai_on_demand.widget_classes import SubWidget
@@ -136,7 +135,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         # Add an icon for information about the selected model
         self.model_info_icon = QPushButton("")
         self.model_info_icon.setIcon(
-            QIcon(napari.resources.get_icon_path("help"))
+            QColoredSVGIcon.from_resources("help").colored(theme="dark")
         )
         # Fix the size, and set the icon as a percentage of this
         self.model_info_icon.setFixedSize(30, 30)

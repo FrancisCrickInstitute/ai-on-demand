@@ -24,7 +24,7 @@ import skimage.measure
 
 from ai_on_demand.widget_classes import MainWidget, SubWidget
 from ai_on_demand.utils import format_tooltip
-import ai_on_demand.metrics as aiod_metrics
+import ai_on_demand.evaluation.metrics as aiod_metrics
 
 
 class Evaluation(MainWidget):

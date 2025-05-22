@@ -6,12 +6,14 @@ import napari
 from napari.qt.threading import thread_worker
 import numpy as np
 
-from ai_on_demand.tasks import TaskWidget
-from ai_on_demand.data_selection import DataWidget
-from ai_on_demand.mask_export import ExportWidget
-from ai_on_demand.model_selection import ModelWidget
-from ai_on_demand.nxf import NxfWidget
-from ai_on_demand.preprocess import PreprocessWidget
+from ai_on_demand.inference import (
+    TaskWidget,
+    DataWidget,
+    ExportWidget,
+    ModelWidget,
+    NxfWidget,
+    PreprocessWidget,
+)
 from ai_on_demand.widget_classes import MainWidget
 from ai_on_demand.utils import calc_param_hash
 import aiod_utils.preprocess
@@ -123,7 +125,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Loop over each image-mask-preprocess combo and check if the mask exists
         for img_dict in self.img_mask_info:
             # Extract the save string from the preprocessing options
-            preprocess_str = aiod_utils.preprocess.get_preprocess_params(
+            preprocess_str = aiod_utils.preprocess.get_params_str(
                 img_dict["prep_set"], to_save=True
             )
             mask_layer_name = self._get_mask_layer_name(
@@ -167,7 +169,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 img_dict["layer_name"],
                 img_dict["prep_set"],
             )
-            preprocess_str = aiod_utils.preprocess.get_preprocess_params(
+            preprocess_str = aiod_utils.preprocess.get_params_str(
                 prep_options, to_save=True
             )
             # Check if the mask file already exists
@@ -205,6 +207,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 ndim = img_layer.ndim
                 metadata = img_layer.metadata
                 # Channels (non-RGB) & Z
+                # TODO: Switch to using utils.get_img_dims
                 if ndim == 4:
                     # Channels should be first, don't care for labels so remove
                     img_shape = img_layer.data.shape[1:]
@@ -290,7 +293,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 for prep_set in options:
                     all_img_paths.append(img_path)
                     # Get the preprocess param string to add to the layer name
-                    suffix = aiod_utils.preprocess.get_preprocess_params(
+                    suffix = aiod_utils.preprocess.get_params_str(
                         prep_set, to_save=True
                     )
                     layer_name = self._get_mask_layer_name(
@@ -530,7 +533,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Loop over each image and insert the final mask
         for img_dict in self.img_mask_info:
             # Extract the save string from the preprocessing options
-            preprocess_str = aiod_utils.preprocess.get_preprocess_params(
+            preprocess_str = aiod_utils.preprocess.get_params_str(
                 img_dict["prep_set"], to_save=True
             )
             # Get the mask layer name, considering any preprocessing
