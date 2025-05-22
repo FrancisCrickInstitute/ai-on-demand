@@ -4,9 +4,9 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - python=3.10
+  - python=3.11
   - pyqt
-  - napari>=0.4.19
+  - napari>=0.6
   - numpy
   - scipy
   - scikit-image
