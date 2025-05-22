@@ -111,6 +111,7 @@ The profile determines where the pipeline is run.
         """
         settings = {
             "base_dir": str(self.nxf_base_dir),
+            "profile": self.nxf_profile_box.currentText(),
         }
         return settings
 

@@ -95,10 +95,11 @@ class MainWidget(QWidget):
         self.subwidgets[widget._name] = widget
 
     def store_settings(self):
-        # Check for each of the things we want to store
-        # Skipping if not present in this main widget
-        if "nxf" in self.subwidgets:
-            self.plugin_settings["nxf"] = self.subwidgets["nxf"].get_settings()
+        # Extract settings for every subwidget that has implemented the get_settings method
+        for k, subwidget in self.subwidgets.items():
+            settings = subwidget.get_settings()
+            if settings is not None:
+                self.plugin_settings[k] = settings
         # TODO: Think/check if we want to store anything else
         # Save the settings to the cache
         # As we retrieve everything every time, we can just overwrite the file
