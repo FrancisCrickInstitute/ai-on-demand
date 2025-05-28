@@ -20,11 +20,11 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Image Processing",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
-    "numpy",
+    "numpy<2",
     "qtpy",
-    "scikit-image",
+    "scikit-image>0.20",
     "platformdirs",
     "requests",
     "napari>=0.6",

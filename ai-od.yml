@@ -7,9 +7,9 @@ dependencies:
   - python=3.11
   - pyqt
   - napari>=0.6
-  - numpy
+  - numpy<2.0
   - scipy
-  - scikit-image
+  - scikit-image>0.20
   - pyyaml
   - nextflow
   - pip
