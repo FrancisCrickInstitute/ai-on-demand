@@ -387,7 +387,7 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
 
         # Add post-processing options
         self.postprocess_btn = QCheckBox("Re-label output")
-        self.postprocess_btn.setChecked(True)
+        self.postprocess_btn.setChecked(False)
         self.postprocess_btn.setToolTip(
             format_tooltip(
                 """
