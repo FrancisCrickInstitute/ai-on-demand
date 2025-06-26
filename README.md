@@ -7,15 +7,8 @@ A Napari plugin, part of [AI OnDemand](https://github.com/FrancisCrickInstitute/
 This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
 
 ## Installation
-### Conda (Recommended)
-We have provided a conda environment file to install all the dependencies for this plugin. To install the environment, run the following command:
-
-    conda env create -f ai-od.yml
-
 ### Pip
-Otherwise, you can just install this plugin using pip. At present, this will not include all dependencies, which are listed in the `ai-od.yml` file.
-
-Either install from the repo directly:
+You can install this plugin using `pip`, either from the repo directly:
 
     pip install git+https://github.com/FrancisCrickInstitute/ai-on-demand.git
 
@@ -25,9 +18,15 @@ or clone and install locally:
     cd ai-on-demand
     pip install .
 
-### Napari
+### Conda
+We have provided a conda environment file to install all the dependencies for this plugin. To install the environment, run the following command:
 
-If you have any issues installing Napari, see their [installation guide](https://napari.org/stable/tutorials/fundamentals/installation.html).
+    conda env create -f ai-od.yml
+
+Note that when it comes to the installation of napari this may be preferable, depending on whether your system is best supported by the pip- or conda-packaged version.
+
+### Napari
+If you have any issues installing Napari, see their [installation guide](https://napari.org/stable/tutorials/fundamentals/installation.html). Then, you can reinstall this package following the instructions above.
 
 ### Nextflow
 This plugin makes a call to Nextflow when running the pipeline. To install Nextflow, see their [installation guide](https://www.nextflow.io/docs/latest/install.html).
