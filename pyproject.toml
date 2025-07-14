@@ -115,3 +115,7 @@ exclude = [
 ]
 
 fix = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["src/ai_on_demand/_tests"]
