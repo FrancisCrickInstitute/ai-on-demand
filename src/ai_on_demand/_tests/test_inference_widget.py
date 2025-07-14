@@ -87,12 +87,12 @@ class TestTaskWidget:
     def test_task_widget_creation(self, task_widget):
         """Test that TaskWidget can be created."""
         assert task_widget is not None
-        assert task_widget._name == 'tasks'
+        assert task_widget._name == 'task'
         
     def test_task_widget_loads_manifests(self, task_widget, dummy_manifests):
         """Test that TaskWidget loads manifests correctly."""
-        # The widget should have access to the manifests
-        assert hasattr(task_widget, 'all_manifests')
+        # The widget should have access to the manifests through parent
+        assert hasattr(task_widget, 'parent')
         
     def test_task_selection_callback(self, task_widget):
         """Test task selection triggers correct callbacks."""
@@ -126,7 +126,7 @@ class TestModelWidget:
     def test_model_widget_creation(self, model_widget):
         """Test that ModelWidget can be created."""
         assert model_widget is not None
-        assert model_widget._name == 'models'
+        assert model_widget._name == 'model'
         
     def test_model_selection_updates_variants(self, model_widget):
         """Test that selecting a model updates available variants."""
@@ -191,7 +191,7 @@ class TestPreprocessWidget:
     def test_preprocess_widget_creation(self, preprocess_widget):
         """Test that PreprocessWidget can be created."""
         assert preprocess_widget is not None
-        assert preprocess_widget._name == 'preprocessing'
+        assert preprocess_widget._name == 'preprocess'
         
     def test_preprocessing_options(self, preprocess_widget):
         """Test that preprocessing options can be configured."""

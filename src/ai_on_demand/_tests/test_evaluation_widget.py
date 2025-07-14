@@ -88,6 +88,18 @@ class TestEvaluationMetrics:
     """Test evaluation metrics calculation functionality."""
     
     @pytest.fixture
+    def eval_widget(self, mock_napari_viewer, mock_plugin_manager, mock_aiod_utils):
+        """Create an EvalWidget for testing."""
+        parent = Mock()
+        parent.content_widget = Mock()
+        parent.content_widget.layout.return_value.addWidget = Mock()
+        parent.register_widget = Mock()
+        parent.plugin_settings = {}
+        
+        widget = EvalWidget(viewer=mock_napari_viewer, parent=parent, expanded=True)
+        return widget
+    
+    @pytest.fixture
     def sample_prediction_labels(self):
         """Create sample prediction labels for testing."""
         labels = np.zeros((100, 100), dtype=np.uint16)
