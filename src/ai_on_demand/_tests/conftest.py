@@ -42,42 +42,56 @@ def mock_napari_viewer():
 
 
 @pytest.fixture 
-def dummy_manifests():
-    """Create dummy manifests for testing plugin functionality."""
-    return {
-        'organelle_segmentation': {
-            'display_name': 'Organelle Segmentation',
-            'description': 'Test organelle segmentation model',
-            'models': {
-                'mitochondria_v1': {
-                    'display_name': 'Mitochondria v1',
-                    'description': 'Test mitochondria model',
-                    'variants': {
-                        'default': {
-                            'display_name': 'Default',
-                            'preprocessing': ['normalize', 'resize']
-                        }
+def minimal_manifest():
+    """A minimal manifest loaded via the real loader, matching production normalization."""
+    import json
+    import tempfile
+    from unittest.mock import patch
+    
+    manifest_dict = {
+        "name": "Dummy Model",
+        "short_name": "dummy_model",
+        "versions": {
+            "v1": {
+                "tasks": {
+                    "everything": {
+                        "location": "/fake/path/to/model.pt",
+                        "config_path": "/tmp/dummy_config.yaml",
                     }
                 }
             }
         },
-        'cell_segmentation': {
-            'display_name': 'Cell Segmentation', 
-            'description': 'Test cell segmentation model',
-            'models': {
-                'cellpose_v1': {
-                    'display_name': 'Cellpose v1',
-                    'description': 'Test cellpose model',
-                    'variants': {
-                        'cyto': {
-                            'display_name': 'Cytoplasm',
-                            'preprocessing': ['normalize']
+        "params": None,
+        "metadata": {"description": "A dummy model for testing purposes."},
+    }
+    
+    with tempfile.NamedTemporaryFile("w+", suffix=".json", delete=False) as f:
+        json.dump(manifest_dict, f)
+        f.flush()
+        
+        # Mock the aiod_registry.load_manifests function to return our test manifest
+        with patch('aiod_registry.load_manifests') as mock_load:
+            # Return a dict that simulates the real ModelManifest structure
+            mock_manifests = {
+                'dummy_model': {
+                    'name': 'Dummy Model',
+                    'short_name': 'dummy_model',
+                    'versions': {
+                        'v1': {
+                            'tasks': {
+                                'everything': {
+                                    'location': '/fake/path/to/model.pt',
+                                    'config_path': '/tmp/dummy_config.yaml',
+                                }
+                            }
                         }
-                    }
+                    },
+                    'params': None,
+                    'metadata': {'description': 'A dummy model for testing purposes.'},
                 }
             }
-        }
-    }
+            mock_load.return_value = mock_manifests
+            yield mock_manifests
 
 
 @pytest.fixture

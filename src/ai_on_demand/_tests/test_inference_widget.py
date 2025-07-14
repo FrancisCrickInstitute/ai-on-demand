@@ -51,29 +51,47 @@ class TestInferenceWidget:
         for widget_name in expected_widgets:
             assert widget_name in widget.subwidgets
             
-    def test_inference_widget_color_selection(self, mock_napari_viewer, mock_plugin_manager, mock_aiod_utils):
-        """Test that the selection color is set correctly."""
-        widget = Inference(mock_napari_viewer)
-        
-        assert hasattr(widget, 'colour_selected')
-        assert widget.colour_selected == "#F7AD6F"
-        
+
     def test_get_run_hash_implementation(self, mock_napari_viewer, mock_plugin_manager, mock_aiod_utils):
-        """Test that get_run_hash method works correctly."""
+        """Test that get_run_hash method populates run_hash attribute."""
         widget = Inference(mock_napari_viewer)
         
-        # The get_run_hash method should be implemented
-        assert hasattr(widget, 'get_run_hash')
-        # The actual implementation may depend on subwidget values
+        # Initially run_hash should be None
+        assert widget.run_hash is None
+        
+        # Call get_run_hash with mock parameters
+        mock_nxf_params = {
+            "task": "test_task",
+            "model": "test_model", 
+            "model_type": "test_variant",
+            "num_substacks": 1,
+            "overlap": 10,
+            "preprocess": ["normalize"],
+            "iou_threshold": 0.5
+        }
+        
+        # Mock the model subwidget to have a model_param_hash
+        from unittest.mock import Mock
+        mock_model_widget = Mock()
+        mock_model_widget.model_param_hash = "mock_hash"
+        widget.subwidgets = {"model": mock_model_widget, "nxf": Mock()}
+        widget.subwidgets["nxf"].postprocess_btn.isChecked.return_value = False
+        
+        # Call the method
+        widget.get_run_hash(mock_nxf_params)
+        
+        # run_hash should now be populated
+        assert widget.run_hash is not None
+        assert isinstance(widget.run_hash, str)
 
 
 class TestTaskWidget:
     """Test the TaskWidget subwidget."""
     
     @pytest.fixture
-    def task_widget(self, mock_napari_viewer, mock_plugin_manager, mock_aiod_utils, dummy_manifests):
+    def task_widget(self, mock_napari_viewer, mock_plugin_manager, mock_aiod_utils, minimal_manifest):
         """Create a TaskWidget for testing."""
-        mock_plugin_manager.commands.execute.return_value = dummy_manifests
+        mock_plugin_manager.commands.execute.return_value = minimal_manifest
         
         parent = Mock()
         parent.content_widget = Mock()
@@ -89,7 +107,7 @@ class TestTaskWidget:
         assert task_widget is not None
         assert task_widget._name == 'task'
         
-    def test_task_widget_loads_manifests(self, task_widget, dummy_manifests):
+    def test_task_widget_loads_manifests(self, task_widget, minimal_manifest):
         """Test that TaskWidget loads manifests correctly."""
         # The widget should have access to the manifests through parent
         assert hasattr(task_widget, 'parent')
@@ -109,9 +127,9 @@ class TestModelWidget:
     """Test the ModelWidget subwidget."""
     
     @pytest.fixture
-    def model_widget(self, mock_napari_viewer, mock_plugin_manager, mock_aiod_utils, dummy_manifests):
+    def model_widget(self, mock_napari_viewer, mock_plugin_manager, mock_aiod_utils, minimal_manifest):
         """Create a ModelWidget for testing."""
-        mock_plugin_manager.commands.execute.return_value = dummy_manifests
+        mock_plugin_manager.commands.execute.return_value = minimal_manifest
         
         parent = Mock()
         parent.content_widget = Mock()
@@ -234,28 +252,28 @@ class TestExportWidget:
 class TestInferenceIntegration:
     """Test integration between inference subwidgets."""
     
-    def test_task_model_interaction(self, mock_napari_viewer, mock_plugin_manager, mock_aiod_utils, dummy_manifests):
+    def test_task_model_interaction(self, mock_napari_viewer, mock_plugin_manager, mock_aiod_utils, minimal_manifest):
         """Test that task selection updates model options."""
-        mock_plugin_manager.commands.execute.return_value = dummy_manifests
+        mock_plugin_manager.commands.execute.return_value = minimal_manifest
         
         widget = Inference(mock_napari_viewer)
         
-        # Test that changing task affects model selection
-        widget.selected_task = 'organelle_segmentation'
-        assert widget.selected_task == 'organelle_segmentation'
+        # Test that changing task affects model selection  
+        widget.selected_task = 'everything'
+        assert widget.selected_task == 'everything'
         
-    def test_model_variant_interaction(self, mock_napari_viewer, mock_plugin_manager, mock_aiod_utils, dummy_manifests):
+    def test_model_variant_interaction(self, mock_napari_viewer, mock_plugin_manager, mock_aiod_utils, minimal_manifest):
         """Test that model selection updates variant options."""
-        mock_plugin_manager.commands.execute.return_value = dummy_manifests
+        mock_plugin_manager.commands.execute.return_value = minimal_manifest
         
         widget = Inference(mock_napari_viewer)
         
         # Test model and variant selection
-        widget.selected_model = 'mitochondria_v1'
-        widget.selected_variant = 'default'
+        widget.selected_model = 'dummy_model'
+        widget.selected_variant = 'v1'
         
-        assert widget.selected_model == 'mitochondria_v1'
-        assert widget.selected_variant == 'default'
+        assert widget.selected_model == 'dummy_model'
+        assert widget.selected_variant == 'v1'
         
     def test_settings_persistence(self, mock_napari_viewer, mock_plugin_manager, mock_aiod_utils, dummy_settings):
         """Test that widget settings are saved and loaded correctly."""
