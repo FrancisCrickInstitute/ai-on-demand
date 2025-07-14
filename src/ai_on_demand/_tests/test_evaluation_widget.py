@@ -53,7 +53,7 @@ class TestEvaluationWidget:
         assert result is None
 
 
-class TestEvalWidget:
+class TestEvaluationSubWidget:
     """Test the EvalWidget subwidget functionality."""
     
     @pytest.fixture
