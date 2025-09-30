@@ -17,6 +17,8 @@ dependencies:
     - pandas
     - platformdirs
     - tabulate
+    - glasbey
+    - dask-image
     - git+https://github.com/FrancisCrickInstitute/ai-on-demand.git
     - git+https://github.com/FrancisCrickInstitute/AIoD-Model-Registry.git
     - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
