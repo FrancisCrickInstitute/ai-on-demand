@@ -107,6 +107,66 @@ class MainWidget(QWidget):
         with open(settings_path, "w") as f:
             yaml.dump(self.plugin_settings, f)
 
+    def store_config(self):
+        print('storeing config')
+        config_name = self.subwidgets['nxf'].config_name.text().strip()
+        if not config_name:
+            config_name = "config-a"
+        
+        # Extract settings for every subwidget that has implemented the get_settings method
+        config_settings = {}
+        for k, subwidget in self.subwidgets.items():
+            settings = subwidget.get_settings()
+            if settings is not None:
+                config_settings[k] = settings
+        
+        # Create a unique filename for this config
+        cache_dir, _ = get_plugin_cache()
+        config_file_path = cache_dir / f"{config_name}.yaml"
+        
+        # Save the config to its own file
+        with open(config_file_path, "w") as f:
+            yaml.dump(config_settings, f)
+        
+        print(f"Config saved as: {config_file_path}")
+    
+    def load_config(self):
+        """Load a specific config and apply to all subwidgets"""
+        cache_dir, _ = get_plugin_cache()
+        config_file = cache_dir / f"config.yml" # add a way to find the config you want to load!
+        print(str(config_file))
+        config_file = "/Users/ahmedn/.nextflow/aiod/config.yml"
+        
+        # print('it exists!')
+        with open(config_file, "r") as f:
+            print('was able to open')
+            config_data = yaml.safe_load(f)
+            print(config_data)
+            
+            # # Apply settings to each subwidget
+            # for widget_name, settings in config_data.items():
+            #     if widget_name in self.subwidgets:
+            #         # Each subwidget has its own load_settings method
+            #         self.subwidgets[widget_name].apply_config_settings(settings)
+
+
+        # config_task = "nuclei"
+        # print("loading config...")
+        # task_widget = self.subwidgets.get("task")
+        
+        # # Uncheck all buttons first
+        # for btn in task_widget.task_buttons.values():
+        #     btn.setChecked(False)
+        
+        # # Check the mitochondria button
+        # task_widget.task_buttons[config_task].setChecked(True)
+        
+        # # Trigger the callback to update other widgets
+        # task_widget.on_click_task()
+
+
+
+
     @abstractmethod
     def get_run_hash(self):
         """

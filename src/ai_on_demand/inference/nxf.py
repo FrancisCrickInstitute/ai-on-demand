@@ -28,6 +28,7 @@ from qtpy.QtWidgets import (
     QDoubleSpinBox,
     QGroupBox,
     QMessageBox,
+    QLineEdit
 )
 import tqdm
 import yaml
@@ -189,6 +190,24 @@ Note that 'opening' won't do anything, this is just to see what files are presen
         # Add the cache box to the main layout
         self.inner_layout.addWidget(self.cache_box, 0, 0, 1, 2)
 
+        # Create box for the custom config settings
+        self.config_box = QGroupBox("Config Settings")
+        self.config_box.setToolTip(
+            format_tooltip("save custom configs settings which will automatically fill in all options in the ai-od pugin")
+        )
+        self.config_layout = QGridLayout()
+        self.config_box.setLayout(self.config_layout)
+
+        self.config_name_label = QLabel("Config name:")
+        self.config_name = QLineEdit(placeholderText="config_A")
+
+        self.load_config_button = QPushButton("Load Config")
+        self.load_config_button.clicked.connect(self.on_load_config)
+
+        self.config_layout.addWidget(self.config_name_label, 0, 0)
+        self.config_layout.addWidget(self.config_name, 0, 1)
+        self.config_layout.addWidget(self.load_config_button, 1, 0)
+
         # Create box for the cache settings
         self.pipeline_box = QGroupBox("Pipeline Settings")
         self.pipeline_box.setToolTip(
@@ -264,6 +283,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         self.pipeline_layout.addWidget(self.options_widget, 3, 0, 1, 2)
 
         self.inner_layout.addWidget(self.pipeline_box, 1, 0, 1, 2)
+        self.inner_layout.addWidget(self.config_box, 2, 0, 1, 2)
 
         # Create a button to navigate to a directory to take images from
         self.nxf_run_btn = QPushButton("Run Pipeline!")
@@ -273,7 +293,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
                 "Run the pipeline with the chosen organelle(s), model, and images."
             )
         )
-        self.inner_layout.addWidget(self.nxf_run_btn, 2, 0, 1, 2)
+        self.inner_layout.addWidget(self.nxf_run_btn, 3, 0, 1, 2)
 
         pbar_layout = QHBoxLayout()
         # Add progress bar
@@ -286,7 +306,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         # Add the label and progress bar to the layout
         pbar_layout.addWidget(self.pbar_label)
         pbar_layout.addWidget(self.pbar)
-        self.inner_layout.addLayout(pbar_layout, 5, 0, 1, 2)
+        self.inner_layout.addLayout(pbar_layout, 6, 0, 1, 2)
         # TQDM progress bar to monitor completion time
         self.tqdm_pbar = None
 
@@ -663,7 +683,14 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         """
         raise NotImplementedError
 
+    def store_config(self, config):
+        pass
+    
+    def on_load_config(self):
+        self.parent.load_config()
+
     def run_pipeline(self):
+        print ('running pipeline !!!!')
         if "data" not in self.parent.subwidgets:
             raise ValueError("Cannot run pipeline without data widget!")
         # Store the image paths
@@ -691,6 +718,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         nxf_cmd, nxf_params, proceed, img_paths = self.pipelines[
             self.pipeline
         ]["setup"]()
+        self.parent.store_config()
         # Don't run the pipeline if no green light given
         if not proceed:
             return
