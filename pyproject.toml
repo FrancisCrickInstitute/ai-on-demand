@@ -32,6 +32,7 @@ dependencies = [
     "pyyaml",
     "pandas",
     "tabulate",
+    "glasbey",
     "aiod_utils @ git+https://github.com/FrancisCrickInstitute/aiod_utils.git",
     "aiod_registry @ git+https://github.com/FrancisCrickInstitute/AIoD-Model-Registry.git",
 ]
