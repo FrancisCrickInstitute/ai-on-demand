@@ -371,8 +371,6 @@ Merge masks using various methods. Note that all buttons will use whatever Label
 class VisualizeLegend(QDialog):
     def __init__(self, parent=None, vis_dict: Optional[dict] = None):
         super().__init__(parent)
-        # Set style/look to be same as Napari
-        self.setStyleSheet(get_stylesheet("dark"))
 
         self.setWindowTitle("Mask Overlap Legend")
         self.setGeometry(100, 100, 300, 200)

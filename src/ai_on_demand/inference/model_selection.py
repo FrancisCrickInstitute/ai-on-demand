@@ -683,8 +683,6 @@ class ModelInfoWindow(QDialog):
     def __init__(self, parent=None, model_info: str = ""):
         super().__init__(parent)
 
-        # Set style/look to be same as Napari
-        self.setStyleSheet(get_stylesheet("dark"))
         # Set the layout
         self.layout = QVBoxLayout()
         # Set the window title
