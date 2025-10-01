@@ -104,17 +104,27 @@ class MainWidget(QWidget):
         # Save the settings to the cache
         # As we retrieve everything every time, we can just overwrite the file
         _, settings_path = get_plugin_cache()
+        print(" - this is the settings variable - ")
+        print(self.plugin_settings)
         with open(settings_path, "w") as f:
+            print(f'this is where the settings are: ',settings_path)
             yaml.dump(self.plugin_settings, f)
 
     def store_config(self):
-        print('storeing config')
+        print('storing config')
         config_name = self.subwidgets['nxf'].config_name.text().strip()
         if not config_name:
             config_name = "config-a"
         
+        # get next flow config settings from the pipeline param
+        nxfWidget = self.subwidgets.get('nxf')
+        nxf_cmd, nxf_params, proceed, img_paths = nxfWidget.pipelines[
+                nxfWidget.pipeline
+            ]["setup"]()
+        
+        
         # Extract settings for every subwidget that has implemented the get_settings method
-        config_settings = {}
+        config_settings = nxf_params
         for k, subwidget in self.subwidgets.items():
             settings = subwidget.get_settings()
             if settings is not None:
@@ -122,50 +132,134 @@ class MainWidget(QWidget):
         
         # Create a unique filename for this config
         cache_dir, _ = get_plugin_cache()
-        config_file_path = cache_dir / f"{config_name}.yaml"
+        config_file_path =   f"/Users/ahmedn/Desktop/{config_name}.yaml"
         
         # Save the config to its own file
         with open(config_file_path, "w") as f:
+            print('writing to config')
             yaml.dump(config_settings, f)
         
         print(f"Config saved as: {config_file_path}")
     
-    def load_config(self):
+    def load_config(self, config_path):
         """Load a specific config and apply to all subwidgets"""
-        cache_dir, _ = get_plugin_cache()
-        config_file = cache_dir / f"config.yml" # add a way to find the config you want to load!
-        print(str(config_file))
-        config_file = "/Users/ahmedn/.nextflow/aiod/config.yml"
-        
-        # print('it exists!')
-        with open(config_file, "r") as f:
+        with open(config_path, "r") as f:
             print('was able to open')
             config_data = yaml.safe_load(f)
-            print(config_data)
+        print(config_data)
+
+        print(" -- these are the availbe subwidgets -- ")
+        print(self.subwidgets)
+
+        # -- Load Segmentation Task config -- 
+        config_task = config_data['task']
+        print("loading config...")
+        task_widget = self.subwidgets.get("task")
+        
+        # Uncheck all buttons first
+        for btn in task_widget.task_buttons.values():
+            btn.setChecked(False)
+        
+        # Check the correct task button
+        task_widget.task_buttons[config_task].setChecked(True)
+        
+        # Trigger the callback to update other widgets
+        task_widget.on_click_task()
+
+        # -- Load Model Selection config --
+        config_model = config_data['model']
+        config_model_version = config_data['model_type']
+        model_widget = self.subwidgets.get('model') 
+
+        if config_model and model_widget:
+            # First set the model dropdown
+            model_display_name = model_widget.base_to_display.get(config_model)
+            if model_display_name:
+                model_index = model_widget.model_dropdown.findText(model_display_name)
+                if model_index != -1:
+                    model_widget.model_dropdown.setCurrentIndex(model_index)
+                    # Trigger the model selection callback to populate versions
+                    model_widget.on_model_select()
+                    
+                    print('trying to find model version: ', config_model_version)
+                    model_version_index = model_widget.model_version_dropdown.findText(config_model_version)
+
+                    print(' -- These are the available versions -- ')
+                    available_versions = [model_widget.model_version_dropdown.itemText(i) 
+                                          for i in range(model_widget.model_version_dropdown.count())]
+                    print(available_versions)
+
+                    if model_version_index != -1:
+                        model_widget.model_version_dropdown.setCurrentIndex(model_version_index)
+                        # Trigger the version selection callback
+                        model_widget.on_model_version_select()
+                        print(f"Set model version to: {config_model_version}")
+                    else:
+                        print('Model version not found')
+                else:
+                    print(f'Model {config_model} not found')
+            else:
+                print(f'Model display name not found for {config_model}')
+        
+        # -- Load Preprocessing from config -- 
+        config_preprocess = config_data['preprocess']
+        preprocess_widget = self.subwidgets.get('preprocess')
+
+
+        if config_preprocess and preprocess_widget:
+            print ('config preprocess: ',config_preprocess)
+            print ('config 1 in preprocess: ',config_preprocess[0])
+            # Check for 'Filter' in preprocessing steps
+            for step in config_preprocess:
+                method_name = step['name']
+                method_params = step['params']
+
+                print('adding from config method: ', method_name, method_params)
+
+                if method_name in preprocess_widget.preprocess_boxes:
+                    group_box = preprocess_widget.preprocess_boxes[method_name]['box']
+                    group_box.setChecked(True)
+                
+                # for param_name, param_values in method_params.items():
+                        # if hasattr(widget, 'setChecked'):  # QCheckBox
+                        #     widget.setChecked(bool(param_value))
+                        # elif hasattr(widget, 'setText'):  # QLineEdit
+                        #     if isinstance(param_value, (list, tuple)):
+                        #         widget.setText(", ".join(map(str, param_value)))
+                        #     else:
+                        #         widget.setText(str(param_value))
+                        # elif hasattr(widget, 'setCurrentText'):  # QComboBox
+                        #     widget.setCurrentText(str(param_value))
+                        # else:
+                        #     print(f"Unknown widget type for {param_name}")
+                    
+                
+            # for name, d in preprocess_widget.preprocess_methods.items():
+            #     print('type for name in preprocess method item - ', type(name))
+            #     print('type for d in preprocess method item - ', type(d))
+            #     if config_preprocess[name]:
+
+
+        # -- Load nextflow config -- 
+        config_nxf = config_data['nxf']
+        config_profile = config_nxf['profile'] 
+        
+        print(' ---- these are the subwidgets: ', self.subwidgets)
+        nxf_widget = self.subwidgets.get('nxf')
+        
+        # Set the execution profile in the combo box
+        if nxf_widget and config_profile:
+            profile_index = nxf_widget.nxf_profile_box.findText(config_profile)
             
-            # # Apply settings to each subwidget
-            # for widget_name, settings in config_data.items():
-            #     if widget_name in self.subwidgets:
-            #         # Each subwidget has its own load_settings method
-            #         self.subwidgets[widget_name].apply_config_settings(settings)
-
-
-        # config_task = "nuclei"
-        # print("loading config...")
-        # task_widget = self.subwidgets.get("task")
+            if profile_index != -1:
+                nxf_widget.nxf_profile_box.setCurrentIndex(profile_index)
+                print(f"Set profile to: {config_profile}")
+            else:
+                print(f"Profile '{config_profile}' not found in available profiles")
+                available_profiles = [nxf_widget.nxf_profile_box.itemText(i) 
+                                    for i in range(nxf_widget.nxf_profile_box.count())]
+                print(f"Available profiles: {available_profiles}")
         
-        # # Uncheck all buttons first
-        # for btn in task_widget.task_buttons.values():
-        #     btn.setChecked(False)
-        
-        # # Check the mitochondria button
-        # task_widget.task_buttons[config_task].setChecked(True)
-        
-        # # Trigger the callback to update other widgets
-        # task_widget.on_click_task()
-
-
-
 
     @abstractmethod
     def get_run_hash(self):

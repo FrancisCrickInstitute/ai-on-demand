@@ -687,7 +687,14 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         pass
     
     def on_load_config(self):
-        self.parent.load_config()
+        config_dir = "/Users/ahmedn/Desktop"
+        config_path_and_filter = QFileDialog.getOpenFileName(self, "select a config file", config_dir, "YAML Files (*.yaml *.yml)")
+        config_path = config_path_and_filter[0]
+        if config_path != "":
+            print('config', config_path)
+            print('config type ', type(config_path))
+            self.parent.load_config(config_path)
+
 
     def run_pipeline(self):
         print ('running pipeline !!!!')
@@ -718,11 +725,14 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         nxf_cmd, nxf_params, proceed, img_paths = self.pipelines[
             self.pipeline
         ]["setup"]()
+
+        # storing config on run 
         self.parent.store_config()
         # Don't run the pipeline if no green light given
         if not proceed:
             return
         # Store plugin settings for future sessions
+        print(' - saving settings - ')
         self.parent.store_settings()
         # Store the image paths
         self.store_img_paths(img_paths=img_paths)
@@ -767,6 +777,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 raise RuntimeError
 
         # Run the pipeline
+        print(" - printing nextflow command - ")
+        print(nxf_cmd)
         _run_pipeline(nxf_cmd)
 
     def _reset_btns(self):

@@ -73,6 +73,8 @@ Any preprocessing applied here is for visualization purposes only, only the orig
         self.preprocess_order.setReadOnly(True)
         self.preprocess_order.setText(self.init_order)
         # Go through each method, creating a box and populating the UI elements for each parameter
+        print('preprocess methods: ', self.preprocess_methods)
+        print('preprocess methods items: ', self.preprocess_methods.items())
         for name, d in self.preprocess_methods.items():
             group_box = QGroupBox(name)
             self.preprocess_boxes[name] = {
