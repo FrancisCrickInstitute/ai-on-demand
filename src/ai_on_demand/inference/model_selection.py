@@ -4,7 +4,7 @@ from typing import Optional
 
 import napari
 from napari.utils.notifications import show_error
-from napari._qt.qt_resources import get_stylesheet, QColoredSVGIcon
+from napari._qt.qt_resources import QColoredSVGIcon
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QWidget,

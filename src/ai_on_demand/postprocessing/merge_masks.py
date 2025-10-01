@@ -4,7 +4,7 @@ from typing import Optional
 import glasbey
 import napari
 from napari.utils.notifications import show_warning, show_error
-from napari._qt.qt_resources import get_stylesheet
+from napari._qt.qt_resources import QColoredSVGIcon
 import numpy as np
 import qtpy.QtCore
 from qtpy.QtWidgets import (
@@ -94,7 +94,7 @@ Merge masks using various methods. Note that all buttons will use whatever Label
         )
         self.visualize_icon_btn = QPushButton("")
         self.visualize_icon_btn.setIcon(
-            QIcon(napari.resources.get_icon_path("help"))
+            QColoredSVGIcon.from_resources("help").colored(theme="dark")
         )
         self.visualize_icon_btn.setFixedSize(25, 25)
         self.visualize_icon_btn.setIconSize(

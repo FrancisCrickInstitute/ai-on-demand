@@ -3,7 +3,6 @@ from typing import Optional
 
 import napari
 from napari.utils.notifications import show_error, show_info, show_warning
-from napari._qt.qt_resources import get_stylesheet
 import numpy as np
 from qtpy.QtWidgets import (
     QWidget,
