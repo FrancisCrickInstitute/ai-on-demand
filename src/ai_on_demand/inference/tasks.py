@@ -60,3 +60,13 @@ class TaskWidget(SubWidget):
         self.parent.subwidgets["model"].update_model_box(
             self.parent.selected_task
         )
+
+    def load_config(self, config: str):
+        # FIXME: Using config as a name here is silly
+        if config not in TASK_NAMES:
+            raise ValueError(f"Task {config} not recognised.")
+        for task_name, task_btn in self.task_buttons.items():
+            if task_name == config["task"]:
+                task_btn.setChecked(True)
+            else:
+                task_btn.setChecked(False)

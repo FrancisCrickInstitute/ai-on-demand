@@ -281,6 +281,13 @@ class MainWidget(QWidget):
         for widget in self.subwidgets.values():
             widget.store_settings()
 
+    def load_config_file(self, config: dict):
+        """
+        Load a config file for the widget.
+        """
+        for subwidget in self.subwidgets.values():
+            subwidget.load_config(config=config)
+
 
 class SubWidget(QCollapsible):
     # Define a shorthand name to be used to register the widget
@@ -389,6 +396,13 @@ class SubWidget(QCollapsible):
     def get_settings(self):
         """
         Get settings for the subwidget.
+        """
+        pass
+
+    @abstractmethod
+    def load_config(self, config: dict):
+        """
+        Load a specific config and apply to the subwidget.
         """
         pass
 

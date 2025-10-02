@@ -72,6 +72,9 @@ The profile determines where the pipeline is run.
         # Dictionary to monitor progress of each image
         self.progress_dict = {}
 
+        self.nxf_cmd = None
+        self.nxf_params = None
+
         self.pipeline = pipeline
         # Available pipelines and their funcs
         self.pipelines = {
@@ -114,6 +117,16 @@ The profile determines where the pipeline is run.
             "profile": self.nxf_profile_box.currentText(),
         }
         return settings
+
+    def load_config(self, config):
+        profile_index = self.nxf_profile_box.findText(config["profile"])
+        if profile_index != -1:
+            self.nxf_profile_box.setCurrentIndex(profile_index)
+        base_dir = config["base_dir"]
+        if self.nxf_dir_text.text() != base_dir:
+            self.nxf_dir_text.setText(base_dir)
+            self.setup_nxf_dir_cmd(base_dir=Path(base_dir))
+        # TODO: Load advanced options
 
     def setup_nxf_dir_cmd(self, base_dir: Optional[Path] = None):
         # Set the basepath to store masks/checkpoints etc. in
@@ -815,6 +828,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.inner_widget.layout().addWidget(
             self.cancel_btn, row, col + new_colspan, rowspan, new_colspan
         )
+        # TODO: Enable save config button
 
     def _pipeline_finish(self):
         # Add a notification that the pipeline has finished

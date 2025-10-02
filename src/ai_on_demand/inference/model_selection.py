@@ -29,7 +29,7 @@ from ai_on_demand.utils import (
     sanitise_name,
     merge_dicts,
     calc_param_hash,
-    load_config,
+    load_model_config,
 )
 
 
@@ -508,6 +508,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         )
         # Register config location for use in the pipeline
         self.model_config = fname
+        # TODO: Actually fix model config load functionality
 
     def clear_model_config(self):
         self.model_config_label.setText("No model config file selected.")
@@ -531,10 +532,10 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
 
         if self.model_config is not None:
             # Load the config file
-            model_dict = load_config(self.model_config)
+            model_dict = load_model_config(self.model_config)
         elif model_version.config_path is not None:
             # Set this as the base config
-            model_dict = load_config(Path(model_version.config_path))
+            model_dict = load_model_config(Path(model_version.config_path))
             # Merge in the GUI params if they exist and have changed
             if model_version.params is not None and self.changed_defaults:
                 gui_dict = self.create_config_params(
@@ -636,6 +637,29 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
     def get_task_model_variant_name(self, executed: bool = True) -> str:
         task, model, version = self.get_task_model_variant(executed)
         return f"{task}-{model}-{sanitise_name(version)}"
+
+    def load_config(self, config):
+        model_name = config["model"]
+        model_version = config["model_type"]
+
+        model_display_name = self.base_to_display.get(model_name, None)
+        if model_display_name is None:
+            raise ValueError(f"Model {model_name} not recognised.")
+        model_index = self.model_dropdown.findText(model_display_name)
+        if model_index == -1:
+            raise ValueError(
+                f"Model {model_name} not available for this task."
+            )
+        self.model_dropdown.setCurrentIndex(model_index)
+        self.on_model_select()
+
+        version_index = self.model_version_dropdown.findText(model_version)
+        if version_index == -1:
+            raise ValueError(
+                f"Model version {model_version} not available for this model."
+            )
+        self.model_version_dropdown.setCurrentIndex(version_index)
+        self.on_model_version_select()
 
     def on_model_info(self):
         """
