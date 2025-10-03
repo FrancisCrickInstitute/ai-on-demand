@@ -446,8 +446,12 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
     def on_click_preprocess_clear(self):
         self.preprocess_sets = []
         show_info("Cleared all saved preprocessing sets!")
+    
+    def load_config(self, config):
+        self.preprocess_sets = config
 
 
+    
 class PreprocessSetWindow(QDialog):
     def __init__(self, parent=None, preprocess_txt: str = ""):
         super().__init__(parent)

@@ -510,6 +510,8 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_config = fname
         # TODO: Actually fix model config load functionality
 
+        
+
     def clear_model_config(self):
         self.model_config_label.setText("No model config file selected.")
         self.model_config = None
@@ -533,6 +535,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         if self.model_config is not None:
             # Load the config file
             model_dict = load_model_config(self.model_config)
+            self.fill_model_config_ui(model_dict)
         elif model_version.config_path is not None:
             # Set this as the base config
             model_dict = load_model_config(Path(model_version.config_path))
@@ -553,6 +556,56 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         # Save the model config
         model_config_fpath = self.save_model_config(model_dict)
         return model_config_fpath
+
+# ...existing code...
+    def fill_model_config_ui(self, config):
+        """
+        Populate the model parameter UI from a loaded config dict.
+        Accepts either a flat dict of arg_name->value or {'params': {...}}.
+        """
+        try:
+            task_model_version = self.get_task_model_variant(executed=False)
+        except Exception:
+            show_error("Select a task, model, and version before loading a config.")
+            return
+
+        # Ensure the param widgets for this (task, model, version) exist
+        self.set_model_param_widget(task_model_version)
+
+        cfg = config.get("params", config)
+        param_map = getattr(self, "model_param_dict", {}).get(task_model_version, {})
+        if not param_map:
+            return
+
+        for arg_name, entry in param_map.items():
+            if arg_name not in cfg:
+                continue
+
+            val = cfg[arg_name]
+            widget = entry.get("widget") if isinstance(entry, dict) else entry
+            if widget is None:
+                continue
+
+            try:
+                if isinstance(widget, QCheckBox):
+                    widget.setChecked(bool(val))
+                elif isinstance(widget, QComboBox):
+                    # Try to select by text; fallback to edit text if editable
+                    text_val = str(val if not isinstance(val, (list, tuple)) else val[0])
+                    idx = widget.findText(text_val)
+                    if idx >= 0:
+                        widget.setCurrentIndex(idx)
+                    elif widget.isEditable():
+                        widget.setEditText(text_val)
+                elif isinstance(widget, QLineEdit):
+                    widget.setText(str(val))
+            except Exception:
+                # Ignore incompatible values
+                pass
+
+        # Mark as changed and propagate updates
+        self.changed_defaults = True
+        self.on_param_changed()
 
     def save_model_config(self, model_dict: dict) -> Path:
         # Define save path for the model config
@@ -639,6 +692,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         return f"{task}-{model}-{sanitise_name(version)}"
 
     def load_config(self, config):
+        # Print all models in the dropdown
+        # -- available model (base) names:  ['cellpose', 'sam', 'sam2', 'empanada', 'cellposesam']
+        # -- available model (display) name names :  ['Cellpose', 'Segment Anything', 'Segment Anything 2', 'Empanada', 'Cellpose-SAM']
         model_name = config["model"]
         model_version = config["model_type"]
 

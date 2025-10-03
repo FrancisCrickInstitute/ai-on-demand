@@ -111,10 +111,9 @@ class MainWidget(QWidget):
             yaml.dump(self.plugin_settings, f)
 
     def store_config(self):
-        print('storing config')
         config_name = self.subwidgets['nxf'].config_name.text().strip()
         if not config_name:
-            config_name = "config-a"
+            config_name = "aiod-config" # default config name
         
         # get next flow config settings from the pipeline param
         nxfWidget = self.subwidgets.get('nxf')
@@ -130,12 +129,13 @@ class MainWidget(QWidget):
             if settings is not None:
                 config_settings[k] = settings
         
-        # Create a unique filename for this config
+        # If a unique file name is given by the user
         cache_dir, _ = get_plugin_cache()
-        config_file_path =   f"/Users/ahmedn/Desktop/{config_name}.yaml"
+        config_file_path = cache_dir / f"{config_name}.yaml"
+        print("-- config file location: ", config_file_path)
         
         # Save the config to its own file
-        with open(config_file_path, "w") as f:
+        with open(config_file_path, "w") as f: # this will over write if the file already exists*
             print('writing to config')
             yaml.dump(config_settings, f)
         
@@ -285,8 +285,12 @@ class MainWidget(QWidget):
         """
         Load a config file for the widget.
         """
+        # Subwidget names: ['task', 'model', 'data', 'preprocess', 'nxf', 'config', 'export']
         for subwidget in self.subwidgets.values():
-            subwidget.load_config(config=config)
+            if subwidget._name in config:
+                print(' -- subwidget name: ',subwidget._name)
+                print(' -- type of config: ', type(config[subwidget._name]))
+                subwidget.load_config(config=config[subwidget._name])
 
 
 class SubWidget(QCollapsible):

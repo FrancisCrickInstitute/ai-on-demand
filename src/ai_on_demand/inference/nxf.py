@@ -42,6 +42,7 @@ from aiod_utils.stacks import generate_stack_indices, calc_num_stacks, Stack
 class NxfWidget(SubWidget):
     _name = "nxf"
 
+    config_ready = qtpy.QtCore.Signal()
     def __init__(
         self,
         viewer: napari.Viewer,
@@ -203,24 +204,6 @@ Note that 'opening' won't do anything, this is just to see what files are presen
         # Add the cache box to the main layout
         self.inner_layout.addWidget(self.cache_box, 0, 0, 1, 2)
 
-        # Create box for the custom config settings
-        self.config_box = QGroupBox("Config Settings")
-        self.config_box.setToolTip(
-            format_tooltip("save custom configs settings which will automatically fill in all options in the ai-od pugin")
-        )
-        self.config_layout = QGridLayout()
-        self.config_box.setLayout(self.config_layout)
-
-        self.config_name_label = QLabel("Config name:")
-        self.config_name = QLineEdit(placeholderText="config_A")
-
-        self.load_config_button = QPushButton("Load Config")
-        self.load_config_button.clicked.connect(self.on_load_config)
-
-        self.config_layout.addWidget(self.config_name_label, 0, 0)
-        self.config_layout.addWidget(self.config_name, 0, 1)
-        self.config_layout.addWidget(self.load_config_button, 1, 0)
-
         # Create box for the cache settings
         self.pipeline_box = QGroupBox("Pipeline Settings")
         self.pipeline_box.setToolTip(
@@ -296,7 +279,6 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         self.pipeline_layout.addWidget(self.options_widget, 3, 0, 1, 2)
 
         self.inner_layout.addWidget(self.pipeline_box, 1, 0, 1, 2)
-        self.inner_layout.addWidget(self.config_box, 2, 0, 1, 2)
 
         # Create a button to navigate to a directory to take images from
         self.nxf_run_btn = QPushButton("Run Pipeline!")
@@ -699,16 +681,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
     def store_config(self, config):
         pass
     
-    def on_load_config(self):
-        config_dir = "/Users/ahmedn/Desktop"
-        config_path_and_filter = QFileDialog.getOpenFileName(self, "select a config file", config_dir, "YAML Files (*.yaml *.yml)")
-        config_path = config_path_and_filter[0]
-        if config_path != "":
-            print('config', config_path)
-            print('config type ', type(config_path))
-            self.parent.load_config(config_path)
-
-
     def run_pipeline(self):
         print ('running pipeline !!!!')
         if "data" not in self.parent.subwidgets:
@@ -739,13 +711,10 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self.pipeline
         ]["setup"]()
 
-        # storing config on run 
-        self.parent.store_config()
         # Don't run the pipeline if no green light given
         if not proceed:
             return
         # Store plugin settings for future sessions
-        print(' - saving settings - ')
         self.parent.store_settings()
         # Store the image paths
         self.store_img_paths(img_paths=img_paths)
@@ -789,6 +758,10 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             if self.process.returncode != 0:
                 raise RuntimeError
 
+        # TODO: Enable save config button
+        print(' -- emitting config ready ***')
+        self.config_ready.emit()
+
         # Run the pipeline
         print(" - printing nextflow command - ")
         print(nxf_cmd)
@@ -828,7 +801,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.inner_widget.layout().addWidget(
             self.cancel_btn, row, col + new_colspan, rowspan, new_colspan
         )
-        # TODO: Enable save config button
+        
 
     def _pipeline_finish(self):
         # Add a notification that the pipeline has finished

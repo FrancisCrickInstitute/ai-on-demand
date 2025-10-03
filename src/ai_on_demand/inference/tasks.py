@@ -63,10 +63,10 @@ class TaskWidget(SubWidget):
 
     def load_config(self, config: str):
         # FIXME: Using config as a name here is silly
-        if config not in TASK_NAMES:
-            raise ValueError(f"Task {config} not recognised.")
+        task = config
+        if task not in TASK_NAMES:
+            raise ValueError(f"Task {task} not recognised.")
         for task_name, task_btn in self.task_buttons.items():
-            if task_name == config["task"]:
+            if task_name == task:
                 task_btn.setChecked(True)
-            else:
-                task_btn.setChecked(False)
+                self.on_click_task()
