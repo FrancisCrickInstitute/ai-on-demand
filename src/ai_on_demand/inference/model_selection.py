@@ -695,7 +695,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         # Print all models in the dropdown
         # -- available model (base) names:  ['cellpose', 'sam', 'sam2', 'empanada', 'cellposesam']
         # -- available model (display) name names :  ['Cellpose', 'Segment Anything', 'Segment Anything 2', 'Empanada', 'Cellpose-SAM']
-        model_name = config["model"]
+        model_name = config["name"]
         model_version = config["model_type"]
 
         model_display_name = self.base_to_display.get(model_name, None)

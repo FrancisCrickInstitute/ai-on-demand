@@ -14,7 +14,7 @@ from qtpy.QtWidgets import (
     QLineEdit,
     QFileDialog
 )
-from ai_on_demand.utils import format_tooltip
+from ai_on_demand.utils import format_tooltip, get_plugin_cache
 from ai_on_demand.widget_classes import SubWidget
 
 
@@ -50,7 +50,7 @@ class ConfigWidget(SubWidget):
         self.config_box.setLayout(self.config_layout)
 
         self.config_name_label = QLabel("Config name:")
-        self.config_name = QLineEdit(placeholderText="config_A")
+        self.config_name_input = QLineEdit(placeholderText="config_A")
 
         self.load_config_button = QPushButton("Load Config")
         self.load_config_button.clicked.connect(self.on_load_config)
@@ -78,7 +78,7 @@ class ConfigWidget(SubWidget):
         # self.config_layout.addWidget(self.model_info_icon, 0, 3)
 
         self.config_layout.addWidget(self.config_name_label, 0, 0)
-        self.config_layout.addWidget(self.config_name, 0, 1)
+        self.config_layout.addWidget(self.config_name_input, 0, 1)
         self.config_layout.addWidget(self.load_config_button, 1, 0)
         self.config_layout.addWidget(self.save_config_button, 0, 2)
 
@@ -101,20 +101,23 @@ class ConfigWidget(SubWidget):
         )
     
     def on_load_config(self):
-        config_dir = "/Users/ahmedn/Desktop"
-        config_path_and_filter = QFileDialog.getOpenFileName(self, "select a config file", config_dir, "YAML Files (*.yaml *.yml)")
+        config_dir, _ = get_plugin_cache()
+        config_path_and_filter = QFileDialog.getOpenFileName(self, "select a config file", str(config_dir), "YAML Files (*.yaml *.yml)")
         config_path = config_path_and_filter[0]
-        with open(config_path, "r") as f:
-            print('was able to open')
-            config_data = yaml.safe_load(f)
+        if config_path:
+            with open(config_path, "r") as f:
+                config_data = yaml.safe_load(f)
 
-        if config_data:
-            print('config data: ', config_data)
-            print('config type ', type(config_data))
-            self.parent.load_config_file(config_data)
+            if config_data:
+                self.parent.load_config_file(config_data)
     
     def enable_save_config(self): 
         self.save_config_button.setDisabled(False)
 
     def on_save_config(self):
+        config_name = self.config_name_input.text().strip()
+        if not config_name:
+            config_name = "aiod-inference-config"
         print(' -- saving config')
+
+        self.parent.store_config(config_name)

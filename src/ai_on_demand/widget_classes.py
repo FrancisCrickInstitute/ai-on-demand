@@ -110,26 +110,35 @@ class MainWidget(QWidget):
             print(f'this is where the settings are: ',settings_path)
             yaml.dump(self.plugin_settings, f)
 
-    def store_config(self):
-        config_name = self.subwidgets['nxf'].config_name.text().strip()
-        if not config_name:
-            config_name = "aiod-config" # default config name
-        
+    def store_config(self, config_name):
         # get next flow config settings from the pipeline param
         nxfWidget = self.subwidgets.get('nxf')
-        nxf_cmd, nxf_params, proceed, img_paths = nxfWidget.pipelines[
-                nxfWidget.pipeline
-            ]["setup"]()
-        
+        nxf_params = nxfWidget.nxf_params
+
         
         # Extract settings for every subwidget that has implemented the get_settings method
-        config_settings = nxf_params
         for k, subwidget in self.subwidgets.items():
             settings = subwidget.get_settings()
             if settings is not None:
-                config_settings[k] = settings
+                nxf_params[k] = settings
         
-        # If a unique file name is given by the user
+        # restructure params into a config
+        config_settings = {
+            'task': nxf_params.get('task'),
+            'model': {
+                'name': nxf_params.get('model'),
+                'model_type': nxf_params.get('model_type'),
+                'model_config': nxf_params.get('model_config'),
+            },
+            'preprocess': nxf_params.get('preprocess'),
+            'nxf': {
+                'base_dir': nxf_params.get('nxf', {}).get('base_dir'),
+                'profile': nxf_params.get('nxf', {}).get('profile'),
+                'iou_threshold': nxf_params.get('nxf', {}).get('base_dir'),
+            },
+
+        }
+
         cache_dir, _ = get_plugin_cache()
         config_file_path = cache_dir / f"{config_name}.yaml"
         print("-- config file location: ", config_file_path)

@@ -758,14 +758,15 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             if self.process.returncode != 0:
                 raise RuntimeError
 
-        # TODO: Enable save config button
-        print(' -- emitting config ready ***')
-        self.config_ready.emit()
 
         # Run the pipeline
         print(" - printing nextflow command - ")
         print(nxf_cmd)
         _run_pipeline(nxf_cmd)
+        # emitting config ready to enable the save config button
+        self.config_ready.emit() 
+        self.nxf_params = nxf_params
+        
 
     def _reset_btns(self):
         """
