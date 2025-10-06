@@ -118,6 +118,5 @@ class ConfigWidget(SubWidget):
         config_name = self.config_name_input.text().strip()
         if not config_name:
             config_name = "aiod-inference-config"
-        print(' -- saving config')
 
         self.parent.store_config(config_name)

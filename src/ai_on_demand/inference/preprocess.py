@@ -73,8 +73,6 @@ Any preprocessing applied here is for visualization purposes only, only the orig
         self.preprocess_order.setReadOnly(True)
         self.preprocess_order.setText(self.init_order)
         # Go through each method, creating a box and populating the UI elements for each parameter
-        print('preprocess methods: ', self.preprocess_methods)
-        print('preprocess methods items: ', self.preprocess_methods.items())
         for name, d in self.preprocess_methods.items():
             group_box = QGroupBox(name)
             self.preprocess_boxes[name] = {
@@ -187,7 +185,7 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
         self.save_set_btn = QPushButton("Save preprocessing set")
         self.save_set_btn.clicked.connect(self.on_click_preprocess_save)
         self.btn_layout.addWidget(self.save_set_btn, 1, 0, 1, 1)
-        self.view_sets_btn = QPushButton("View saved sets")
+        self.view_sets_btn = QPushButton("View saved sets (0)")
         self.view_sets_btn.clicked.connect(self.on_click_preprocess_view)
         self.btn_layout.addWidget(self.view_sets_btn, 1, 1, 1, 1)
         self.clear_sets_btn = QPushButton("Clear saved sets")
@@ -401,6 +399,7 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
         self.preprocess_sets.append(current_options)
         # Reset the order list, order text, and all preprocessing options/checkboxes
         self._reset_preprocess()
+        self._update_viewsets_btn()
         show_info("Saved the current preprocessing set!")
 
     def _reset_preprocess(self):
@@ -425,6 +424,12 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
                         param_dict["values"].index(param_dict["default"])
                     )
 
+    def _update_viewsets_btn(self):
+        if self.preprocess_sets:
+            count = len(self.preprocess_sets)
+            print('updating saved sets button to {count}')
+            self.view_sets_btn.setText(f'View saved sets ({count})')
+
     def on_click_preprocess_view(self):
         display_text = ""
         if len(self.preprocess_sets) == 0:
@@ -445,10 +450,12 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
 
     def on_click_preprocess_clear(self):
         self.preprocess_sets = []
+        self._update_viewsets_btn()
         show_info("Cleared all saved preprocessing sets!")
     
     def load_config(self, config):
         self.preprocess_sets = config
+        self._update_viewsets_btn()
 
 
     

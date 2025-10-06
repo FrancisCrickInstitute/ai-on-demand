@@ -127,7 +127,25 @@ The profile determines where the pipeline is run.
         if self.nxf_dir_text.text() != base_dir:
             self.nxf_dir_text.setText(base_dir)
             self.setup_nxf_dir_cmd(base_dir=Path(base_dir))
-        # TODO: Load advanced options
+
+        # loading advanced options
+        adv = config["advanced_options"]
+        num_substacks = adv.get('num_substacks')
+        tile_boxes = [self.tile_x, self.tile_y, self.tile_z]
+        for box, val in zip(tile_boxes, num_substacks.split(',')):
+            if val == 'auto':
+                box.setValue(-1)
+            else:
+                box.setValue(int(val))
+
+        overlap_str = adv.get('overlap')
+        overlap = [float(i) for i in overlap_str.split(',')]
+
+        self.overlap_x.setValue(overlap[0])
+        self.overlap_y.setValue(overlap[1]) 
+        self.overlap_z.setValue(overlap[2])
+
+        self.iou_thresh.setValue(float(adv.get("iou_threshold")))
 
     def setup_nxf_dir_cmd(self, base_dir: Optional[Path] = None):
         # Set the basepath to store masks/checkpoints etc. in
@@ -682,7 +700,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         pass
     
     def run_pipeline(self):
-        print ('running pipeline !!!!')
         if "data" not in self.parent.subwidgets:
             raise ValueError("Cannot run pipeline without data widget!")
         # Store the image paths
@@ -760,8 +777,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
 
         # Run the pipeline
-        print(" - printing nextflow command - ")
-        print(nxf_cmd)
         _run_pipeline(nxf_cmd)
         # emitting config ready to enable the save config button
         self.config_ready.emit() 
