@@ -138,6 +138,9 @@ class MainWidget(QWidget):
                     'iou_threshold': nxf_params.get('iou_threshold')
                 }
             },
+            'data': {
+                'img_dir': nxf_params.get('img_dir')
+            }
         }
 
         cache_dir, _ = get_plugin_cache()

@@ -690,11 +690,11 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
     def get_task_model_variant_name(self, executed: bool = True) -> str:
         task, model, version = self.get_task_model_variant(executed)
         return f"{task}-{model}-{sanitise_name(version)}"
+    
+    def _display_to_base_model_version(self, model_version):
+        return model_version.replace(" ", "-")
 
     def load_config(self, config):
-        # Print all models in the dropdown
-        # -- available model (base) names:  ['cellpose', 'sam', 'sam2', 'empanada', 'cellposesam']
-        # -- available model (display) name names :  ['Cellpose', 'Segment Anything', 'Segment Anything 2', 'Empanada', 'Cellpose-SAM']
         model_name = config["name"]
         model_version = config["model_type"]
 
@@ -709,7 +709,12 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_dropdown.setCurrentIndex(model_index)
         self.on_model_select()
 
-        version_index = self.model_version_dropdown.findText(model_version)
+        version_index = -1
+        for i in range(self.model_version_dropdown.count()):
+            item_text = self.model_version_dropdown.itemText(i)
+            if sanitise_name(item_text) == sanitise_name(model_version):
+                version_index = i
+                break
         if version_index == -1:
             raise ValueError(
                 f"Model version {model_version} not available for this model."
