@@ -425,10 +425,8 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
                     )
 
     def _update_viewsets_btn(self):
-        if self.preprocess_sets:
-            count = len(self.preprocess_sets)
-            print('updating saved sets button to {count}')
-            self.view_sets_btn.setText(f'View saved sets ({count})')
+        count = len(self.preprocess_sets)
+        self.view_sets_btn.setText(f'View saved sets ({count})')
 
     def on_click_preprocess_view(self):
         display_text = ""
@@ -454,8 +452,9 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
         show_info("Cleared all saved preprocessing sets!")
     
     def load_config(self, config):
-        self.preprocess_sets = config
-        self._update_viewsets_btn()
+        if config:
+            self.preprocess_sets = config
+            self._update_viewsets_btn()
 
 
     
