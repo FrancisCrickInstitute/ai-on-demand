@@ -12,6 +12,7 @@ from ai_on_demand.inference import (
     ExportWidget,
     ModelWidget,
     NxfWidget,
+    SshWidget,
     PreprocessWidget,
 )
 from ai_on_demand.widget_classes import MainWidget
@@ -72,6 +73,11 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 pipeline="inference",
                 expanded=False,
             )
+        )
+
+        # Create a widget for users to enter ssh details and send commands
+        self.register_widget(
+            SshWidget(viewer=self.viewer, parent=self, expanded=False)
         )
 
         # Add box for exporting masks
