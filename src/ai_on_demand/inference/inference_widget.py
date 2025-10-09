@@ -12,6 +12,7 @@ from ai_on_demand.inference import (
     ExportWidget,
     ModelWidget,
     NxfWidget,
+    SshWidget,
     PreprocessWidget,
     ConfigWidget,
 )

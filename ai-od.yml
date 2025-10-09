@@ -15,6 +15,7 @@ dependencies:
   - pip
   - pip:
     - pandas
+    - paramiko
     - platformdirs
     - tabulate
     - glasbey
