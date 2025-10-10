@@ -343,6 +343,12 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         for layer in img_layers:
             self.viewer.layers.remove(layer)
     
+    def get_config_params(self, params):
+        widget_config = {
+            'img_dir': params.get('img_dir')
+        }
+        return widget_config
+
     def load_config(self, config):
         df = pd.read_csv(config['img_dir'])
         img_paths = df['img_path'].tolist()

@@ -119,6 +119,18 @@ The profile determines where the pipeline is run.
         }
         return settings
 
+    def get_config_params(self, params):
+        widget_config = {
+            "base_dir": str(self.nxf_base_dir),
+            "profile": self.nxf_profile_box.currentText(),
+            'advanced_options': {
+                'num_substacks': params.get('num_substacks'),
+                'overlap': params.get('overlap'),
+                'iou_threshold': params.get('iou_threshold'),
+            }
+        }
+        return widget_config
+
     def load_config(self, config):
         profile_index = self.nxf_profile_box.findText(config["profile"])
         if profile_index != -1:
@@ -294,7 +306,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         self.options_layout.setContentsMargins(0, 0, 0, 0)
         self.advanced_layout.setContentsMargins(4, 0, 4, 0)
         self.options_widget.setLayout(self.options_layout)
-        self.pipeline_layout.addWidget(self.options_widget, 3, 0, 1, 2)
+        self.pipeline_layout.addWidget(self.options_widget, 2, 0, 1, 2)
 
         self.inner_layout.addWidget(self.pipeline_box, 1, 0, 1, 2)
 
@@ -319,7 +331,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         # Add the label and progress bar to the layout
         pbar_layout.addWidget(self.pbar_label)
         pbar_layout.addWidget(self.pbar)
-        self.inner_layout.addLayout(pbar_layout, 6, 0, 1, 2)
+        self.inner_layout.addLayout(pbar_layout, 5, 0, 1, 2)
         # TQDM progress bar to monitor completion time
         self.tqdm_pbar = None
 
@@ -696,9 +708,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         """
         raise NotImplementedError
 
-    def store_config(self, config):
-        pass
-    
     def run_pipeline(self):
         if "data" not in self.parent.subwidgets:
             raise ValueError("Cannot run pipeline without data widget!")

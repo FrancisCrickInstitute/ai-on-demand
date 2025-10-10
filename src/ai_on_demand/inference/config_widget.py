@@ -1,9 +1,8 @@
 from typing import Optional
 
-from napari._qt.qt_resources import QColoredSVGIcon
-from aiod_registry import TASK_NAMES
 import napari
 import yaml
+from datetime import datetime
 from qtpy.QtWidgets import (
     QWidget,
     QLayout,
@@ -50,10 +49,17 @@ class ConfigWidget(SubWidget):
         self.config_box.setLayout(self.config_layout)
 
         self.config_name_label = QLabel("Config name:")
-        self.config_name_input = QLineEdit(placeholderText="config_A")
+        self.config_name_input = QLineEdit(placeholderText="project_config_YYYY-MM-DDTHH/MM")
+
+        self.save_dir, _ = get_plugin_cache()
+        self.save_dir_label = QLabel(f"Save Directory: {str(self.save_dir)}")
+        self.save_dir_value_label = QLabel(str(self.save_dir))
 
         self.load_config_button = QPushButton("Load Config")
         self.load_config_button.clicked.connect(self.on_load_config)
+
+        self.save_dir_button = QPushButton("Change Save Directory")
+        self.save_dir_button.clicked.connect(self.on_change_save_dir)
 
         self.save_config_button = QPushButton("Save Config")
         self.save_config_button.setDisabled(True)
@@ -62,47 +68,17 @@ class ConfigWidget(SubWidget):
         )
         self.save_config_button.clicked.connect(self.on_save_config)
 
-
-        # TODO: probably not needed but can have further info about how save config works
-        # # Add an icon for information about the selected model
-        # self.model_info_icon = QPushButton("")
-        # self.model_info_icon.setIcon(
-        #     QColoredSVGIcon.from_resources("help").colored(theme="dark")
-        # )
-        # # Fix the size, and set the icon as a percentage of this
-        # self.model_info_icon.setFixedSize(30, 30)
-        # self.model_info_icon.setIconSize(self.model_info_icon.size() * 0.65)
-        # self.model_info_icon.setToolTip(
-        #     format_tooltip("Information about saving configs")
-        # )
-        # self.config_layout.addWidget(self.model_info_icon, 0, 3)
-
-        self.config_layout.addWidget(self.config_name_label, 0, 0)
-        self.config_layout.addWidget(self.config_name_input, 0, 1)
-        self.config_layout.addWidget(self.load_config_button, 1, 0)
-        self.config_layout.addWidget(self.save_config_button, 0, 2)
-
+        self.config_layout.addWidget(self.config_name_label, 0, 0, 1, 1)
+        self.config_layout.addWidget(self.config_name_input, 0, 1, 1, 5)
+        self.config_layout.addWidget(self.save_dir_label, 1, 0, 1, 3)
+        self.config_layout.addWidget(self.save_dir_button, 1, 3, 1, 3)
+        self.config_layout.addWidget(self.save_config_button, 2, 0, 1, 3)
+        self.config_layout.addWidget(self.load_config_button, 2, 3, 1, 3)
+        
         self.inner_layout.addWidget(self.config_box)
         
-
-    def on_click_task(self):
-        """
-        Callback for when a task button is clicked.
-
-        Updates the model box to show only the models available for the selected task.
-        """
-        # Find out which button was pressed
-        for task_name, task_btn in self.task_buttons.items():
-            if task_btn.isChecked():
-                self.parent.selected_task = task_name
-        # Update the model box for the selected task
-        self.parent.subwidgets["model"].update_model_box(
-            self.parent.selected_task
-        )
-    
     def on_load_config(self):
-        config_dir, _ = get_plugin_cache()
-        config_path_and_filter = QFileDialog.getOpenFileName(self, "select a config file", str(config_dir), "YAML Files (*.yaml *.yml)")
+        config_path_and_filter = QFileDialog.getOpenFileName(self, "select a config file", str(self.save_dir), "YAML Files (*.yaml *.yml)")
         config_path = config_path_and_filter[0]
         if config_path:
             with open(config_path, "r") as f:
@@ -113,10 +89,21 @@ class ConfigWidget(SubWidget):
     
     def enable_save_config(self): 
         self.save_config_button.setDisabled(False)
+    
+    def on_change_save_dir(self):
+        self.save_dir = QFileDialog.getExistingDirectory(self, caption="Select directory to store project config", directory=None)
+        
+        if self.save_dir == '':
+            return
+        
+        self.save_dir_label.setText(f'Save Directory: {str(self.save_dir)}')
+
+
+
 
     def on_save_config(self):
         config_name = self.config_name_input.text().strip()
         if not config_name:
-            config_name = "aiod-inference-config"
+            config_name = f"project_config_{datetime.now().isoformat(timespec='minutes')}" 
 
-        self.parent.store_config(config_name)
+        self.parent.store_config(self.save_dir, config_name)

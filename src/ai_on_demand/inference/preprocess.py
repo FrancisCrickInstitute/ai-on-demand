@@ -451,11 +451,13 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
         self._update_viewsets_btn()
         show_info("Cleared all saved preprocessing sets!")
     
+    def get_config_params(self, params):
+        return params.get('preprocess')
+ 
     def load_config(self, config):
         if config:
             self.preprocess_sets = config
             self._update_viewsets_btn()
-
 
     
 class PreprocessSetWindow(QDialog):

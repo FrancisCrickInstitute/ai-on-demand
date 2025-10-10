@@ -84,10 +84,11 @@ Run segmentation/inference on selected images using one of the available pre-tra
             ExportWidget(viewer=self.viewer, parent=self, expanded=False)
         )
 
-        # connecting nxf to Config_widget (enable save after run_pipeline)
-        nxf = self.subwidgets['nxf']
-        config_widget = self.subwidgets['config']
-        nxf.config_ready.connect(config_widget.enable_save_config)
+        self.subwidgets['nxf'].config_ready.connect(
+            self.subwidgets["config"].enable_save_config
+        )
+
+
 
     def get_run_hash(self, nxf_params: dict):
         """

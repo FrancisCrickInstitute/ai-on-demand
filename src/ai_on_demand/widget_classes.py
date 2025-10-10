@@ -108,48 +108,22 @@ class MainWidget(QWidget):
         with open(settings_path, "w") as f:
             yaml.dump(self.plugin_settings, f)
 
-    def store_config(self, config_name):
+    def store_config(self, save_dir, config_name):
         # get next flow config settings from the pipeline param
         nxfWidget = self.subwidgets.get('nxf')
         nxf_params = nxfWidget.nxf_params
 
-        
-        # Extract settings for every subwidget that has implemented the get_settings method
+        config_settings = {}
         for k, subwidget in self.subwidgets.items():
-            settings = subwidget.get_settings()
-            if settings is not None:
-                nxf_params[k] = settings
-        
-        # restructure params into a config
-        config_settings = {
-            'task': nxf_params.get('task'),
-            'model': {
-                'name': nxf_params.get('model'),
-                'model_type': nxf_params.get('model_type'),
-                'model_config': nxf_params.get('model_config'),
-            },
-            'preprocess': nxf_params.get('preprocess'),
-            'nxf': {
-                'base_dir': nxf_params.get('nxf', {}).get('base_dir'),
-                'profile': nxf_params.get('nxf', {}).get('profile'),
-                'advanced_options': {
-                    'num_substacks': nxf_params.get('num_substacks'),
-                    'overlap': nxf_params.get('overlap'),
-                    'iou_threshold': nxf_params.get('iou_threshold')
-                }
-            },
-            'data': {
-                'img_dir': nxf_params.get('img_dir')
-            }
-        }
+            config_for_subwidget = subwidget.get_config_params(nxf_params)
+            if config_for_subwidget is not None:
+                config_settings[k] = config_for_subwidget
 
-        cache_dir, _ = get_plugin_cache()
-        config_file_path = cache_dir / f"{config_name}.yaml"
+        config_file_path = f"{save_dir}/{config_name}.yaml"
         
         # Save the config to its own file
-        with open(config_file_path, "w") as f: # this will over write if the file already exists*
+        with open(config_file_path, "w") as f:
             yaml.dump(config_settings, f)
-        
         show_info(f"Config saved: {config_file_path}")
     
     @abstractmethod
@@ -176,12 +150,9 @@ class MainWidget(QWidget):
         """
         Load a config file for the widget.
         """
-        # Subwidget names: ['task', 'model', 'data', 'preprocess', 'nxf', 'config', 'export']
         for subwidget in self.subwidgets.values():
             if subwidget._name in config:
                 subwidget.load_config(config=config[subwidget._name])
-
-
 class SubWidget(QCollapsible):
     # Define a shorthand name to be used to register the widget
     _name: str = None
@@ -296,6 +267,13 @@ class SubWidget(QCollapsible):
     def load_config(self, config: dict):
         """
         Load a specific config and apply to the subwidget.
+        """
+        pass
+
+    @abstractmethod
+    def get_config_params(self, params: dict):
+        """
+        Gets the config params for the widget
         """
         pass
 
