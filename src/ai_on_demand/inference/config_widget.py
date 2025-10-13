@@ -49,7 +49,7 @@ class ConfigWidget(SubWidget):
         self.config_box.setLayout(self.config_layout)
 
         self.config_name_label = QLabel("Config name:")
-        self.config_name_input = QLineEdit(placeholderText="project_config_YYYY-MM-DDTHH/MM")
+        self.config_name_input = QLineEdit(placeholderText="e.g. project_config_YYYY-MM-DDTHH/MM")
 
         self.save_dir, _ = get_plugin_cache()
         self.save_dir_label = QLabel(f"Save Directory: {str(self.save_dir)}")
@@ -68,6 +68,7 @@ class ConfigWidget(SubWidget):
         )
         self.save_config_button.clicked.connect(self.on_save_config)
 
+        self.save_dir_label.setWordWrap(True)
         self.config_layout.addWidget(self.config_name_label, 0, 0, 1, 1)
         self.config_layout.addWidget(self.config_name_input, 0, 1, 1, 5)
         self.config_layout.addWidget(self.save_dir_label, 1, 0, 1, 3)
