@@ -52,7 +52,7 @@ class ConfigWidget(SubWidget):
 
         self.config_name_label = QLabel("Config name:")
         self.config_name_input = QLineEdit(
-            placeholderText="e.g. project_config_YYYY-MM-DDTHH/MM"
+            placeholderText="e.g. project_config_YYYY-MM-DDTHH:MM"
         )
 
         self.save_dir, _ = get_plugin_cache()
