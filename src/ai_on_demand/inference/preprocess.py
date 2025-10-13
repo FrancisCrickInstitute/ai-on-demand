@@ -460,10 +460,10 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
     def load_config(self, config):
         if config:
             self.preprocess_sets = config
-            self._update_viewsets_btn()
         else:
             self.preprocess_sets = []
-            self._update_viewsets_btn()
+        self._update_viewsets_btn()
+        self._reset_preprocess()
 
 
 class PreprocessSetWindow(QDialog):
