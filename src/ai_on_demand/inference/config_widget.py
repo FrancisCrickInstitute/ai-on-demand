@@ -44,7 +44,7 @@ class ConfigWidget(SubWidget):
         self.config_box = QGroupBox("Config Settings")
         self.config_box.setToolTip(
             format_tooltip(
-                "save custom configs settings which will automatically fill in all options in the ai-od pugin"
+                "Save a config containing all current UI settings, to automatically fill in all options in the plugin when loaded."
             )
         )
         self.config_layout = QGridLayout()
