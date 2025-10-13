@@ -115,8 +115,8 @@ class MainWidget(QWidget):
 
         config_settings = {}
         for k, subwidget in self.subwidgets.items():
-            config_for_subwidget = subwidget.get_config_params(nxf_params)
-            if config_for_subwidget is not None:
+            if hasattr(subwidget, "get_config_params"):
+                config_for_subwidget = subwidget.get_config_params(nxf_params)
                 config_settings[k] = config_for_subwidget
 
         config_file_path = f"{save_dir}/{config_name}.yaml"

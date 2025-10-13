@@ -28,7 +28,6 @@ from qtpy.QtWidgets import (
     QDoubleSpinBox,
     QGroupBox,
     QMessageBox,
-    QLineEdit
 )
 import tqdm
 import yaml
@@ -306,7 +305,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         self.options_layout.setContentsMargins(0, 0, 0, 0)
         self.advanced_layout.setContentsMargins(4, 0, 4, 0)
         self.options_widget.setLayout(self.options_layout)
-        self.pipeline_layout.addWidget(self.options_widget, 2, 0, 1, 2)
+        self.pipeline_layout.addWidget(self.options_widget, 3, 0, 1, 2)
 
         self.inner_layout.addWidget(self.pipeline_box, 1, 0, 1, 2)
 
@@ -318,7 +317,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
                 "Run the pipeline with the chosen organelle(s), model, and images."
             )
         )
-        self.inner_layout.addWidget(self.nxf_run_btn, 3, 0, 1, 2)
+        self.inner_layout.addWidget(self.nxf_run_btn, 2, 0, 1, 2)
 
         pbar_layout = QHBoxLayout()
         # Add progress bar

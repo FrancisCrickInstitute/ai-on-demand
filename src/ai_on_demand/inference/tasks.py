@@ -62,7 +62,6 @@ class TaskWidget(SubWidget):
         )
 
     def load_config(self, config: str):
-        # FIXME: Using config as a name here is silly
         task = config
         if task not in TASK_NAMES:
             raise ValueError(f"Task {task} not recognised.")
