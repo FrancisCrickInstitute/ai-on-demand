@@ -69,6 +69,6 @@ class TaskWidget(SubWidget):
             if task_name == task:
                 task_btn.setChecked(True)
                 self.on_click_task()
-    
+
     def get_config_params(self, params):
-        return params.get('task')
+        return params.get("task")

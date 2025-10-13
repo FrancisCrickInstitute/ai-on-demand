@@ -11,7 +11,7 @@ from qtpy.QtWidgets import (
     QLabel,
     QPushButton,
     QLineEdit,
-    QFileDialog
+    QFileDialog,
 )
 from ai_on_demand.utils import format_tooltip, get_plugin_cache
 from ai_on_demand.widget_classes import SubWidget
@@ -43,13 +43,17 @@ class ConfigWidget(SubWidget):
         # Create box for the custom config settings
         self.config_box = QGroupBox("Config Settings")
         self.config_box.setToolTip(
-            format_tooltip("save custom configs settings which will automatically fill in all options in the ai-od pugin")
+            format_tooltip(
+                "save custom configs settings which will automatically fill in all options in the ai-od pugin"
+            )
         )
         self.config_layout = QGridLayout()
         self.config_box.setLayout(self.config_layout)
 
         self.config_name_label = QLabel("Config name:")
-        self.config_name_input = QLineEdit(placeholderText="e.g. project_config_YYYY-MM-DDTHH/MM")
+        self.config_name_input = QLineEdit(
+            placeholderText="e.g. project_config_YYYY-MM-DDTHH/MM"
+        )
 
         self.save_dir, _ = get_plugin_cache()
         self.save_dir_label = QLabel(f"Save Directory: {str(self.save_dir)}")
@@ -64,7 +68,9 @@ class ConfigWidget(SubWidget):
         self.save_config_button = QPushButton("Save Config")
         self.save_config_button.setDisabled(True)
         self.save_config_button.setToolTip(
-            format_tooltip("Saving becomes available after running pipeline once")
+            format_tooltip(
+                "Saving becomes available after running pipeline once"
+            )
         )
         self.save_config_button.clicked.connect(self.on_save_config)
 
@@ -75,11 +81,16 @@ class ConfigWidget(SubWidget):
         self.config_layout.addWidget(self.save_dir_button, 1, 3, 1, 3)
         self.config_layout.addWidget(self.save_config_button, 2, 0, 1, 3)
         self.config_layout.addWidget(self.load_config_button, 2, 3, 1, 3)
-        
+
         self.inner_layout.addWidget(self.config_box)
-        
+
     def on_load_config(self):
-        config_path_and_filter = QFileDialog.getOpenFileName(self, "select a config file", str(self.save_dir), "YAML Files (*.yaml *.yml)")
+        config_path_and_filter = QFileDialog.getOpenFileName(
+            self,
+            "select a config file",
+            str(self.save_dir),
+            "YAML Files (*.yaml *.yml)",
+        )
         config_path = config_path_and_filter[0]
         if config_path:
             with open(config_path, "r") as f:
@@ -87,24 +98,25 @@ class ConfigWidget(SubWidget):
 
             if config_data:
                 self.parent.load_config_file(config_data)
-    
-    def enable_save_config(self): 
+
+    def enable_save_config(self):
         self.save_config_button.setDisabled(False)
-    
+
     def on_change_save_dir(self):
-        self.save_dir = QFileDialog.getExistingDirectory(self, caption="Select directory to store project config", directory=None)
-        
-        if self.save_dir == '':
+        self.save_dir = QFileDialog.getExistingDirectory(
+            self,
+            caption="Select directory to store project config",
+            directory=None,
+        )
+
+        if self.save_dir == "":
             return
-        
-        self.save_dir_label.setText(f'Save Directory: {str(self.save_dir)}')
 
-
-
+        self.save_dir_label.setText(f"Save Directory: {str(self.save_dir)}")
 
     def on_save_config(self):
         config_name = self.config_name_input.text().strip()
         if not config_name:
-            config_name = f"project_config_{datetime.now().isoformat(timespec='minutes')}" 
+            config_name = f"project_config_{datetime.now().isoformat(timespec='minutes')}"
 
         self.parent.store_config(self.save_dir, config_name)

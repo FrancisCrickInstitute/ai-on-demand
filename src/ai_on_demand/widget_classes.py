@@ -110,7 +110,7 @@ class MainWidget(QWidget):
 
     def store_config(self, save_dir, config_name):
         # get next flow config settings from the pipeline param
-        nxfWidget = self.subwidgets.get('nxf')
+        nxfWidget = self.subwidgets.get("nxf")
         nxf_params = nxfWidget.nxf_params
 
         config_settings = {}
@@ -120,12 +120,12 @@ class MainWidget(QWidget):
                 config_settings[k] = config_for_subwidget
 
         config_file_path = f"{save_dir}/{config_name}.yaml"
-        
+
         # Save the config to its own file
         with open(config_file_path, "w") as f:
             yaml.dump(config_settings, f)
         show_info(f"Config saved: {config_file_path}")
-    
+
     @abstractmethod
     def get_run_hash(self):
         """
@@ -153,6 +153,8 @@ class MainWidget(QWidget):
         for subwidget in self.subwidgets.values():
             if subwidget._name in config:
                 subwidget.load_config(config=config[subwidget._name])
+
+
 class SubWidget(QCollapsible):
     # Define a shorthand name to be used to register the widget
     _name: str = None

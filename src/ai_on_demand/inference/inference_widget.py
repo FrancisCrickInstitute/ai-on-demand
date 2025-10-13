@@ -13,7 +13,7 @@ from ai_on_demand.inference import (
     ModelWidget,
     NxfWidget,
     PreprocessWidget,
-    ConfigWidget
+    ConfigWidget,
 )
 from ai_on_demand.widget_classes import MainWidget
 from ai_on_demand.utils import calc_param_hash
@@ -84,11 +84,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
             ExportWidget(viewer=self.viewer, parent=self, expanded=False)
         )
 
-        self.subwidgets['nxf'].config_ready.connect(
+        self.subwidgets["nxf"].config_ready.connect(
             self.subwidgets["config"].enable_save_config
         )
-
-
 
     def get_run_hash(self, nxf_params: dict):
         """

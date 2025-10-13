@@ -510,8 +510,6 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_config = fname
         # TODO: Actually fix model config load functionality
 
-        
-
     def clear_model_config(self):
         self.model_config_label.setText("No model config file selected.")
         self.model_config = None
@@ -639,7 +637,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
     def get_task_model_variant_name(self, executed: bool = True) -> str:
         task, model, version = self.get_task_model_variant(executed)
         return f"{task}-{model}-{sanitise_name(version)}"
-    
+
     def load_config(self, config):
         model_name = config["name"]
         model_version = config["model_type"]
@@ -670,12 +668,11 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
 
     def get_config_params(self, params):
         widget_config = {
-            'name' : params.get('model'),
-            'model_type' : params.get('model_type'),
-            'model_config' : params.get('model_config'),
+            "name": params.get("model"),
+            "model_type": params.get("model_type"),
+            "model_config": params.get("model_config"),
         }
         return widget_config
-    
 
     def on_model_info(self):
         """

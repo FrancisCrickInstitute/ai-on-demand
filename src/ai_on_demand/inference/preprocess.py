@@ -426,7 +426,7 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
 
     def _update_viewsets_btn(self):
         count = len(self.preprocess_sets)
-        self.view_sets_btn.setText(f'View saved sets ({count})')
+        self.view_sets_btn.setText(f"View saved sets ({count})")
 
     def on_click_preprocess_view(self):
         display_text = ""
@@ -450,13 +450,13 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
         self.preprocess_sets = []
         self._update_viewsets_btn()
         show_info("Cleared all saved preprocessing sets!")
-    
+
     def get_config_params(self, params):
-        preprocess_params = params.get('preprocess')
+        preprocess_params = params.get("preprocess")
         if preprocess_params is not None:
             return preprocess_params
         return False
- 
+
     def load_config(self, config):
         if config:
             self.preprocess_sets = config
@@ -464,6 +464,7 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
         else:
             self.preprocess_sets = []
             self._update_viewsets_btn()
+
 
 class PreprocessSetWindow(QDialog):
     def __init__(self, parent=None, preprocess_txt: str = ""):

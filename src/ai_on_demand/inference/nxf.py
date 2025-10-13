@@ -42,6 +42,7 @@ class NxfWidget(SubWidget):
     _name = "nxf"
 
     config_ready = qtpy.QtCore.Signal()
+
     def __init__(
         self,
         viewer: napari.Viewer,
@@ -122,11 +123,11 @@ The profile determines where the pipeline is run.
         widget_config = {
             "base_dir": str(self.nxf_base_dir),
             "profile": self.nxf_profile_box.currentText(),
-            'advanced_options': {
-                'num_substacks': params.get('num_substacks'),
-                'overlap': params.get('overlap'),
-                'iou_threshold': params.get('iou_threshold'),
-            }
+            "advanced_options": {
+                "num_substacks": params.get("num_substacks"),
+                "overlap": params.get("overlap"),
+                "iou_threshold": params.get("iou_threshold"),
+            },
         }
         return widget_config
 
@@ -141,19 +142,19 @@ The profile determines where the pipeline is run.
 
         # loading advanced options
         adv = config["advanced_options"]
-        num_substacks = adv.get('num_substacks')
+        num_substacks = adv.get("num_substacks")
         tile_boxes = [self.tile_x, self.tile_y, self.tile_z]
-        for box, val in zip(tile_boxes, num_substacks.split(',')):
-            if val == 'auto':
+        for box, val in zip(tile_boxes, num_substacks.split(",")):
+            if val == "auto":
                 box.setValue(-1)
             else:
                 box.setValue(int(val))
 
-        overlap_str = adv.get('overlap')
-        overlap = [float(i) for i in overlap_str.split(',')]
+        overlap_str = adv.get("overlap")
+        overlap = [float(i) for i in overlap_str.split(",")]
 
         self.overlap_x.setValue(overlap[0])
-        self.overlap_y.setValue(overlap[1]) 
+        self.overlap_y.setValue(overlap[1])
         self.overlap_z.setValue(overlap[2])
 
         self.iou_thresh.setValue(float(adv.get("iou_threshold")))
@@ -783,13 +784,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             if self.process.returncode != 0:
                 raise RuntimeError
 
-
         # Run the pipeline
         _run_pipeline(nxf_cmd)
         # emitting config ready to enable the save config button
-        self.config_ready.emit() 
+        self.config_ready.emit()
         self.nxf_params = nxf_params
-        
 
     def _reset_btns(self):
         """
@@ -825,7 +824,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.inner_widget.layout().addWidget(
             self.cancel_btn, row, col + new_colspan, rowspan, new_colspan
         )
-        
 
     def _pipeline_finish(self):
         # Add a notification that the pipeline has finished
