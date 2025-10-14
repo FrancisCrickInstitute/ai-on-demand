@@ -55,14 +55,20 @@ class ConfigWidget(SubWidget):
             placeholderText="e.g. project_config_YYYY-MM-DDTHH:MM"
         )
 
-        self.save_dir, _ = get_plugin_cache()
-        self.save_dir_label = QLabel(f"Save Directory: {str(self.save_dir)}")
-        self.save_dir_value_label = QLabel(str(self.save_dir))
+        nxf_base_dir = getattr(
+            self.parent.subwidgets.get("nxf"), "nxf_base_dir", None
+        )
+        if nxf_base_dir:
+            self.save_dir = nxf_base_dir / "project_configs"
+        else:
+            self.save_dir, _ = get_plugin_cache()
+        self.save_dir_label = QLabel(f"Save directory:")
+        self.save_dir_text = QLabel(str(self.save_dir))
 
         self.load_config_button = QPushButton("Load Config")
         self.load_config_button.clicked.connect(self.on_load_config)
 
-        self.save_dir_button = QPushButton("Change Save Directory")
+        self.save_dir_button = QPushButton("Change")
         self.save_dir_button.clicked.connect(self.on_change_save_dir)
 
         self.save_config_button = QPushButton("Save Config")
@@ -77,8 +83,9 @@ class ConfigWidget(SubWidget):
         self.save_dir_label.setWordWrap(True)
         self.config_layout.addWidget(self.config_name_label, 0, 0, 1, 1)
         self.config_layout.addWidget(self.config_name_input, 0, 1, 1, 5)
-        self.config_layout.addWidget(self.save_dir_label, 1, 0, 1, 3)
-        self.config_layout.addWidget(self.save_dir_button, 1, 3, 1, 3)
+        self.config_layout.addWidget(self.save_dir_label, 1, 0, 1, 2)
+        self.config_layout.addWidget(self.save_dir_text, 1, 2, 1, 3)
+        self.config_layout.addWidget(self.save_dir_button, 1, 5, 1, 1)
         self.config_layout.addWidget(self.save_config_button, 2, 0, 1, 3)
         self.config_layout.addWidget(self.load_config_button, 2, 3, 1, 3)
 
@@ -112,7 +119,7 @@ class ConfigWidget(SubWidget):
         if self.save_dir == "":
             return
 
-        self.save_dir_label.setText(f"Save Directory: {str(self.save_dir)}")
+        self.save_dir_text.setText(str(self.save_dir))
 
     def on_save_config(self):
         config_name = self.config_name_input.text().strip()

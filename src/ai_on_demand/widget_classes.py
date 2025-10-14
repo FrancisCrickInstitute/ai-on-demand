@@ -119,9 +119,8 @@ class MainWidget(QWidget):
                 config_for_subwidget = subwidget.get_config_params(nxf_params)
                 config_settings[k] = config_for_subwidget
 
-        config_file_path = f"{save_dir}/{config_name}.yaml"
-
-        # Save the config to its own file
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
+        config_file_path = Path(save_dir) / f"{config_name}.yaml"
         with open(config_file_path, "w") as f:
             yaml.dump(config_settings, f)
         show_info(f"Config saved: {config_file_path}")
@@ -153,6 +152,7 @@ class MainWidget(QWidget):
         for subwidget in self.subwidgets.values():
             if subwidget._name in config:
                 subwidget.load_config(config=config[subwidget._name])
+        show_info("Configuration loaded successfully.")
 
 
 class SubWidget(QCollapsible):
