@@ -184,7 +184,7 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
         self.save_set_btn = QPushButton("Save preprocessing set")
         self.save_set_btn.clicked.connect(self.on_click_preprocess_save)
         self.btn_layout.addWidget(self.save_set_btn, 1, 0, 1, 1)
-        self.view_sets_btn = QPushButton("View saved sets")
+        self.view_sets_btn = QPushButton("View saved sets (0)")
         self.view_sets_btn.clicked.connect(self.on_click_preprocess_view)
         self.btn_layout.addWidget(self.view_sets_btn, 1, 1, 1, 1)
         self.clear_sets_btn = QPushButton("Clear saved sets")
@@ -398,6 +398,7 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
         self.preprocess_sets.append(current_options)
         # Reset the order list, order text, and all preprocessing options/checkboxes
         self._reset_preprocess()
+        self._update_viewsets_btn()
         show_info("Saved the current preprocessing set!")
 
     def _reset_preprocess(self):
@@ -422,6 +423,10 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
                         param_dict["values"].index(param_dict["default"])
                     )
 
+    def _update_viewsets_btn(self):
+        count = len(self.preprocess_sets)
+        self.view_sets_btn.setText(f"View saved sets ({count})")
+
     def on_click_preprocess_view(self):
         display_text = ""
         if len(self.preprocess_sets) == 0:
@@ -442,7 +447,22 @@ Rescale mask layers to raw data size (if downsampled). Helps visually compare wi
 
     def on_click_preprocess_clear(self):
         self.preprocess_sets = []
+        self._update_viewsets_btn()
         show_info("Cleared all saved preprocessing sets!")
+
+    def get_config_params(self, params):
+        preprocess_params = params.get("preprocess")
+        if preprocess_params is not None:
+            return preprocess_params
+        return False
+
+    def load_config(self, config):
+        if config:
+            self.preprocess_sets = config
+        else:
+            self.preprocess_sets = []
+        self._update_viewsets_btn()
+        self._reset_preprocess()
 
 
 class PreprocessSetWindow(QDialog):

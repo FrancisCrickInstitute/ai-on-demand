@@ -15,6 +15,7 @@ from qtpy.QtWidgets import (
     QFileDialog,
 )
 import skimage.io
+import pandas as pd
 
 from ai_on_demand.widget_classes import SubWidget
 from ai_on_demand.utils import format_tooltip, get_image_layer_path
@@ -341,6 +342,16 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         img_layers = [i for i in self.viewer.layers if isinstance(i, Image)]
         for layer in img_layers:
             self.viewer.layers.remove(layer)
+
+    def get_config_params(self, params):
+        widget_config = {"img_dir": params.get("img_dir")}
+        return widget_config
+
+    def load_config(self, config):
+        df = pd.read_csv(config["img_dir"])
+        img_paths = df["img_path"].tolist()
+        self.update_file_count(paths=img_paths)
+        self.view_images(imgs_to_load=img_paths)
 
     def specify_url(self):
         """

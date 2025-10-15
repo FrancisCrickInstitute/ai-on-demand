@@ -41,6 +41,8 @@ from aiod_utils.stacks import generate_stack_indices, calc_num_stacks, Stack
 class NxfWidget(SubWidget):
     _name = "nxf"
 
+    config_ready = qtpy.QtCore.Signal()
+
     def __init__(
         self,
         viewer: napari.Viewer,
@@ -70,6 +72,9 @@ The profile determines where the pipeline is run.
         self.all_loaded = False
         # Dictionary to monitor progress of each image
         self.progress_dict = {}
+
+        self.nxf_cmd = None
+        self.nxf_params = None
 
         self.pipeline = pipeline
         # Available pipelines and their funcs
@@ -113,6 +118,46 @@ The profile determines where the pipeline is run.
             "profile": self.nxf_profile_box.currentText(),
         }
         return settings
+
+    def get_config_params(self, params):
+        widget_config = {
+            "base_dir": str(self.nxf_base_dir),
+            "profile": self.nxf_profile_box.currentText(),
+            "advanced_options": {
+                "num_substacks": params.get("num_substacks"),
+                "overlap": params.get("overlap"),
+                "iou_threshold": params.get("iou_threshold"),
+            },
+        }
+        return widget_config
+
+    def load_config(self, config):
+        profile_index = self.nxf_profile_box.findText(config["profile"])
+        if profile_index != -1:
+            self.nxf_profile_box.setCurrentIndex(profile_index)
+        base_dir = config["base_dir"]
+        if self.nxf_dir_text.text() != base_dir:
+            self.nxf_dir_text.setText(base_dir)
+            self.setup_nxf_dir_cmd(base_dir=Path(base_dir))
+
+        # loading advanced options
+        adv = config["advanced_options"]
+        num_substacks = adv.get("num_substacks")
+        tile_boxes = [self.tile_x, self.tile_y, self.tile_z]
+        for box, val in zip(tile_boxes, num_substacks.split(",")):
+            if val == "auto":
+                box.setValue(-1)
+            else:
+                box.setValue(int(val))
+
+        overlap_str = adv.get("overlap")
+        overlap = [float(i) for i in overlap_str.split(",")]
+
+        self.overlap_x.setValue(overlap[0])
+        self.overlap_y.setValue(overlap[1])
+        self.overlap_z.setValue(overlap[2])
+
+        self.iou_thresh.setValue(float(adv.get("iou_threshold")))
 
     def setup_nxf_dir_cmd(self, base_dir: Optional[Path] = None):
         # Set the basepath to store masks/checkpoints etc. in
@@ -691,6 +736,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         nxf_cmd, nxf_params, proceed, img_paths = self.pipelines[
             self.pipeline
         ]["setup"]()
+
         # Don't run the pipeline if no green light given
         if not proceed:
             return
@@ -740,6 +786,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
         # Run the pipeline
         _run_pipeline(nxf_cmd)
+        # emitting config ready to enable the save config button
+        self.config_ready.emit()
+        self.nxf_params = nxf_params
 
     def _reset_btns(self):
         """

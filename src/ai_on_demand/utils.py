@@ -69,7 +69,7 @@ def calc_param_hash(d: dict) -> str:
     return hashlib.md5(json.dumps(sorted_d).encode("utf-8")).hexdigest()
 
 
-def load_config(config_path: Union[str, Path]) -> dict:
+def load_model_config(config_path: Union[str, Path]) -> dict:
     with open(Path(config_path), "r") as f:
         if config_path.suffix == ".json":
             model_dict = json.load(f)

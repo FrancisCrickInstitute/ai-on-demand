@@ -5,6 +5,7 @@ from typing import Optional
 import yaml
 
 import napari
+from napari.utils.notifications import show_info
 from npe2 import PluginManager
 from qtpy.QtWidgets import (
     QWidget,
@@ -107,6 +108,23 @@ class MainWidget(QWidget):
         with open(settings_path, "w") as f:
             yaml.dump(self.plugin_settings, f)
 
+    def store_config(self, save_dir, config_name):
+        # get next flow config settings from the pipeline param
+        nxfWidget = self.subwidgets.get("nxf")
+        nxf_params = nxfWidget.nxf_params
+
+        config_settings = {}
+        for k, subwidget in self.subwidgets.items():
+            if hasattr(subwidget, "get_config_params"):
+                config_for_subwidget = subwidget.get_config_params(nxf_params)
+                config_settings[k] = config_for_subwidget
+
+        Path(save_dir).mkdir(parents=True, exist_ok=True)
+        config_file_path = Path(save_dir) / f"{config_name}.yaml"
+        with open(config_file_path, "w") as f:
+            yaml.dump(config_settings, f)
+        show_info(f"Config saved: {config_file_path}")
+
     @abstractmethod
     def get_run_hash(self):
         """
@@ -126,6 +144,15 @@ class MainWidget(QWidget):
         """
         for widget in self.subwidgets.values():
             widget.store_settings()
+
+    def load_config_file(self, config: dict):
+        """
+        Load a config file for the widget.
+        """
+        for subwidget in self.subwidgets.values():
+            if subwidget._name in config:
+                subwidget.load_config(config=config[subwidget._name])
+        show_info("Configuration loaded successfully.")
 
 
 class SubWidget(QCollapsible):
@@ -235,6 +262,20 @@ class SubWidget(QCollapsible):
     def get_settings(self):
         """
         Get settings for the subwidget.
+        """
+        pass
+
+    @abstractmethod
+    def load_config(self, config: dict):
+        """
+        Load a specific config and apply to the subwidget.
+        """
+        pass
+
+    @abstractmethod
+    def get_config_params(self, params: dict):
+        """
+        Gets the config params for the widget
         """
         pass
 
