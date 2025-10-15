@@ -29,10 +29,11 @@ class ConfigWidget(SubWidget):
     ):
         super().__init__(
             viewer=viewer,
-            title="Configuration",
+            title="Project Configuration",
             parent=parent,
             layout=layout,
-            tooltip="Load and save configurations",
+            tooltip="""
+Load and save all parameters of the plugin to a config file, to easily reproduce results or share settings with others and easily work on multiple projects and across sessions.""",
             **kwargs,
         )
 
