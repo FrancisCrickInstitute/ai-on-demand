@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from aiod_registry import TASK_NAMES
 import napari
+from jumpssh import SSHSession
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 import pandas as pd
@@ -28,6 +29,7 @@ from qtpy.QtWidgets import (
     QDoubleSpinBox,
     QGroupBox,
     QMessageBox,
+    QLineEdit,
 )
 import tqdm
 import yaml
@@ -180,6 +182,92 @@ The profile determines where the pipeline is run.
         self.nxf_work_dir.mkdir(parents=True, exist_ok=True)
 
     def create_box(self, variant: Optional[str] = None):
+
+        # -- SSH content [START] --
+        self.ssh_box = QGroupBox("ssh settings")
+        self.ssh_box.setToolTip("Settings for ssh into NEMO")
+        self.ssh_box.setCheckable(True)
+        self.ssh_box.setChecked(False)
+
+        self.ssh_layout = QGridLayout()
+        self.ssh_box.setLayout(self.ssh_layout)
+
+        # --- Input fields ---
+        self.command_input = QLineEdit(placeholderText="Enter command here...")
+        self.hostname = QLineEdit(placeholderText="Enter hostname here...")
+        self.target_node = QLineEdit(
+            placeholderText="Enter target_node here..."
+        )
+        self.username = QLineEdit(placeholderText="Enter username here...")
+        self.passphrase_input = QLineEdit(
+            placeholderText="Enter passphrase here..."
+        )
+        self.passphrase_input.setEchoMode(QLineEdit.Password)
+        self.remote_base_dir = QLineEdit(
+            placeholderText="Enter remote base dir here..."
+        )
+        self.mounted_remote_base_dir = QLineEdit(
+            placeholderText="Enter mounted remote base dir here..."
+        )
+
+        # --- SSH key section ---
+        self.info_btn = QPushButton("i")
+        self.info_btn.setFixedWidth(30)
+        self.info_btn.setToolTip("Help I don't know which ssh key to pick!")
+        self.info_btn.clicked.connect(self._show_ssh_info)
+
+        self.ssh_key_path = ""
+        self.ssh_key_label = QLabel("SSH Key: Not selected")
+        self.locate_key_btn = QPushButton("Locate SSH Key")
+        self.locate_key_btn.clicked.connect(self._locate_ssh_key)
+
+        # --- Send command button ---
+        self.send_btn = QPushButton("SEND COMMAND")
+        self.send_btn.clicked.connect(self._run_command)
+
+        # --- Layout setup ---
+        # Row 0: Command input
+        self.ssh_layout.addWidget(QLabel("Command:"), 0, 0)
+        self.ssh_layout.addWidget(self.command_input, 0, 1, 1, 2)
+
+        # Row 1: Hostname
+        self.ssh_layout.addWidget(QLabel("Hostname:"), 1, 0)
+        self.ssh_layout.addWidget(self.hostname, 1, 1, 1, 2)
+
+        # Row 2: Target node
+        self.ssh_layout.addWidget(QLabel("Target node:"), 2, 0)
+        self.ssh_layout.addWidget(self.target_node, 2, 1, 1, 2)
+
+        # Row 3: Username
+        self.ssh_layout.addWidget(QLabel("Username:"), 3, 0)
+        self.ssh_layout.addWidget(self.username, 3, 1, 1, 2)
+
+        # Row 4: Passphrase
+        self.ssh_layout.addWidget(QLabel("Passphrase:"), 4, 0)
+        self.ssh_layout.addWidget(self.passphrase_input, 4, 1, 1, 2)
+
+        # Row 5: Remote base directory
+        self.ssh_layout.addWidget(QLabel("Remote base dir:"), 5, 0)
+        self.ssh_layout.addWidget(self.remote_base_dir, 5, 1, 1, 2)
+
+        # Row 6: Mounted base directory
+        self.ssh_layout.addWidget(QLabel("Mounted remote base dir:"), 6, 0)
+        self.ssh_layout.addWidget(self.mounted_remote_base_dir, 6, 1, 1, 2)
+
+        # Row 7: SSH Key label
+        self.ssh_layout.addWidget(self.ssh_key_label, 7, 0, 1, 3)
+
+        # Row 8: SSH Key buttons (Locate + Info)
+        self.ssh_layout.addWidget(self.locate_key_btn, 8, 0, 1, 2)
+        self.ssh_layout.addWidget(self.info_btn, 8, 2)
+
+        # Row 9: Send command button
+        self.ssh_layout.addWidget(self.send_btn, 9, 0, 1, 3)
+
+        self.inner_layout.addWidget(self.ssh_box, 2, 0, 1, 2)
+
+        # -- SSH content [END] --
+
         # Create box for the cache settings
         self.cache_box = QGroupBox("Cache Settings")
         self.cache_box.setToolTip(
@@ -318,7 +406,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
                 "Run the pipeline with the chosen organelle(s), model, and images."
             )
         )
-        self.inner_layout.addWidget(self.nxf_run_btn, 2, 0, 1, 2)
+        self.inner_layout.addWidget(self.nxf_run_btn, 3, 0, 1, 2)
 
         pbar_layout = QHBoxLayout()
         # Add progress bar
@@ -331,7 +419,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         # Add the label and progress bar to the layout
         pbar_layout.addWidget(self.pbar_label)
         pbar_layout.addWidget(self.pbar)
-        self.inner_layout.addLayout(pbar_layout, 5, 0, 1, 2)
+        self.inner_layout.addLayout(pbar_layout, 6, 0, 1, 2)
         # TQDM progress bar to monitor completion time
         self.tqdm_pbar = None
 
@@ -784,11 +872,63 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             if self.process.returncode != 0:
                 raise RuntimeError
 
+        def _run_pipeline_ssh(nxf_cmd: str):
+            # [START] - translation between paths - changing all the mounted remote location to the remote locations
+            with open(nxf_params_fpath, "r") as f:
+                nxf_params = yaml.safe_load(f)
+
+            for k, v in nxf_params.items():
+                if isinstance(v, str) and v.startswith(
+                    self.mounted_remote_base_dir.text()
+                ):
+                    nxf_params[k] = v.replace(
+                        self.mounted_remote_base_dir.text(),
+                        self.remote_base_dir.text(),
+                        1,
+                    )
+
+            with open(nxf_params_fpath, "w") as f:
+                yaml.dump(nxf_params, f)
+
+            # Update Nextflow command to use remote paths for params-file and log
+            remote_params_fpath = (
+                Path(self.remote_base_dir.text())
+                / "aiod_cache"
+                / f"nxf_params_{self.parent.run_hash}.yml"
+            )
+            remote_log_fpath = (
+                Path(self.remote_base_dir.text()) / "nextflow.log"
+            )
+            # Replace local params-file and log with remote ones in the command
+            nxf_cmd = nxf_cmd.replace(
+                f"-params-file {nxf_params_fpath}",
+                f"-params-file {remote_params_fpath}",
+            )
+            # Replace local work directory with remote work directory in the command
+            remote_work_dir = Path(self.remote_base_dir.text()) / "work"
+            nxf_cmd = nxf_cmd.replace(
+                f"-w {self.nxf_work_dir}",
+                f"-w {remote_work_dir}",
+            )
+            nxf_cmd = nxf_cmd.replace(
+                f"-log '{str(self.nxf_base_dir / 'nextflow.log')}'",
+                f"-log '{remote_log_fpath}'",
+            )
+            print(" -- this is the nxf_cmd: ", nxf_cmd)
+
+            # [END] - translation between paths
+
+            # But since we use params-file, just update nxf_params as above
+            print(" -- running ssh pipeline! -- ")
+            nxf_cmd = "ml Nextflow && " + nxf_cmd
+
+            self._run_command(nxf_cmd)
+
         # Run the pipeline
-        _run_pipeline(nxf_cmd)
-        # emitting config ready to enable the save config button
-        self.config_ready.emit()
-        self.nxf_params = nxf_params
+        if self.ssh_box.isChecked():
+            _run_pipeline_ssh(nxf_cmd)
+        else:
+            _run_pipeline(nxf_cmd)
 
     def _reset_btns(self):
         """
@@ -1084,3 +1224,76 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             shutil.rmtree(self.nxf_base_dir)
             # Reset the base directory
             self.setup_nxf_dir_cmd(base_dir=self.nxf_base_dir)
+
+    def _show_ssh_info(self):
+        QMessageBox.information(
+            self,
+            "SSH Key Help",
+            (
+                "For NEMO, you likely need to select your RSA key (id_rsa) in .ssh from your home directory.\n\n"
+                "If you can't see hidden folders you may need to toggle visibility:\n"
+                "macOS: Command + Shift + .\n"
+                "Linux: Ctrl + H (may differ by distro)\n"
+                "Windows: Enable 'Hidden items' in the View menu."
+            ),
+        )
+
+    def _locate_ssh_key(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select SSH Key", str(Path.home() / ".ssh")
+        )
+        if file_path:
+            self.ssh_key_path = file_path
+            self.ssh_key_label.setText(f"SSH Key: {file_path}")
+
+    def _run_ssh(
+        self,
+        command: str,
+        hostname: str,
+        username: str,
+        passphrase: str,
+        ssh_key_path: str,
+        target_node: str,
+    ):
+        """
+        Uses jumpssh to proxy jump into the compute node and execute the command.
+        """
+        # Connect to the gateway/login node
+        gateway_session = SSHSession(
+            host=hostname,
+            username=username,
+            private_key_file=ssh_key_path,
+            password=(passphrase if passphrase else None),
+        )
+        compute_session = gateway_session.get_remote_session(
+            host=target_node,
+            username=username,
+            private_key_file=ssh_key_path,
+            password=(passphrase if passphrase else None),
+        )
+        # Execute the command on the compute node
+        result = compute_session.run_cmd(command)
+        # Close sessions
+        compute_session.close()
+        gateway_session.close()
+        return result.output
+
+    def _run_command(self, command):
+        self.nxf_base_dir = Path(self.mounted_remote_base_dir.text())
+        self.nxf_store_dir = self.nxf_base_dir / "aiod_cache"
+        self.img_list_fpath = self.nxf_store_dir / "all_img_paths.csv"
+        self.nxf_work_dir = self.nxf_base_dir / "work"
+        # command = self.command_input.text()
+        hostname = self.hostname.text()
+        target_node = self.target_node.text()
+        username = self.username.text()
+        passphrase = self.passphrase_input.text()
+        output = self._run_ssh(
+            command,
+            hostname,
+            username,
+            passphrase,
+            self.ssh_key_path,
+            target_node,
+        )
+        print("nemo: ", output)
