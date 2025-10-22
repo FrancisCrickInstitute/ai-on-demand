@@ -596,20 +596,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             depth=round(self.overlap_z.value(), 2),
         )
 
-        # --- PATCH: update paths for SSH ---
-        if hasattr(self, "ssh_box") and self.ssh_box.isChecked():
-            mounted_prefix = self.mounted_remote_base_dir.text()
-            remote_prefix = self.remote_base_dir.text()
-            img_paths = [
-                (
-                    Path(str(p).replace(mounted_prefix, remote_prefix, 1))
-                    if str(p).startswith(mounted_prefix)
-                    else p
-                )
-                for p in img_paths
-            ]
-        # --- END PATCH ---
-
         # Extract info from each image
         for img_path in img_paths:
             # Get the mask layer name
@@ -887,17 +873,18 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             if self.process.returncode != 0:
                 raise RuntimeError
 
-        def _run_pipeline_ssh(nxf_cmd: str):
+        def _run_pipeline_ssh(nxf_cmd: str, img_paths: list[Path]):
             # [START] - translation between paths - changing all the mounted remote location to the remote locations
             # Update all_img_paths.csv to use remote paths
-            mounted_prefix = self.mounted_remote_base_dir.text()
-            remote_prefix = self.remote_base_dir.text()
-            img_paths = [
-                Path(
-                    "/nemo/stp/ddt/working/ahmedn/aiod_test_images/example_mito.tif"
-                )
+            # --- PATCH: update paths for SSH ---
+            remote_img_paths = [
+                (Path(str(p).replace("/Volumes", "/nemo/stp", 1)))
+                for p in img_paths
             ]
-            self.store_img_paths(img_paths=img_paths)
+            print("image paths: ", remote_img_paths)
+
+            self.store_img_paths(img_paths=remote_img_paths)
+            # --- END PATCH ---
 
             with open(nxf_params_fpath, "r") as f:
                 nxf_params = yaml.safe_load(f)
@@ -951,7 +938,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
         # Run the pipeline
         if self.ssh_box.isChecked():
-            _run_pipeline_ssh(nxf_cmd)
+            _run_pipeline_ssh(nxf_cmd, img_paths)
         else:
             _run_pipeline(nxf_cmd)
 
