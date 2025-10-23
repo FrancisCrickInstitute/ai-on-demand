@@ -919,7 +919,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 f"-log '{str(self.nxf_base_dir / 'nextflow.log')}'",
                 f"-log '{remote_log_fpath}'",
             )
-            print(" -- this is the nxf_cmd: ", nxf_cmd)
+            print(" -- Nextflow commmand sent via ssh: ", nxf_cmd)
 
             # [END] - translation between paths
 
