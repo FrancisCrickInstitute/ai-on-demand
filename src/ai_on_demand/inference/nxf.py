@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 
 from aiod_registry import TASK_NAMES
 import napari
-from jumpssh import SSHSession
+import paramiko
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 import pandas as pd
@@ -1279,28 +1279,53 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         ssh_key_path: str,
         target_node: str,
     ):
-        """
-        Uses jumpssh to proxy jump into the compute node and execute the command.
-        """
-        # Connect to the gateway/login node
-        gateway_session = SSHSession(
-            host=hostname,
-            username=username,
-            private_key_file=ssh_key_path,
-            password=(passphrase if passphrase else None),
-        )
-        compute_session = gateway_session.get_remote_session(
-            host=target_node,
-            username=username,
-            private_key_file=ssh_key_path,
-            password=(passphrase if passphrase else None),
-        )
-        # Execute the command on the compute node
-        result = compute_session.run_cmd(command)
-        # Close sessions
-        compute_session.close()
-        gateway_session.close()
-        return result.output
+        jump = None
+        target = None
+        try:
+            # Connect to the jump host
+            jump = paramiko.SSHClient()
+            jump.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            jump.connect(
+                hostname=hostname,
+                username=username,
+                key_filename=ssh_key_path,
+                passphrase=passphrase,
+            )
+
+            # Get a direct-tcpip channel to the target node through the jump host
+            jump_transport = jump.get_transport()
+            dest_addr = (target_node, 22)
+            local_addr = ("127.0.0.1", 0)
+            channel = jump_transport.open_channel(
+                "direct-tcpip", dest_addr, local_addr
+            )
+
+            # Connect to the target node using the channel as a proxy
+            target = paramiko.SSHClient()
+            target.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            target.connect(
+                target_node,
+                username=username,
+                key_filename=ssh_key_path,
+                sock=channel,
+            )
+
+            # Execute command on the target node
+            stdin, stdout, stderr = target.exec_command(command)
+
+            while True:
+                line = stdout.readline()
+                if not line:
+                    break
+                print(line, end="")
+
+        except Exception as e:
+            raise Exception(f"Error executing command via jump host: {str(e)}")
+        finally:
+            if target:
+                target.close()
+            if jump:
+                jump.close()
 
     def _run_command(self, command):
         self.nxf_base_dir = Path(self.mounted_remote_base_dir.text())
@@ -1311,7 +1336,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         target_node = self.target_node.text()
         username = self.username.text()
         passphrase = self.passphrase_input.text()
-        output = self._run_ssh(
+        self._run_ssh(
             command,
             hostname,
             username,
@@ -1319,4 +1344,3 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self.ssh_key_path,
             target_node,
         )
-        print(output)
