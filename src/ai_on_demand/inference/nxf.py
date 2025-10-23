@@ -209,7 +209,6 @@ The profile determines where the pipeline is run.
         self.mounted_remote_base_dir = QLineEdit(
             placeholderText="Enter mounted remote base dir here..."
         )
-
         # --- SSH key section ---
         self.info_btn = QPushButton("i")
         self.info_btn.setFixedWidth(30)
@@ -221,48 +220,37 @@ The profile determines where the pipeline is run.
         self.locate_key_btn = QPushButton("Locate SSH Key")
         self.locate_key_btn.clicked.connect(self._locate_ssh_key)
 
-        # --- Send command button ---
-        self.send_btn = QPushButton("SEND COMMAND")
-        self.send_btn.clicked.connect(self._run_command)
+        # --- SSH Layout ---
+        # Row 0: Hostname
+        self.ssh_layout.addWidget(QLabel("Hostname:"), 0, 0)
+        self.ssh_layout.addWidget(self.hostname, 0, 1, 1, 2)
 
-        # --- Layout setup ---
-        # Row 0: Command input
-        self.ssh_layout.addWidget(QLabel("Command:"), 0, 0)
-        self.ssh_layout.addWidget(self.command_input, 0, 1, 1, 2)
+        # Row 1: Target node
+        self.ssh_layout.addWidget(QLabel("Target node:"), 1, 0)
+        self.ssh_layout.addWidget(self.target_node, 1, 1, 1, 2)
 
-        # Row 1: Hostname
-        self.ssh_layout.addWidget(QLabel("Hostname:"), 1, 0)
-        self.ssh_layout.addWidget(self.hostname, 1, 1, 1, 2)
+        # Row 2: Username
+        self.ssh_layout.addWidget(QLabel("Username:"), 2, 0)
+        self.ssh_layout.addWidget(self.username, 2, 1, 1, 2)
 
-        # Row 2: Target node
-        self.ssh_layout.addWidget(QLabel("Target node:"), 2, 0)
-        self.ssh_layout.addWidget(self.target_node, 2, 1, 1, 2)
+        # Row 3: Passphrase
+        self.ssh_layout.addWidget(QLabel("Passphrase:"), 3, 0)
+        self.ssh_layout.addWidget(self.passphrase_input, 3, 1, 1, 2)
 
-        # Row 3: Username
-        self.ssh_layout.addWidget(QLabel("Username:"), 3, 0)
-        self.ssh_layout.addWidget(self.username, 3, 1, 1, 2)
+        # Row 4: Remote base directory
+        self.ssh_layout.addWidget(QLabel("Remote base dir:"), 4, 0)
+        self.ssh_layout.addWidget(self.remote_base_dir, 4, 1, 1, 2)
 
-        # Row 4: Passphrase
-        self.ssh_layout.addWidget(QLabel("Passphrase:"), 4, 0)
-        self.ssh_layout.addWidget(self.passphrase_input, 4, 1, 1, 2)
+        # Row 5: Mounted base directory
+        self.ssh_layout.addWidget(QLabel("Mounted remote base dir:"), 5, 0)
+        self.ssh_layout.addWidget(self.mounted_remote_base_dir, 5, 1, 1, 2)
 
-        # Row 5: Remote base directory
-        self.ssh_layout.addWidget(QLabel("Remote base dir:"), 5, 0)
-        self.ssh_layout.addWidget(self.remote_base_dir, 5, 1, 1, 2)
+        # Row 6: SSH Key label
+        self.ssh_layout.addWidget(self.ssh_key_label, 6, 0, 1, 3)
 
-        # Row 6: Mounted base directory
-        self.ssh_layout.addWidget(QLabel("Mounted remote base dir:"), 6, 0)
-        self.ssh_layout.addWidget(self.mounted_remote_base_dir, 6, 1, 1, 2)
-
-        # Row 7: SSH Key label
-        self.ssh_layout.addWidget(self.ssh_key_label, 7, 0, 1, 3)
-
-        # Row 8: SSH Key buttons (Locate + Info)
-        self.ssh_layout.addWidget(self.locate_key_btn, 8, 0, 1, 2)
-        self.ssh_layout.addWidget(self.info_btn, 8, 2)
-
-        # Row 9: Send command button
-        self.ssh_layout.addWidget(self.send_btn, 9, 0, 1, 3)
+        # Row 7: SSH Key buttons (Locate + Info)
+        self.ssh_layout.addWidget(self.locate_key_btn, 7, 0, 1, 2)
+        self.ssh_layout.addWidget(self.info_btn, 7, 2)
 
         self.inner_layout.addWidget(self.ssh_box, 2, 0, 1, 2)
 
@@ -873,10 +861,16 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             if self.process.returncode != 0:
                 raise RuntimeError
 
+        @thread_worker(
+            connect={
+                "started": self._pipeline_start,
+                "returned": self._pipeline_finish,
+                "errored": self._pipeline_fail,
+            }
+        )
         def _run_pipeline_ssh(nxf_cmd: str, img_paths: list[Path]):
-            # [START] - translation between paths - changing all the mounted remote location to the remote locations
-            # Update all_img_paths.csv to use remote paths
-            # --- PATCH: update paths for SSH ---
+            # editing paths within the all_img_paths.csv
+            # FIXME - this will be different based on OS just use the user given paths and modify endings
             remote_img_paths = [
                 (Path(str(p).replace("/Volumes", "/nemo/stp", 1)))
                 for p in img_paths
@@ -884,7 +878,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             print("image paths: ", remote_img_paths)
 
             self.store_img_paths(img_paths=remote_img_paths)
-            # --- END PATCH ---
 
             with open(nxf_params_fpath, "r") as f:
                 nxf_params = yaml.safe_load(f)
@@ -930,8 +923,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
             # [END] - translation between paths
 
-            # But since we use params-file, just update nxf_params as above
-            print(" -- running ssh pipeline! -- ")
+            # Use Nextflow/24.04.1
             nxf_cmd = "ml Nextflow/24.04.1 && " + nxf_cmd
 
             self._run_command(nxf_cmd)
@@ -1295,7 +1287,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.nxf_store_dir = self.nxf_base_dir / "aiod_cache"
         self.img_list_fpath = self.nxf_store_dir / "all_img_paths.csv"
         self.nxf_work_dir = self.nxf_base_dir / "work"
-        # command = self.command_input.text()
         hostname = self.hostname.text()
         target_node = self.target_node.text()
         username = self.username.text()
@@ -1308,4 +1299,4 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self.ssh_key_path,
             target_node,
         )
-        print("nemo: ", output)
+        print(output)

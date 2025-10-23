@@ -541,10 +541,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
         after the Nextflow pipeline has completed.
         """
         # Loop over each image and insert the final mask
-        print(
-            "these are the image paths used by insert final masks: ",
-            self.img_mask_info["img_path"],
-        )
         for img_dict in self.img_mask_info:
             # Extract the save string from the preprocessing options
             preprocess_str = aiod_utils.preprocess.get_params_str(
