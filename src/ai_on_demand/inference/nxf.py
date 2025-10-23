@@ -3,6 +3,7 @@ from pathlib import Path
 import shlex
 import shutil
 import subprocess
+import os
 from typing import Optional, Union
 from urllib.parse import urlparse
 
@@ -869,13 +870,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             }
         )
         def _run_pipeline_ssh(nxf_cmd: str, img_paths: list[Path]):
-            # editing paths within the all_img_paths.csv
-            # FIXME - this will be different based on OS just use the user given paths and modify endings
+            # editing paths which will be ented to all_img_paths.csv
             remote_img_paths = [
-                (Path(str(p).replace("/Volumes", "/nemo/stp", 1)))
+                (Path(self._translate_ssh_paths(str(p), toRemote=True)))
                 for p in img_paths
             ]
-            print("image paths: ", remote_img_paths)
 
             self.store_img_paths(img_paths=remote_img_paths)
 
@@ -921,11 +920,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             )
             print(" -- Nextflow commmand sent via ssh: ", nxf_cmd)
 
-            # [END] - translation between paths
-
-            # Use Nextflow/24.04.1
             nxf_cmd = "ml Nextflow/24.04.1 && " + nxf_cmd
-
             self._run_command(nxf_cmd)
 
         # Run the pipeline
@@ -1241,6 +1236,31 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 "Windows: Enable 'Hidden items' in the View menu."
             ),
         )
+
+    def _translate_ssh_paths(self, path: str, toRemote: bool):
+        # Split paths into parts
+        mounted = self.mounted_remote_base_dir.text()
+        remote = self.remote_base_dir.text()
+        mounted_parts = mounted.split(os.sep)
+        remote_parts = remote.split(os.sep)
+        mounted_parts.reverse()
+        remote_parts.reverse()
+
+        remote_prefix = []
+        mounted_prefix = []
+        for i, (m, r) in enumerate(zip(mounted_parts, remote_parts)):
+            if m != r:
+                if r != "":
+                    remote_prefix.insert(0, r)
+                if m != "":
+                    mounted_prefix.insert(0, m)
+
+        remote_prefix = str(os.sep).join(remote_prefix)
+        mounted_prefix = str(os.sep).join(mounted_prefix)
+        if toRemote:
+            return path.replace(mounted_prefix, remote_prefix)
+        else:
+            return path.replace(remote_prefix, mounted_prefix)
 
     def _locate_ssh_key(self):
         file_path, _ = QFileDialog.getOpenFileName(
