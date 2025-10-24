@@ -107,7 +107,15 @@ The profile determines where the pipeline is run.
                     self.nxf_profile_box.setCurrentIndex(idx)
             # Set the base directory
             if "base_dir" in settings:
-                nxf_base_dir = Path(settings["base_dir"])
+                if os.path.exists(settings["base_dir"]):
+                    nxf_base_dir = Path(settings["base_dir"])
+                # in the case where user has unmounted a drive (e.g. remote server drive for ssh pipeline)
+                else:
+                    print(
+                        f"Warning: Could not access {settings['base_dir']}, falling back to default cache directory."
+                    )
+                    nxf_base_dir = Path.home() / ".nextflow" / "aiod"
+                    nxf_base_dir.mkdir(parents=True, exist_ok=True)
                 self.nxf_dir_text.setText(str(nxf_base_dir))
                 # Update the base directory and Nextflow command
                 self.setup_nxf_dir_cmd(base_dir=Path(nxf_base_dir))
