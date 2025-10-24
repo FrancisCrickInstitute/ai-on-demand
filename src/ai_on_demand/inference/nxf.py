@@ -878,7 +878,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             }
         )
         def _run_pipeline_ssh(nxf_cmd: str, img_paths: list[Path]):
-            # editing paths which will be ented to all_img_paths.csv
             remote_img_paths = [
                 (Path(self._translate_ssh_paths(str(p), toRemote=True)))
                 for p in img_paths
@@ -926,7 +925,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 f"-log '{str(self.nxf_base_dir / 'nextflow.log')}'",
                 f"-log '{remote_log_fpath}'",
             )
-            print(" -- Nextflow commmand sent via ssh: ", nxf_cmd)
+            show_info(f"Nextflow commmand sent via ssh: {nxf_cmd}")
 
             nxf_cmd = "ml Nextflow/24.04.1 && " + nxf_cmd
             self._run_command(nxf_cmd)
@@ -1287,6 +1286,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         ssh_key_path: str,
         target_node: str,
     ):
+        if not passphrase:
+            passphrase = None
         jump = None
         target = None
         try:
@@ -1316,16 +1317,21 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 username=username,
                 key_filename=ssh_key_path,
                 sock=channel,
+                passphrase=passphrase,
             )
 
             # Execute command on the target node
-            stdin, stdout, stderr = target.exec_command(command)
+            _, stdout, stderr = target.exec_command(command)
 
             while True:
-                line = stdout.readline()
-                if not line:
+                stdout_line = stdout.readline()
+                stderr_line = stderr.readline()
+                if not stdout_line and not stderr_line:
                     break
-                print(line, end="")
+                if stdout_line:
+                    print(stdout_line, end="")
+                if stderr_line:
+                    print(stderr_line, end="")
 
         except Exception as e:
             raise Exception(f"Error executing command via jump host: {str(e)}")
