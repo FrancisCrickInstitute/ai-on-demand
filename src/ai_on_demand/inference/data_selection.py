@@ -350,6 +350,19 @@ Images can also be opened, or dragged into napari as normal. The selection will 
     def load_config(self, config):
         df = pd.read_csv(config["img_dir"])
         img_paths = df["img_path"].tolist()
+
+        # translate the paths if using ssh
+        if config["active"]:
+            for i in range(len(img_paths)):
+                img_paths[i] = img_paths[i].replace(
+                    config["remote_path_prefix"],
+                    config["mounted_path_prefix"],
+                )
+                if not Path(img_paths[i]).exists():
+                    raise FileNotFoundError(
+                        f"Image path does not exist: {img_paths[i]}"
+                    )
+
         self.update_file_count(paths=img_paths)
         self.view_images(imgs_to_load=img_paths)
 

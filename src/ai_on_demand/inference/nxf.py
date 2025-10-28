@@ -139,6 +139,15 @@ The profile determines where the pipeline is run.
                 "overlap": params.get("overlap"),
                 "iou_threshold": params.get("iou_threshold"),
             },
+            "ssh_settings": {
+                "active": self.ssh_box.isChecked(),
+                "hostname": self.hostname.text(),
+                "target_node": self.target_node.text(),
+                "username": self.username.text(),
+                "remote_path_prefix": self.remote_path_prefix.text(),
+                "mounted_path_prefix": self.mounted_path_prefix.text(),
+                "ssh_key_path": self.ssh_key_path,
+            },
         }
         return widget_config
 
@@ -169,6 +178,20 @@ The profile determines where the pipeline is run.
         self.overlap_z.setValue(overlap[2])
 
         self.iou_thresh.setValue(float(adv.get("iou_threshold")))
+
+        # loading ssh section
+        ssh_settings = config["ssh_settings"]
+        if ssh_settings["active"]:
+            self.ssh_box.setChecked(True)
+        else:
+            self.ssh_box.setChecked(False)
+        self.hostname.setText(ssh_settings["hostname"])
+        self.target_node.setText(ssh_settings["target_node"])
+        self.username.setText(ssh_settings["username"])
+        self.remote_path_prefix.setText(ssh_settings["remote_path_prefix"])
+        self.mounted_path_prefix.setText(ssh_settings["mounted_path_prefix"])
+        self.ssh_key_path = ssh_settings["ssh_key_path"]
+        self.ssh_key_label.setText(f"SSH Key: {ssh_settings["ssh_key_path"]}")
 
     def setup_nxf_dir_cmd(self, base_dir: Optional[Path] = None):
         # Set the basepath to store masks/checkpoints etc. in
@@ -212,12 +235,9 @@ The profile determines where the pipeline is run.
             placeholderText="Enter passphrase here..."
         )
         self.passphrase_input.setEchoMode(QLineEdit.Password)
-        self.remote_base_dir = QLineEdit(
-            placeholderText="Enter remote base dir here..."
-        )
-        self.mounted_remote_base_dir = QLineEdit(
-            placeholderText="Enter mounted remote base dir here..."
-        )
+        self.remote_path_prefix = QLineEdit(placeholderText="e.g. /nemo/stp/")
+        self.mounted_path_prefix = QLineEdit(placeholderText="e.g /Volumes/")
+
         # --- SSH key section ---
         self.info_btn = QPushButton("i")
         self.info_btn.setFixedWidth(30)
@@ -246,13 +266,13 @@ The profile determines where the pipeline is run.
         self.ssh_layout.addWidget(QLabel("Passphrase:"), 3, 0)
         self.ssh_layout.addWidget(self.passphrase_input, 3, 1, 1, 2)
 
-        # Row 4: Remote base directory
-        self.ssh_layout.addWidget(QLabel("Remote base dir:"), 4, 0)
-        self.ssh_layout.addWidget(self.remote_base_dir, 4, 1, 1, 2)
+        # Row 4: Remote path prefix
+        self.ssh_layout.addWidget(QLabel("Remote path prefix:"), 4, 0)
+        self.ssh_layout.addWidget(self.remote_path_prefix, 4, 1, 1, 2)
 
-        # Row 5: Mounted base directory
-        self.ssh_layout.addWidget(QLabel("Mounted remote base dir:"), 5, 0)
-        self.ssh_layout.addWidget(self.mounted_remote_base_dir, 5, 1, 1, 2)
+        # Row 5: Mounted path prefix
+        self.ssh_layout.addWidget(QLabel("Mounted path prefix:"), 5, 0)
+        self.ssh_layout.addWidget(self.mounted_path_prefix, 5, 1, 1, 2)
 
         # Row 6: SSH Key label
         self.ssh_layout.addWidget(self.ssh_key_label, 6, 0, 1, 3)
@@ -878,8 +898,20 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             }
         )
         def _run_pipeline_ssh(nxf_cmd: str, img_paths: list[Path]):
+            self.remote_base_dir = str(self.nxf_base_dir).replace(
+                self.mounted_path_prefix.text(), self.remote_path_prefix.text()
+            )
+            self.mounted_remote_base_dir = str(self.nxf_base_dir)
+
             remote_img_paths = [
-                (Path(self._translate_ssh_paths(str(p), toRemote=True)))
+                (
+                    Path(
+                        str(p).replace(
+                            self.mounted_path_prefix.text(),
+                            self.remote_path_prefix.text(),
+                        )
+                    )
+                )
                 for p in img_paths
             ]
 
@@ -890,11 +922,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
             for k, v in nxf_params.items():
                 if isinstance(v, str) and v.startswith(
-                    self.mounted_remote_base_dir.text()
+                    self.mounted_remote_base_dir
                 ):
                     nxf_params[k] = v.replace(
-                        self.mounted_remote_base_dir.text(),
-                        self.remote_base_dir.text(),
+                        self.mounted_remote_base_dir,
+                        self.remote_base_dir,
                         1,
                     )
 
@@ -903,20 +935,18 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
             # Update Nextflow command to use remote paths for params-file and log
             remote_params_fpath = (
-                Path(self.remote_base_dir.text())
+                Path(self.remote_base_dir)
                 / "aiod_cache"
                 / f"nxf_params_{self.parent.run_hash}.yml"
             )
-            remote_log_fpath = (
-                Path(self.remote_base_dir.text()) / "nextflow.log"
-            )
+            remote_log_fpath = Path(self.remote_base_dir) / "nextflow.log"
             # Replace local params-file and log with remote ones in the command
             nxf_cmd = nxf_cmd.replace(
                 f"-params-file {nxf_params_fpath}",
                 f"-params-file {remote_params_fpath}",
             )
             # Replace local work directory with remote work directory in the command
-            remote_work_dir = Path(self.remote_base_dir.text()) / "work"
+            remote_work_dir = Path(self.remote_base_dir) / "work"
             nxf_cmd = nxf_cmd.replace(
                 f"-w {self.nxf_work_dir}",
                 f"-w {remote_work_dir}",
@@ -935,6 +965,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             _run_pipeline_ssh(nxf_cmd, img_paths)
         else:
             _run_pipeline(nxf_cmd)
+        self.config_ready.emit()
+        self.nxf_params = nxf_params
 
     def _reset_btns(self):
         """
@@ -1244,31 +1276,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             ),
         )
 
-    def _translate_ssh_paths(self, path: str, toRemote: bool):
-        # Split paths into parts
-        mounted = self.mounted_remote_base_dir.text()
-        remote = self.remote_base_dir.text()
-        mounted_parts = mounted.split(os.sep)
-        remote_parts = remote.split(os.sep)
-        mounted_parts.reverse()
-        remote_parts.reverse()
-
-        remote_prefix = []
-        mounted_prefix = []
-        for i, (m, r) in enumerate(zip(mounted_parts, remote_parts)):
-            if m != r:
-                if r != "":
-                    remote_prefix.insert(0, r)
-                if m != "":
-                    mounted_prefix.insert(0, m)
-
-        remote_prefix = str(os.sep).join(remote_prefix)
-        mounted_prefix = str(os.sep).join(mounted_prefix)
-        if toRemote:
-            return path.replace(mounted_prefix, remote_prefix)
-        else:
-            return path.replace(remote_prefix, mounted_prefix)
-
     def _locate_ssh_key(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Select SSH Key", str(Path.home() / ".ssh")
@@ -1342,10 +1349,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 jump.close()
 
     def _run_command(self, command):
-        self.nxf_base_dir = Path(self.mounted_remote_base_dir.text())
-        self.nxf_store_dir = self.nxf_base_dir / "aiod_cache"
-        self.img_list_fpath = self.nxf_store_dir / "all_img_paths.csv"
-        self.nxf_work_dir = self.nxf_base_dir / "work"
         hostname = self.hostname.text()
         target_node = self.target_node.text()
         username = self.username.text()
