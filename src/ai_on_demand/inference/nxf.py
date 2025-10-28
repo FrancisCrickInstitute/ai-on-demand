@@ -3,7 +3,6 @@ from pathlib import Path
 import shlex
 import shutil
 import subprocess
-import os
 from typing import Optional, Union
 from urllib.parse import urlparse
 
@@ -107,7 +106,7 @@ The profile determines where the pipeline is run.
                     self.nxf_profile_box.setCurrentIndex(idx)
             # Set the base directory
             if "base_dir" in settings:
-                if os.path.exists(settings["base_dir"]):
+                if Path(settings["base_dir"]).exists():
                     nxf_base_dir = Path(settings["base_dir"])
                 # in the case where user has unmounted a drive (e.g. remote server drive for ssh pipeline)
                 else:
@@ -215,16 +214,17 @@ The profile determines where the pipeline is run.
 
     def create_box(self, variant: Optional[str] = None):
 
-        # -- SSH content [START] --
+        # SSH content [START]
         self.ssh_box = QGroupBox("ssh settings")
-        self.ssh_box.setToolTip("Settings for ssh into NEMO")
+        self.ssh_box.setToolTip(
+            "Settings for running nextflow pipeline via SSH"
+        )
         self.ssh_box.setCheckable(True)
         self.ssh_box.setChecked(False)
 
         self.ssh_layout = QGridLayout()
         self.ssh_box.setLayout(self.ssh_layout)
 
-        # --- Input fields ---
         self.command_input = QLineEdit(placeholderText="Enter command here...")
         self.hostname = QLineEdit(placeholderText="Enter hostname here...")
         self.target_node = QLineEdit(
@@ -238,7 +238,7 @@ The profile determines where the pipeline is run.
         self.remote_path_prefix = QLineEdit(placeholderText="e.g. /nemo/stp/")
         self.mounted_path_prefix = QLineEdit(placeholderText="e.g /Volumes/")
 
-        # --- SSH key section ---
+        # SSH key section
         self.info_btn = QPushButton("i")
         self.info_btn.setFixedWidth(30)
         self.info_btn.setToolTip("Help I don't know which ssh key to pick!")
@@ -249,41 +249,32 @@ The profile determines where the pipeline is run.
         self.locate_key_btn = QPushButton("Locate SSH Key")
         self.locate_key_btn.clicked.connect(self._locate_ssh_key)
 
-        # --- SSH Layout ---
-        # Row 0: Hostname
+        # SSH Layout
         self.ssh_layout.addWidget(QLabel("Hostname:"), 0, 0)
         self.ssh_layout.addWidget(self.hostname, 0, 1, 1, 2)
 
-        # Row 1: Target node
         self.ssh_layout.addWidget(QLabel("Target node:"), 1, 0)
         self.ssh_layout.addWidget(self.target_node, 1, 1, 1, 2)
 
-        # Row 2: Username
         self.ssh_layout.addWidget(QLabel("Username:"), 2, 0)
         self.ssh_layout.addWidget(self.username, 2, 1, 1, 2)
 
-        # Row 3: Passphrase
         self.ssh_layout.addWidget(QLabel("Passphrase:"), 3, 0)
         self.ssh_layout.addWidget(self.passphrase_input, 3, 1, 1, 2)
 
-        # Row 4: Remote path prefix
         self.ssh_layout.addWidget(QLabel("Remote path prefix:"), 4, 0)
         self.ssh_layout.addWidget(self.remote_path_prefix, 4, 1, 1, 2)
 
-        # Row 5: Mounted path prefix
         self.ssh_layout.addWidget(QLabel("Mounted path prefix:"), 5, 0)
         self.ssh_layout.addWidget(self.mounted_path_prefix, 5, 1, 1, 2)
 
-        # Row 6: SSH Key label
         self.ssh_layout.addWidget(self.ssh_key_label, 6, 0, 1, 3)
 
-        # Row 7: SSH Key buttons (Locate + Info)
         self.ssh_layout.addWidget(self.locate_key_btn, 7, 0, 1, 2)
         self.ssh_layout.addWidget(self.info_btn, 7, 2)
 
         self.inner_layout.addWidget(self.ssh_box, 2, 0, 1, 2)
-
-        # -- SSH content [END] --
+        # SSH content [END]
 
         # Create box for the cache settings
         self.cache_box = QGroupBox("Cache Settings")
@@ -1300,7 +1291,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         try:
             # Connect to the jump host
             jump = paramiko.SSHClient()
-            jump.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            jump.load_system_host_keys()
+            jump.set_missing_host_key_policy(paramiko.RejectPolicy())
             jump.connect(
                 hostname=hostname,
                 username=username,
