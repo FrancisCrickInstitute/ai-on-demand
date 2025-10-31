@@ -190,7 +190,7 @@ The profile determines where the pipeline is run.
         self.remote_path_prefix.setText(ssh_settings["remote_path_prefix"])
         self.mounted_path_prefix.setText(ssh_settings["mounted_path_prefix"])
         self.ssh_key_path = ssh_settings["ssh_key_path"]
-        self.ssh_key_label.setText(f"SSH Key: {ssh_settings["ssh_key_path"]}")
+        self.ssh_key_label.setText(f"SSH Key: {ssh_settings['ssh_key_path']}")
 
     def setup_nxf_dir_cmd(self, base_dir: Optional[Path] = None):
         # Set the basepath to store masks/checkpoints etc. in
@@ -212,9 +212,11 @@ The profile determines where the pipeline is run.
         self.nxf_work_dir = self.nxf_base_dir / "work"
         self.nxf_work_dir.mkdir(parents=True, exist_ok=True)
 
-    def create_box(self, variant: Optional[str] = None):
-
-        # SSH content [START]
+    def _create_ssh_box(self):
+        """
+        Builds the SSH settings UI and attaches it to self.inner_layout.
+        Extracted from create_box to keep the main layout method concise.
+        """
         self.ssh_box = QGroupBox("ssh settings")
         self.ssh_box.setToolTip(
             "Settings for running nextflow pipeline via SSH"
@@ -225,7 +227,6 @@ The profile determines where the pipeline is run.
         self.ssh_layout = QGridLayout()
         self.ssh_box.setLayout(self.ssh_layout)
 
-        self.command_input = QLineEdit(placeholderText="Enter command here...")
         self.hostname = QLineEdit(placeholderText="Enter hostname here...")
         self.target_node = QLineEdit(
             placeholderText="Enter target_node here..."
@@ -236,7 +237,10 @@ The profile determines where the pipeline is run.
         )
         self.passphrase_input.setEchoMode(QLineEdit.Password)
         self.remote_path_prefix = QLineEdit(placeholderText="e.g. /nemo/stp/")
-        self.mounted_path_prefix = QLineEdit(placeholderText="e.g /Volumes/")
+        self.mounted_path_prefix = QLineEdit(placeholderText="e.g. /Volumes/")
+        self.command_prepend = QLineEdit(
+            placeholderText="Enter command prepend here..."
+        )
 
         # SSH key section
         self.info_btn = QPushButton("i")
@@ -268,14 +272,16 @@ The profile determines where the pipeline is run.
         self.ssh_layout.addWidget(QLabel("Mounted path prefix:"), 5, 0)
         self.ssh_layout.addWidget(self.mounted_path_prefix, 5, 1, 1, 2)
 
-        self.ssh_layout.addWidget(self.ssh_key_label, 6, 0, 1, 3)
+        self.ssh_layout.addWidget(QLabel("Command prepend:"), 6, 0)
+        self.ssh_layout.addWidget(self.command_prepend, 6, 1, 1, 2)
 
-        self.ssh_layout.addWidget(self.locate_key_btn, 7, 0, 1, 2)
-        self.ssh_layout.addWidget(self.info_btn, 7, 2)
+        self.ssh_layout.addWidget(self.ssh_key_label, 7, 0, 1, 3)
+        self.ssh_layout.addWidget(self.locate_key_btn, 8, 0, 1, 2)
+        self.ssh_layout.addWidget(self.info_btn, 8, 2)
 
         self.inner_layout.addWidget(self.ssh_box, 2, 0, 1, 2)
-        # SSH content [END]
 
+    def create_box(self, variant: Optional[str] = None):
         # Create box for the cache settings
         self.cache_box = QGroupBox("Cache Settings")
         self.cache_box.setToolTip(
@@ -405,6 +411,8 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         self.pipeline_layout.addWidget(self.options_widget, 3, 0, 1, 2)
 
         self.inner_layout.addWidget(self.pipeline_box, 1, 0, 1, 2)
+
+        self._create_ssh_box()
 
         # Create a button to navigate to a directory to take images from
         self.nxf_run_btn = QPushButton("Run Pipeline!")
@@ -946,9 +954,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 f"-log '{str(self.nxf_base_dir / 'nextflow.log')}'",
                 f"-log '{remote_log_fpath}'",
             )
-            show_info(f"Nextflow commmand sent via ssh: {nxf_cmd}")
+            nxf_cmd = self.command_prepend.text() + " && " + nxf_cmd
+            show_info(f"Commmand sent via ssh: {nxf_cmd}")
 
-            nxf_cmd = "ml Nextflow/24.04.1 && " + nxf_cmd
             self._run_command(nxf_cmd)
 
         # Run the pipeline
@@ -1259,7 +1267,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self,
             "SSH Key Help",
             (
-                "For NEMO, you likely need to select your RSA key (id_rsa) in .ssh from your home directory.\n\n"
+                "You need to select your ssh key (looks something like: id_<encryption_algorithm>) in .ssh from your home directory.\n\n"
                 "If you can't see hidden folders you may need to toggle visibility:\n"
                 "macOS: Command + Shift + .\n"
                 "Linux: Ctrl + H (may differ by distro)\n"
