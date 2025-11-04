@@ -151,14 +151,7 @@ class MainWidget(QWidget):
         """
         for subwidget in self.subwidgets.values():
             if subwidget._name in config:
-                if subwidget._name == "data":
-                    data_config = {
-                        **config[subwidget._name],
-                        **config["nxf"]["ssh_settings"],
-                    }
-                    subwidget.load_config(config=data_config)
-                else:
-                    subwidget.load_config(config=config[subwidget._name])
+                subwidget.load_config(config=config[subwidget._name])
         show_info("Configuration loaded successfully.")
 
 
