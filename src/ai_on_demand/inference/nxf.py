@@ -933,11 +933,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 yaml.dump(nxf_params, f)
 
             # Update Nextflow command to use remote paths for params-file and log
-            remote_params_fpath = (
-                Path(self.remote_base_dir)
-                / "aiod_cache"
-                / f"nxf_params_{self.parent.run_hash}.yml"
+            remote_params_fpath = Path(
+                str(nxf_params_fpath).replace(
+                    self.mounted_remote_base_dir, self.remote_base_dir
+                )
             )
+
             remote_log_fpath = Path(self.remote_base_dir) / "nextflow.log"
             # Replace local params-file and log with remote ones in the command
             nxf_cmd = nxf_cmd.replace(
