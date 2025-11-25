@@ -1290,8 +1290,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         hostname: str,
         username: str,
         passphrase: str,
-        ssh_key_path: str,
-        target_node: str,
+        ssh_key_path: str = None,
+        target_node: str = None,
     ):
         if not passphrase:
             passphrase = None
@@ -1308,26 +1308,27 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 key_filename=ssh_key_path,
                 passphrase=passphrase,
             )
+            if target_node:
+                # Get a direct-tcpip channel to the target node through the jump host
+                jump_transport = jump.get_transport()
+                dest_addr = (target_node, 22)
+                local_addr = ("127.0.0.1", 0)
+                channel = jump_transport.open_channel(
+                    "direct-tcpip", dest_addr, local_addr
+                )
 
-            # Get a direct-tcpip channel to the target node through the jump host
-            jump_transport = jump.get_transport()
-            dest_addr = (target_node, 22)
-            local_addr = ("127.0.0.1", 0)
-            channel = jump_transport.open_channel(
-                "direct-tcpip", dest_addr, local_addr
-            )
-
-            # Connect to the target node using the channel as a proxy
-            target = paramiko.SSHClient()
-            target.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            target.connect(
-                target_node,
-                username=username,
-                key_filename=ssh_key_path,
-                sock=channel,
-                passphrase=passphrase,
-            )
-
+                # Connect to the target node using the channel as a proxy
+                target = paramiko.SSHClient()
+                target.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                target.connect(
+                    target_node,
+                    username=username,
+                    key_filename=ssh_key_path,
+                    sock=channel,
+                    passphrase=passphrase,
+                )
+            else:
+                target = jump
             # Execute command on the target node
             _, stdout, stderr = target.exec_command(command)
 
