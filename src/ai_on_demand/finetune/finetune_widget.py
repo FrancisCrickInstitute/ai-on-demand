@@ -80,7 +80,10 @@ class FinetuneWidget(SubWidget):
         self.model_task = QLineEdit(
             placeholderText="e.g. mito"
         )  # this may need translating (there should be a translation function)
-        self.manifest_name = QLineEdit(placeholderText="e.g. empanada.json")
+        self.manifest_name = QLineEdit(placeholderText="e.g. empanada")
+        self.model_ckp_location = QLineEdit(
+            placeholderText="Path to model checkpoint"
+        )
         self.add_model_btn = QPushButton("add model to registry")
         # name task location, manifestname
         self.add_model_btn.clicked.connect(self.add_model_to_registry)
@@ -91,7 +94,10 @@ class FinetuneWidget(SubWidget):
         self.finetune_layout.addWidget(QLabel("manifest name: "), 6, 0)
         self.finetune_layout.addWidget(self.manifest_name, 6, 1)
 
-        self.finetune_layout.addWidget(self.add_model_btn, 7, 0, 1, 2)
+        self.finetune_layout.addWidget(QLabel("model checkpoint path: "), 7, 0)
+        self.finetune_layout.addWidget(self.model_ckp_location, 7, 1)
+
+        self.finetune_layout.addWidget(self.add_model_btn, 8, 0, 1, 2)
 
         self.inner_layout.addWidget(self.finetune_box)
 
@@ -112,9 +118,8 @@ class FinetuneWidget(SubWidget):
         print("saving model to registry...")
         model_name = self.model_save_name.text()
         model_task = self.model_task.text()
-        location = (
-            self.save_dir.text() + "/" + self.model_save_name.text() + ".pth"
-        )
+        location = self.model_ckp_location.text()
+
         manifest_name = self.manifest_name.text()
 
         add_model_local(model_name, model_task, location, manifest_name)
