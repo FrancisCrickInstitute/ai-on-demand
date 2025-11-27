@@ -898,7 +898,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         )
         def _run_pipeline_ssh(nxf_cmd: str, img_paths: list[Path]):
             self.remote_base_dir = str(self.nxf_base_dir).replace(
-                self.mounted_path_prefix.text(), self.remote_path_prefix.text()
+                self.mounted_path_prefix.text(),
+                self.remote_path_prefix.text(),
+                1,
             )
             self.mounted_remote_base_dir = str(self.nxf_base_dir)
 
@@ -908,6 +910,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                         str(p).replace(
                             self.mounted_path_prefix.text(),
                             self.remote_path_prefix.text(),
+                            1,
                         )
                     )
                 )
@@ -935,7 +938,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             # Update Nextflow command to use remote paths for params-file and log
             remote_params_fpath = Path(
                 str(nxf_params_fpath).replace(
-                    self.mounted_remote_base_dir, self.remote_base_dir
+                    self.mounted_remote_base_dir, self.remote_base_dir, 1
                 )
             )
 
@@ -944,16 +947,17 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             nxf_cmd = nxf_cmd.replace(
                 f"-params-file {nxf_params_fpath}",
                 f"-params-file {remote_params_fpath}",
+                1,
             )
             # Replace local work directory with remote work directory in the command
             remote_work_dir = Path(self.remote_base_dir) / "work"
             nxf_cmd = nxf_cmd.replace(
-                f"-w {self.nxf_work_dir}",
-                f"-w {remote_work_dir}",
+                f"-w {self.nxf_work_dir}", f"-w {remote_work_dir}", 1
             )
             nxf_cmd = nxf_cmd.replace(
                 f"-log '{str(self.nxf_base_dir / 'nextflow.log')}'",
                 f"-log '{remote_log_fpath}'",
+                1,
             )
             nxf_cmd = self.command_prepend.text() + " && " + nxf_cmd
             show_info(f"Commmand sent via ssh: {nxf_cmd}")
