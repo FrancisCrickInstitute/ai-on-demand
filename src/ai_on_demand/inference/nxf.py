@@ -145,6 +145,7 @@ The profile determines where the pipeline is run.
                 "username": self.username.text(),
                 "remote_path_prefix": self.remote_path_prefix.text(),
                 "mounted_path_prefix": self.mounted_path_prefix.text(),
+                "command_prepend": self.command_prepend.text(),
                 "ssh_key_path": self.ssh_key_path,
             },
         }
@@ -189,6 +190,7 @@ The profile determines where the pipeline is run.
         self.username.setText(ssh_settings["username"])
         self.remote_path_prefix.setText(ssh_settings["remote_path_prefix"])
         self.mounted_path_prefix.setText(ssh_settings["mounted_path_prefix"])
+        self.command_prepend.setText(ssh_settings["command_prepend"])
         self.ssh_key_path = ssh_settings["ssh_key_path"]
         self.ssh_key_label.setText(f"SSH Key: {ssh_settings['ssh_key_path']}")
 
@@ -1347,7 +1349,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                     print(stderr_line, end="")
 
         except Exception as e:
-            raise Exception(f"Error executing command via jump host: {str(e)}")
+            raise Exception(f"Error executing command via ssh: {str(e)}")
         finally:
             if target:
                 target.close()
