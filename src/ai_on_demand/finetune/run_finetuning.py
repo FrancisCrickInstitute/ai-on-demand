@@ -3,6 +3,7 @@ import cv2
 from .finetuning_utils import SingleClassInstanceDataset
 from .finetuning_utils import PanopticLoss
 from torch.utils.data import DataLoader
+import torch.optim as optim
 import numpy as np
 
 import albumentations as A
@@ -69,14 +70,13 @@ def finetune(config):
     model_dir = config["model_dir"]
     save_dir = config["save_dir"]
     save_name = config["save_name"]
-    epochs = config.get("epochs") or 5
+    epochs = config["epochs"]
+    finetune_layer = config["layers"]
     batch_size = config.get("batch_size") or 16
 
     # allows falsy values - "", None
     data_cls = SingleClassInstanceDataset
-    train_dataset = data_cls(
-        train_dir, transforms=tfs, weight_gamma=0.7
-    )  # what does weight gamma mean?
+    train_dataset = data_cls(train_dir, transforms=tfs, weight_gamma=0.7)
 
     train_loader = DataLoader(
         train_dataset, batch_size, shuffle=True, drop_last=True
@@ -84,7 +84,31 @@ def finetune(config):
 
     model = torch.jit.load(model_dir, map_location=device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    # freeze all encoder layers
+    for pname, param in model.named_parameters():
+        if "encoder" in pname:
+            param.requires_grad = False
+
+    # freeze specific layers
+    if finetune_layer == "none":
+        pass
+    elif finetune_layer == "all":
+        for pname, param in model.named_parameters():
+            if "encoder" in pname:
+                param.requires_grad = True
+    else:
+        # unfreeze is cumulative from layer 1 to chosen layer
+        layers = ["layer1", "layer2", "layer3", "layer4"]
+        for layer_name in layers[layers.index(finetune_layer) :]:
+            for pname, param in model.named_parameters():
+                if layer_name in pname:
+                    param.requires_grad = True
+    num_trainable = sum(
+        p[1].numel() for p in model.named_parameters() if p[1].requires_grad
+    )
+    print(f"Training {num_trainable} parameters.")
+
+    optimizer = configure_optimizer(model, "AdamW", weight_decay=0.1)
 
     criterion = PanopticLoss()
     for epoch in range(epochs):
@@ -115,7 +139,8 @@ def train(
         }
 
         # move to gpu or cpu (aren't they arealyda on the cpu?)
-        images = images.permute(0, 3, 1, 2).float()
+        # images = images.permute(0, 3, 1, 2).float()
+        images = images.float()
         images = images.to(device, non_blocking=True)
         target = {
             k: tensor.to(device, non_blocking=True)
@@ -133,3 +158,56 @@ def train(
         print(f"epoch = {epoch}")
         print(aux_loss)
         print(loss.item())
+
+
+def configure_optimizer(model, opt_name, **opt_params):
+    """
+    Takes an optimizer and separates parameters into two groups
+    that either use weight decay or are exempt.
+
+    Only BatchNorm parameters and biases are excluded.
+    """
+
+    # easy if there's no weight_decay
+    if "weight_decay" not in opt_params:
+        return optim.__dict__[opt_name](model.parameters(), **opt_params)
+    elif opt_params["weight_decay"] == 0:
+        return optim.__dict__[opt_name](model.parameters(), **opt_params)
+
+    decay = set()
+    no_decay = set()
+    param_dict = {}
+
+    blacklist = (torch.nn.BatchNorm2d,)
+    for mn, m in model.named_modules():
+        for pn, p in m.named_parameters(recurse=False):
+            full_name = "%s.%s" % (mn, pn) if mn else pn
+
+            if full_name.endswith("bias"):
+                no_decay.add(full_name)
+            elif full_name.endswith("weight") and isinstance(m, blacklist):
+                no_decay.add(full_name)
+            else:
+                decay.add(full_name)
+
+            param_dict[full_name] = p
+
+    inter_params = decay & no_decay
+    union_params = decay | no_decay
+    assert len(inter_params) == 0, "Overlapping decay and no decay"
+    assert (
+        len(param_dict.keys() - union_params) == 0
+    ), "Missing decay parameters"
+
+    decay_params = [param_dict[pn] for pn in sorted(list(decay))]
+    no_decay_params = [param_dict[pn] for pn in sorted(list(no_decay))]
+
+    param_groups = [
+        {"params": decay_params, **opt_params},
+        {"params": no_decay_params, **opt_params},
+    ]
+    param_groups[1][
+        "weight_decay"
+    ] = 0  # overwrite default to 0 for no_decay group
+
+    return optim.__dict__[opt_name](param_groups, **opt_params)
