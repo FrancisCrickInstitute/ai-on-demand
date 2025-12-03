@@ -11,6 +11,8 @@ from qtpy.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QSpinBox,
+    QComboBox,
 )
 from ai_on_demand.widget_classes import MainWidget, SubWidget, QGroupBox
 
@@ -52,6 +54,22 @@ class FinetuneWidget(SubWidget):
 
         self.train_dir = QLineEdit(placeholderText="Train directory")
         self.model_dir = QLineEdit(placeholderText="Model directory")
+        self.finetune_layers = QComboBox()
+        self.finetune_layers.addItems(
+            [
+                "none",
+                "layer1",
+                "layer2",
+                "layer3",
+                "layer4",
+                "all",
+            ]  # what would happen if we did none?
+        )
+        self.epochs = QSpinBox()
+        self.epochs.setRange(
+            0, 1000
+        )  # would we every do finetuning for more than 1000 epochs?!
+        self.epochs.setValue(5)
         self.save_dir = QLineEdit(
             placeholderText="e.g. User/Desktop/finetuned_model"
         )
@@ -68,13 +86,19 @@ class FinetuneWidget(SubWidget):
         self.finetune_layout.addWidget(QLabel("Model directory:"), 1, 0)
         self.finetune_layout.addWidget(self.model_dir, 1, 1)
 
-        self.finetune_layout.addWidget(QLabel("save dir"), 2, 0)
-        self.finetune_layout.addWidget(self.save_dir, 2, 1)
+        self.finetune_layout.addWidget(QLabel("Finetune layers: "), 2, 0)
+        self.finetune_layout.addWidget(self.finetune_layers, 2, 1)
 
-        self.finetune_layout.addWidget(QLabel("Finetuned model name: "), 3, 0)
-        self.finetune_layout.addWidget(self.model_save_name, 3, 1)
+        self.finetune_layout.addWidget(QLabel("Epochs: "), 3, 0)
+        self.finetune_layout.addWidget(self.epochs, 3, 1)
 
-        self.finetune_layout.addWidget(self.finetune_btn, 4, 0, 1, 2)
+        self.finetune_layout.addWidget(QLabel("save dir"), 4, 0)
+        self.finetune_layout.addWidget(self.save_dir, 4, 1)
+
+        self.finetune_layout.addWidget(QLabel("Finetuned model name: "), 5, 0)
+        self.finetune_layout.addWidget(self.model_save_name, 5, 1)
+
+        self.finetune_layout.addWidget(self.finetune_btn, 6, 0, 1, 2)
 
         # Adding model to model registry
         self.model_task = QLineEdit(
@@ -88,16 +112,16 @@ class FinetuneWidget(SubWidget):
         # name task location, manifestname
         self.add_model_btn.clicked.connect(self.add_model_to_registry)
 
-        self.finetune_layout.addWidget(QLabel("model task: "), 5, 0)
-        self.finetune_layout.addWidget(self.model_task, 5, 1)
+        self.finetune_layout.addWidget(QLabel("model task: "), 7, 0)
+        self.finetune_layout.addWidget(self.model_task, 7, 1)
 
-        self.finetune_layout.addWidget(QLabel("manifest name: "), 6, 0)
-        self.finetune_layout.addWidget(self.manifest_name, 6, 1)
+        self.finetune_layout.addWidget(QLabel("manifest name: "), 8, 0)
+        self.finetune_layout.addWidget(self.manifest_name, 8, 1)
 
-        self.finetune_layout.addWidget(QLabel("model checkpoint path: "), 7, 0)
-        self.finetune_layout.addWidget(self.model_ckp_location, 7, 1)
+        self.finetune_layout.addWidget(QLabel("model checkpoint path: "), 9, 0)
+        self.finetune_layout.addWidget(self.model_ckp_location, 9, 1)
 
-        self.finetune_layout.addWidget(self.add_model_btn, 8, 0, 1, 2)
+        self.finetune_layout.addWidget(self.add_model_btn, 10, 0, 1, 2)
 
         self.inner_layout.addWidget(self.finetune_box)
 
@@ -111,6 +135,8 @@ class FinetuneWidget(SubWidget):
         finetuning_config["model_dir"] = self.model_dir.text()
         finetuning_config["save_dir"] = self.save_dir.text()
         finetuning_config["save_name"] = self.model_save_name.text()
+        finetuning_config["layers"] = self.finetune_layers.currentText()
+        finetuning_config["epochs"] = self.epochs.value()
 
         finetune(finetuning_config)
 
