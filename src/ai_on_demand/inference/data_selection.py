@@ -344,10 +344,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             self.viewer.layers.remove(layer)
 
     def get_config_params(self, params):
-        image_path_list = [str(path) for path in self.image_path_dict.values()]
-        widget_config = image_path_list
-        return widget_config
-
+        return [str(path) for path in self.image_path_dict.values()]
     def load_config(self, config):
         self.update_file_count(paths=config)
         self.view_images(imgs_to_load=config)
