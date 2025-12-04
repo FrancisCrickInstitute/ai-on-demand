@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 from aiod_registry import TASK_NAMES
 import napari
 import paramiko
+from napari._qt.qt_resources import QColoredSVGIcon
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 import pandas as pd
@@ -219,9 +220,23 @@ The profile determines where the pipeline is run.
         Builds the SSH settings UI and attaches it to self.inner_layout.
         Extracted from create_box to keep the main layout method concise.
         """
-        self.ssh_box = QGroupBox("ssh settings")
+
+        self.ssh_options = QPushButton(" ▶ SSH Options")
+        self.ssh_options.setCheckable(True)
+        self.ssh_options.setStyleSheet(
+            f"QPushButton {{ text-align: left; }} QPushButton:checked {{background-color: {self.parent.subwidgets['model'].colour_selected}}}"
+        )
+        self.ssh_options.toggled.connect(self.on_toggle_ssh_options)
+        self.ssh_options.setToolTip(
+            format_tooltip(
+                "Show/hide SSH options for running Nextflow pipeline via SSH"
+            )
+        )
+
+        self.ssh_box = QGroupBox("SSH Settings")
+        # TODO: Add URL to docs when created
         self.ssh_box.setToolTip(
-            "Settings for running nextflow pipeline via SSH"
+            "Settings for running Nextflow pipeline via SSH"
         )
         self.ssh_box.setCheckable(True)
         self.ssh_box.setChecked(False)
@@ -245,7 +260,10 @@ The profile determines where the pipeline is run.
         )
 
         # SSH key section
-        self.info_btn = QPushButton("i")
+        self.info_btn = QPushButton("")
+        self.info_btn.setIcon(
+            QColoredSVGIcon.from_resources("help").colored(theme="dark")
+        )
         self.info_btn.setFixedWidth(30)
         self.info_btn.setToolTip("Help I don't know which ssh key to pick!")
         self.info_btn.clicked.connect(self._show_ssh_info)
@@ -281,7 +299,10 @@ The profile determines where the pipeline is run.
         self.ssh_layout.addWidget(self.locate_key_btn, 8, 0, 1, 2)
         self.ssh_layout.addWidget(self.info_btn, 8, 2)
 
-        self.inner_layout.addWidget(self.ssh_box, 2, 0, 1, 2)
+        self.ssh_box.setVisible(False)
+
+        self.inner_layout.addWidget(self.ssh_options, 2, 0, 1, 2)
+        self.inner_layout.addWidget(self.ssh_box, 3, 0, 1, 2)
 
     def create_box(self, variant: Optional[str] = None):
         # Create box for the cache settings
@@ -424,7 +445,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
                 "Run the pipeline with the chosen organelle(s), model, and images."
             )
         )
-        self.inner_layout.addWidget(self.nxf_run_btn, 3, 0, 1, 2)
+        self.inner_layout.addWidget(self.nxf_run_btn, 4, 0, 1, 2)
 
         pbar_layout = QHBoxLayout()
         # Add progress bar
@@ -572,6 +593,14 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         else:
             self.advanced_widget.setVisible(False)
             self.advanced_box.setText(" ▶ Advanced Options")
+
+    def on_toggle_ssh_options(self):
+        if self.ssh_options.isChecked():
+            self.ssh_box.setVisible(True)
+            self.ssh_options.setText(" ▼ SSH Options")
+        else:
+            self.ssh_box.setVisible(False)
+            self.ssh_options.setText(" ▶ SSH Options")
 
     def store_img_paths(self, img_paths: list[Path]):
         """
@@ -962,7 +991,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 1,
             )
             nxf_cmd = self.command_prepend.text() + " && " + nxf_cmd
-            show_info(f"Commmand sent via ssh: {nxf_cmd}")
+            show_info(f"Commmand sent via SSH: {nxf_cmd}")
 
             self._run_command(nxf_cmd)
 
@@ -1274,7 +1303,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self,
             "SSH Key Help",
             (
-                "You need to select your ssh key (looks something like: id_<encryption_algorithm>) in .ssh from your home directory.\n\n"
+                "You need to select your SSH key (e.g. id_<encryption_algorithm>) in ~/.ssh \n\n"
                 "If you can't see hidden folders you may need to toggle visibility:\n"
                 "macOS: Command + Shift + .\n"
                 "Linux: Ctrl + H (may differ by distro)\n"
