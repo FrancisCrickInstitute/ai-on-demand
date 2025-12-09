@@ -31,6 +31,7 @@ dependencies = [
     "scipy",
     "pyyaml",
     "pandas",
+    "paramiko",
     "tabulate",
     "glasbey",
     "dask-image",
