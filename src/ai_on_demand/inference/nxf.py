@@ -107,8 +107,9 @@ The profile determines where the pipeline is run.
                     self.nxf_profile_box.setCurrentIndex(idx)
             # Set the base directory
             if "base_dir" in settings:
-                if Path(settings["base_dir"]).exists():
-                    nxf_base_dir = Path(settings["base_dir"])
+                base_dir = Path(settings["base_dir"])
+                if base_dir.exists():
+                    nxf_base_dir = base_dir
                 # in the case where user has unmounted a drive (e.g. remote server drive for ssh pipeline)
                 else:
                     print(
@@ -1354,7 +1355,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
                 # Connect to the target node using the channel as a proxy
                 target = paramiko.SSHClient()
-                target.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                target.load_system_host_keys()
+                target.set_missing_host_key_policy(paramiko.RejectPolicy())
                 target.connect(
                     target_node,
                     username=username,
