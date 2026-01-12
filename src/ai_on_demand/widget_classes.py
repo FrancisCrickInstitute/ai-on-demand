@@ -245,7 +245,7 @@ class SubWidget(QCollapsible):
         self.load_settings()
 
     @abstractmethod
-    def create_box(self, variant: Optional[str] = None):
+    def create_box(self):
         """
         Create the box for the subwidget, i.e. all UI elements.
         """

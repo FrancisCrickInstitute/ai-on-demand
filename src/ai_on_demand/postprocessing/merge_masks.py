@@ -50,7 +50,7 @@ Merge masks using various methods. Note that all buttons will use whatever Label
 
         self.visualize_dict = None
 
-    def create_box(self, variant: Optional[str] = None):
+    def create_box(self):
         # Union merge
         self.union_box = self._make_groupbox("Mask Union")
         layout = self.union_box.layout()

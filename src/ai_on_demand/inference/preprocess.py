@@ -65,7 +65,7 @@ Any preprocessing applied here is for visualization purposes only, only the orig
             **kwargs,
         )
 
-    def create_box(self, variant: Optional[str] = None):
+    def create_box(self):
         # Need to create these first as they are used in the callback
         self.order_label = QLabel("Preprocessing order:")
         self.preprocess_order = QLineEdit()
