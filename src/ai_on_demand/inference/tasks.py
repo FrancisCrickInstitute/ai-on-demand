@@ -31,7 +31,7 @@ class TaskWidget(SubWidget):
             **kwargs,
         )
 
-    def create_box(self, variant: Optional[str] = None):
+    def create_box(self):
         """
         Create the box for selecting the task (i.e. organelle) to segment.
         """

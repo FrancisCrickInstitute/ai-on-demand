@@ -56,7 +56,7 @@ Morph masks using various methods. Each function works on the currently selected
             **kwargs,
         )
 
-    def create_box(self, variant: Optional[str] = None):
+    def create_box(self):
         self.morph_ops_box = self._make_groupbox("Morphological Ops")
         layout = self.morph_ops_box.layout()
         self.morph_ops_lbl = QLabel("Operation to apply:")

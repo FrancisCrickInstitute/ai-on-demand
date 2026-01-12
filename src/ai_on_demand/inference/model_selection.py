@@ -100,7 +100,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
                         (task_name, base_name, version_name)
                     ] = task
 
-    def create_box(self, variant: Optional[str] = None):
+    def create_box(self):
         # TODO: This will have to become a variant for e.g. fine-tuning
         model_box_layout = QGridLayout()
         # Create a label for the dropdown

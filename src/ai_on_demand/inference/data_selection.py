@@ -49,7 +49,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         self.viewer.layers.events.inserted.connect(self.on_layer_added)
         self.viewer.layers.events.removed.connect(self.on_layer_removed)
 
-    def create_box(self, variant: Optional[str] = None):
+    def create_box(self):
         # Create empty counter to show image load progress
         self.load_img_counter = 0
         # Create container for image paths
