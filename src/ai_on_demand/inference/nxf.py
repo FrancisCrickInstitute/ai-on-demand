@@ -42,6 +42,8 @@ class NxfWidget(SubWidget):
     _name = "nxf"
 
     config_ready = qtpy.QtCore.Signal()
+    pipeline_finished = qtpy.QtCore.Signal()
+    pipeline_failed = qtpy.QtCore.Signal()
 
     def __init__(
         self,
@@ -833,6 +835,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.parent.insert_final_masks()
         # Ensure progress bar is at 100%
         self.pbar.setValue(self.total_substacks)
+        self.pipeline_finished.emit()
 
     def _pipeline_fail(self, exc):
         show_info("Pipeline failed! See terminal for details")
@@ -842,6 +845,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         if hasattr(self.parent, "watcher_enabled"):
             print("Deactivating watcher...")
             self.parent.watcher_enabled = False
+        self.pipeline_failed.emit()
 
     def _remove_cancel_btn(self):
         # Remove the cancel pipeline button
