@@ -32,7 +32,12 @@ from qtpy.QtWidgets import (
 import tqdm
 import yaml
 
-from ai_on_demand.utils import sanitise_name, format_tooltip, get_img_dims
+from ai_on_demand.utils import (
+    InfoWindow,
+    format_tooltip,
+    get_img_dims,
+    sanitise_name,
+)
 from ai_on_demand.widget_classes import SubWidget
 import aiod_utils.preprocess
 from aiod_utils.stacks import generate_stack_indices, calc_num_stacks, Stack
@@ -331,9 +336,18 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         # Add the label and progress bar to the layout
         pbar_layout.addWidget(self.pbar_label)
         pbar_layout.addWidget(self.pbar)
-        self.inner_layout.addLayout(pbar_layout, 5, 0, 1, 2)
+        self.inner_layout.addLayout(pbar_layout, 5, 0, 1, 1)
         # TQDM progress bar to monitor completion time
         self.tqdm_pbar = None
+
+        # Dialog button to view pipeline parameters for selected hash
+        self.display_params_button = QPushButton("Pipeline Parameters")
+        self.display_params_button.setEnabled(False)
+        self.display_params_button.clicked.connect(self.on_display_params)
+        self.config_ready.connect(
+            lambda: self.display_params_button.setEnabled(True)
+        )
+        self.inner_layout.addWidget(self.display_params_button, 5, 1, 1, 1)
 
     def _add_advanced_options(self):
         self.tile_x_label = QLabel("Number X tiles:")
@@ -694,6 +708,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             msg = f"Masks already exist for all files for segmenting {TASK_NAMES[parent.executed_task]} with {parent.executed_model} ({parent.executed_variant})!"
             if self.parent.run_hash is not None:
                 msg += f" (Hash: {self.parent.run_hash[:8]})"
+                self.display_params_button.setEnabled(True)
             show_info(msg)
             # Otherwise, until importing is fully sorted, the user just gets a notification and that's it
             return nxf_cmd, nxf_params, proceed, img_paths
@@ -1084,3 +1099,38 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             shutil.rmtree(self.nxf_base_dir)
             # Reset the base directory
             self.setup_nxf_dir_cmd(base_dir=self.nxf_base_dir)
+
+    def on_display_params(self):
+        params = None
+        if self.nxf_params is not None:
+            if self.nxf_params.get("param_hash") != self.parent.run_hash:
+                show_info(
+                    "Warning: Current run hash does not match stored Nextflow parameters!"
+                )
+            else:
+                params = self.nxf_params.copy()
+        elif self.parent.run_hash is not None:
+            nxf_params_fpath = (
+                self.nxf_store_dir / f"nxf_params_{self.parent.run_hash}.yml"
+            )
+            if nxf_params_fpath.exists():
+                with open(nxf_params_fpath, "r") as f:
+                    params = yaml.safe_load(f)
+
+        if not params:
+            info = "Hash details unavailable"
+        else:
+            # Replace "model_config" value with the contents of the YAML file
+            model_config_path = params.get("model_config")
+            if model_config_path and Path(model_config_path).exists():
+                with open(model_config_path, "r") as f:
+                    params["model_config"] = yaml.safe_load(f)
+            info = yaml.dump(params)
+
+        params_popup = InfoWindow(
+            self,
+            title=f"Pipeline parameters"
+            + (f" ({params['param_hash'][:8]})" if params else ""),
+            content=info,
+        )
+        params_popup.show()

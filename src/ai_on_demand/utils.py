@@ -7,7 +7,12 @@ import textwrap
 from typing import Optional, Union
 import warnings
 import yaml
-
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import (
+    QVBoxLayout,
+    QDialog,
+    QTextEdit,
+)
 from platformdirs import user_cache_dir
 
 
@@ -183,3 +188,22 @@ def get_img_dims(
                 f"Unexpected number of dimensions for image {img_path}!"
             )
     return H, W, num_slices, channels
+
+
+class InfoWindow(QDialog):
+    def __init__(self, parent=None, title: str = "", content: str = ""):
+        super().__init__(parent)
+
+        # Set the layout
+        self.layout = QVBoxLayout()
+        # Set the window title
+        self.setWindowTitle(title)
+        # Add the info label
+        self.info_label = QTextEdit()
+        # Make the text selectable, but not editable
+        self.info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.info_label.setText(content)
+        self.info_label.setMinimumSize(500, 500)
+
+        self.layout.addWidget(self.info_label)
+        self.setLayout(self.layout)

@@ -30,6 +30,7 @@ from ai_on_demand.utils import (
     merge_dicts,
     calc_param_hash,
     load_model_config,
+    InfoWindow
 )
 
 
@@ -712,24 +713,5 @@ Version: {task_model_version[2]}
         if model_version.config_path is not None:
             model_info += f"\nConfig path: {model_version.config_path}"
 
-        self.model_window = ModelInfoWindow(self, model_info=model_info)
+        self.model_window = InfoWindow(self, title="Model Information", content=model_info)
         self.model_window.show()
-
-
-class ModelInfoWindow(QDialog):
-    def __init__(self, parent=None, model_info: str = ""):
-        super().__init__(parent)
-
-        # Set the layout
-        self.layout = QVBoxLayout()
-        # Set the window title
-        self.setWindowTitle("Model Information")
-        # Add the info label
-        self.info_label = QTextEdit()
-        # Make the text selectable, but not editable
-        self.info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.info_label.setText(model_info)
-        self.info_label.setMinimumSize(500, 500)
-
-        self.layout.addWidget(self.info_label)
-        self.setLayout(self.layout)
