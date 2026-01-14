@@ -1,0 +1,111 @@
+import napari
+from .run_finetuning import finetune
+from typing import Optional
+
+from aiod_registry import add_model_local
+from qtpy.QtWidgets import (
+    QWidget,
+    QGridLayout,
+    QLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSpinBox,
+    QComboBox,
+)
+from ai_on_demand.widget_classes import SubWidget, QGroupBox
+from ai_on_demand.utils import format_tooltip
+
+
+class FinetuneParameters(SubWidget):
+    _name = "finetune_params"
+
+    def __init__(
+        self,
+        viewer: napari.Viewer,
+        parent: Optional[QWidget] = None,
+        layout: QLayout = QGridLayout,
+    ):
+        super().__init__(
+            viewer=viewer,
+            title="Finetune Parameters",
+            parent=parent,
+            layout=layout,
+            tooltip=parent.tooltip,
+        )
+
+    def create_box(self):
+        self.finetune_box = QGroupBox("Finetune Model")
+
+        self.finetune_layout = QGridLayout()
+        self.finetune_box.setLayout(self.finetune_layout)
+
+        self.train_dir = QLineEdit(placeholderText="Train directory")
+
+        self.finetune_layers = QComboBox()
+        self.finetune_layers.addItems(
+            [
+                "none",
+                "layer1",
+                "layer2",
+                "layer3",
+                "layer4",
+                "all",
+            ]  # what would happen if we did none?
+        )
+        self.epochs = QSpinBox()
+        self.epochs.setRange(0, 1000)
+        # TODO: would we every do finetuning for more than 1000 epochs?! maybe someone like Jon wants to retrain the model should we prevent that
+        self.epochs.setValue(5)
+        self.model_save_name = QLineEdit(
+            placeholderText="Name you finetuned model"
+        )
+        # TODO: maybe not a good idea to let users pick names can be automatic like {model_name}_{finetuned}_{#}?
+
+        self.finetune_layout.addWidget(QLabel("Train directory:"), 0, 0)
+        self.finetune_layout.addWidget(self.train_dir, 0, 1)
+
+        self.finetune_layout.addWidget(QLabel("Finetune layers: "), 2, 0)
+        self.finetune_layout.addWidget(self.finetune_layers, 2, 1)
+
+        self.finetune_layout.addWidget(QLabel("Epochs: "), 3, 0)
+        self.finetune_layout.addWidget(self.epochs, 3, 1)
+
+        self.finetune_layout.addWidget(QLabel("Finetuned model name: "), 5, 0)
+        self.finetune_layout.addWidget(self.model_save_name, 5, 1)
+        # TODO: saving model should be auto or have a way of blocking the users from saving the model before it has run?
+
+        self.model_task = QLineEdit(
+            placeholderText="e.g. mito"
+        )  # this may need translating (there should be a translation function)
+        self.manifest_name = QLineEdit(placeholderText="e.g. empanada")
+        self.model_ckp_location = QLineEdit(
+            placeholderText="Path to model checkpoint"
+        )
+        self.add_model_btn = QPushButton("add model to registry")
+        self.add_model_btn.setDisabled(True)
+        self.add_model_btn.setToolTip(
+            format_tooltip(
+                "Adding model becomes available after running pipeline once"
+            )
+        )
+        # name task location, manifestname
+        self.add_model_btn.clicked.connect(self.add_model_to_registry)
+
+        self.finetune_layout.addWidget(self.add_model_btn, 6, 0, 1, 2)
+
+        self.inner_layout.addWidget(self.finetune_box)
+
+    def enable_add_model(self):
+        self.add_model_btn.setDisabled(False)
+
+    def add_model_to_registry(self):
+        print("saving model to registry...")
+        model_name = self.model_save_name.text()
+        model_task = self.model_task.text()
+        location = self.model_ckp_location.text()
+
+        manifest_name = self.manifest_name.text()
+
+        add_model_local(model_name, model_task, location, manifest_name)
+        print("saved model to registry - please see the inference widget")

@@ -76,7 +76,7 @@ def finetune(config):
 
     # allows falsy values - "", None
     data_cls = SingleClassInstanceDataset
-    train_dataset = data_cls(train_dir, transforms=tfs, weight_gamma=0.7)
+    train_dataset = data_cls(train_dir, transforms=tfs, weight_gamma=None)
 
     train_loader = DataLoader(
         train_dataset, batch_size, shuffle=True, drop_last=True
