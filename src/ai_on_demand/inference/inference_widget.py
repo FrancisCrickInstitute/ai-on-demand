@@ -70,7 +70,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
             NxfWidget(
                 viewer=self.viewer,
                 parent=self,
-                pipeline="inference",
+                variant="inference",
                 expanded=False,
             )
         )
