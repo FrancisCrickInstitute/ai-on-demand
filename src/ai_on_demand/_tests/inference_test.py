@@ -9,9 +9,11 @@ import os
 
 
 # Fixtures
+
+
+# Sometimes napari remains running even after The viewer is closed
 @pytest.fixture(scope="session", autouse=True)
 def ensure_qt_cleanup():
-    """Ensure the Qt event loop is stopped after all tests."""
     yield
     try:
         run.quit()
@@ -77,11 +79,32 @@ def inference_widget(napari_viewer):
     return plugin_widget
 
 
-# store each task, model and variant
+# store each task, model and variant - comment out to test specific tasks, models and variants
 model_info = {
-    "mito": {"Empanada": ["MitoNet v1", "MitoNet Mini v1"]},
-    "nuclei": {"Empanada": ["NucleoNet v1"]},
-    # Add more as needed
+    # "mito": {"Empanada": ["MitoNet v1", "MitoNet Mini v1"]},
+    # "nuclei": {
+    #     "Cellpose": ["nuclei"],
+    #     "Cellpose-SAM": ["cpsam"],
+    #     "Empanada": ["NucleoNet v1"],
+    # },
+    # "everything": {
+    #     "Segment Anything": [
+    #         "default",
+    #         "vit_h",
+    #         "vit_l",
+    #         "vit_b",
+    #         "MedSAM",
+    #         "MicroSAM-Boundaries",
+    #         "MicroSAM-Organelles",
+    #     ],
+    #     "Segment Anything 2": [
+    #         "hiera_base",
+    #         "hiera_small",
+    #         "hiera_large",
+    #         "hiera_tiny",
+    #     ],
+    "Cytoplasm": {"Cellpose": ["cyto3", "cyto1", "cyto3"]},
+    # },  # SAM models Usually take long to run
 }
 
 
@@ -96,7 +119,7 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("task,model,variant", argvalues)
 
 
-# test
+# one full inference pass
 def test_inference_workflow(
     napari_viewer, inference_widget, dummy_images, task, model, variant
 ):
@@ -155,6 +178,8 @@ def test_inference_workflow(
         plugin_widget.subwidgets["nxf"].nxf_run_btn.click()
         print("running the pipeline!")
 
+    plugin_widget.subwidgets["data"].images_loaded.connect(run_pipeline)
+
     def timeout():
         if not finished["done"]:
             try:
@@ -165,6 +190,5 @@ def test_inference_workflow(
             run.quit()
             pytest.fail("Timeout during inference workflow")
 
-    QTimer.singleShot(3000, run_pipeline)
     QTimer.singleShot(600000, timeout)  # 10min timeout
     run()
