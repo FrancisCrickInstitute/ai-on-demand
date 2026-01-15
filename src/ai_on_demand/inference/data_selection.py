@@ -6,6 +6,7 @@ import napari
 from napari.layers import Image
 from napari.qt.threading import thread_worker
 import numpy as np
+import qtpy.QtCore
 from qtpy.QtWidgets import (
     QWidget,
     QLayout,
@@ -24,6 +25,8 @@ import aiod_utils.io as aiod_io
 
 class DataWidget(SubWidget):
     _name = "data"
+
+    images_loaded = qtpy.QtCore.Signal()
 
     def __init__(
         self,
@@ -293,6 +296,8 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         self.parent.subwidgets["nxf"].all_loaded = True
         # Also reset the viewer itself to ensure images are visible
         self.viewer.reset_view()
+        # Signalling the images
+        self.images_loaded.emit()
 
     def update_file_count(
         self, paths: Optional[list[Union[str, Path]]] = None
