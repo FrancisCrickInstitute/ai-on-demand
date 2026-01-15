@@ -80,32 +80,42 @@ def inference_widget(napari_viewer):
 
 
 # store each task, model and variant - comment out to test specific tasks, models and variants
+
+
+# QUICK mito + MitoNet test
 model_info = {
-    # "mito": {"Empanada": ["MitoNet v1", "MitoNet Mini v1"]},
-    # "nuclei": {
-    #     "Cellpose": ["nuclei"],
-    #     "Cellpose-SAM": ["cpsam"],
-    #     "Empanada": ["NucleoNet v1"],
-    # },
-    # "everything": {
-    #     "Segment Anything": [
-    #         "default",
-    #         "vit_h",
-    #         "vit_l",
-    #         "vit_b",
-    #         "MedSAM",
-    #         "MicroSAM-Boundaries",
-    #         "MicroSAM-Organelles",
-    #     ],
-    #     "Segment Anything 2": [
-    #         "hiera_base",
-    #         "hiera_small",
-    #         "hiera_large",
-    #         "hiera_tiny",
-    #     ],
-    "Cytoplasm": {"Cellpose": ["cyto3", "cyto1", "cyto3"]},
-    # },  # SAM models Usually take long to run
+    "mito": {"Empanada": ["MitoNet v1"]},
 }
+
+
+# TEST ALL MODELS
+# model_info = {
+# "mito": {"Empanada": ["MitoNet v1", "MitoNet Mini v1"]},
+# "nuclei": {
+#     "Cellpose": ["nuclei"],
+#     "Cellpose-SAM": ["cpsam"],
+#     "Empanada": ["NucleoNet v1"],
+# },
+# "everything": {
+#     "Segment Anything": [
+#         "default",
+#         "vit_h",
+#         "vit_l",
+#         "vit_b",
+#         "MedSAM",
+#         "MicroSAM-Boundaries",
+#         "MicroSAM-Organelles",
+#     ],
+#     "Segment Anything 2": [
+#         "hiera_base",
+#         "hiera_small",
+#         "hiera_large",
+#         "hiera_tiny",
+#     ],
+# "cyto": {"Cellpose": ["cyto3", "cyto1", "cyto3"]},
+# "drop": {"Empanada": ["DropNet v1"]},
+# },  # SAM models Usually take long to run
+# }
 
 
 # test for each task, model and variant
