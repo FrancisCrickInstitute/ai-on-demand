@@ -5,6 +5,7 @@ import shutil
 import subprocess
 from typing import Optional, Union
 from urllib.parse import urlparse
+import re
 
 from aiod_registry import TASK_NAMES
 import napari
@@ -343,6 +344,12 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         # Dialog button to view pipeline parameters for selected hash
         self.display_params_button = QPushButton("Pipeline Parameters")
         self.display_params_button.setEnabled(False)
+        # Check if run hash available whenever selection changes
+        self.viewer.layers.selection.events.changed.connect(
+            lambda: self.display_params_button.setEnabled(
+                bool(self.get_selected_layer_hash())
+            )
+        )
         self.display_params_button.clicked.connect(self.on_display_params)
         self.config_ready.connect(
             lambda: self.display_params_button.setEnabled(True)
@@ -1100,25 +1107,46 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             # Reset the base directory
             self.setup_nxf_dir_cmd(base_dir=self.nxf_base_dir)
 
+    def get_selected_layer_hash(self):
+        # Get current layer name if it's a labels layer
+        selected = [
+            layer
+            for layer in self.viewer.layers.selection
+            if isinstance(layer, napari.layers.Labels)
+        ]
+        if not selected:
+            return ""
+        elif len(selected) > 1:
+            return ""
+            # raise NotImplementedError("Viewing hash config details for multiple output layers not supported yet")
+        else:
+            selected = selected[0]
+            if selected.name in [
+                i["layer_name"] for i in self.parent.img_mask_info
+            ]:
+                # Hooray, it's an aiod output
+                return re.split(r"[\W_]", selected.name)[-1]
+
     def on_display_params(self):
         params = None
-        if self.nxf_params is not None:
-            if self.nxf_params.get("param_hash") != self.parent.run_hash:
-                show_info(
-                    "Warning: Current run hash does not match stored Nextflow parameters!"
-                )
-            else:
-                params = self.nxf_params.copy()
-        elif self.parent.run_hash is not None:
-            nxf_params_fpath = (
-                self.nxf_store_dir / f"nxf_params_{self.parent.run_hash}.yml"
+        hash_crumb = self.get_selected_layer_hash()
+        if not hash_crumb:
+            # This should not happen: layer selection event connection should only enable this button if hash is available
+            raise RuntimeError(
+                "No valid output layer selected to get hash from!"
             )
-            if nxf_params_fpath.exists():
-                with open(nxf_params_fpath, "r") as f:
-                    params = yaml.safe_load(f)
+        nxf_params_fpath = list(
+            self.nxf_store_dir.glob(f"nxf_params_{hash_crumb}*.yml")
+        )
+        if len(nxf_params_fpath) != 1:
+            raise RuntimeError(
+                f"Could not find unique Nextflow params file for hash {hash_crumb}!"
+            )
+        with open(nxf_params_fpath[0], "r") as f:
+            params = yaml.safe_load(f)
 
         if not params:
-            info = "Hash details unavailable"
+            info = f"Hash details for {hash_crumb} not found"
         else:
             # Replace "model_config" value with the contents of the YAML file
             model_config_path = params.get("model_config")
