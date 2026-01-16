@@ -343,6 +343,13 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
 
         # Dialog button to view pipeline parameters for selected hash
         self.display_params_button = QPushButton("Pipeline Parameters")
+        self.display_params_button.setToolTip(
+            format_tooltip(
+                """
+View the parameters used for the currently selected output.
+"""
+            )
+        )
         self.display_params_button.setEnabled(False)
         # Check if run hash available whenever selection changes
         self.viewer.layers.selection.events.changed.connect(
