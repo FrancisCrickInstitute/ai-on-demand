@@ -1108,6 +1108,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self.setup_nxf_dir_cmd(base_dir=self.nxf_base_dir)
 
     def get_selected_layer_hash(self):
+        if len(self.viewer.layers.selection) > 1:
+            # raise NotImplementedError("Viewing hash config details for multiple output layers not supported yet")
+            return ""
         # Get current layer name if it's a labels layer
         selected = [
             layer
@@ -1116,37 +1119,42 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         ]
         if not selected:
             return ""
-        elif len(selected) > 1:
-            return ""
-            # raise NotImplementedError("Viewing hash config details for multiple output layers not supported yet")
         else:
             selected = selected[0]
-            if selected.name in [
-                i["layer_name"] for i in self.parent.img_mask_info
-            ]:
+            # Look for hash crumb pattern in layer name
+            crumb = re.split(r"[\W_]", selected.name)[-1]
+            file_matches = list(
+                self.nxf_store_dir.glob(f"nxf_params_{crumb}*.yml")
+            )
+            if not file_matches:
+                # No matches, layer is not an aiod output
+                return ""
+            elif len(file_matches) > 1:
+                raise RuntimeError(
+                    f"Could not find unique Nextflow params file for hash {crumb}!"
+                )
+            else:
+                # Fetch the full hash
+                full_hash = file_matches[0].stem.split("nxf_params_")[-1]
+                assert full_hash.startswith(crumb)
                 # Hooray, it's an aiod output
-                return re.split(r"[\W_]", selected.name)[-1]
+                return full_hash
 
     def on_display_params(self):
         params = None
-        hash_crumb = self.get_selected_layer_hash()
-        if not hash_crumb:
+        full_hash = self.get_selected_layer_hash()
+        if not full_hash:
             # This should not happen: layer selection event connection should only enable this button if hash is available
             raise RuntimeError(
                 "No valid output layer selected to get hash from!"
             )
-        nxf_params_fpath = list(
-            self.nxf_store_dir.glob(f"nxf_params_{hash_crumb}*.yml")
-        )
-        if len(nxf_params_fpath) != 1:
-            raise RuntimeError(
-                f"Could not find unique Nextflow params file for hash {hash_crumb}!"
-            )
-        with open(nxf_params_fpath[0], "r") as f:
+        with open(
+            self.nxf_store_dir / f"nxf_params_{full_hash}.yml", "r"
+        ) as f:
             params = yaml.safe_load(f)
 
         if not params:
-            info = f"Hash details for {hash_crumb} not found"
+            info = f"Hash details for {full_hash[:8]} not found"
         else:
             # Replace "model_config" value with the contents of the YAML file
             model_config_path = params.get("model_config")
@@ -1157,7 +1165,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
         params_popup = InfoWindow(
             self,
-            title=f"Pipeline parameters"
+            title="Pipeline parameters"
             + (f" ({params['param_hash'][:8]})" if params else ""),
             content=info,
         )
