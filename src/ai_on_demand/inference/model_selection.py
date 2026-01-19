@@ -39,6 +39,7 @@ class ModelWidget(SubWidget):
     def __init__(
         self,
         viewer: napari.Viewer,
+        variant: Optional[str] = None,
         parent: Optional[QWidget] = None,
         layout: QLayout = QVBoxLayout,
         **kwargs,
