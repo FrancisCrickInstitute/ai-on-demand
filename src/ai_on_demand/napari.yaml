@@ -19,6 +19,9 @@ contributions:
       title: Example FIB SEM data
       short_title: Example Data
       python_name: ai_on_demand.example_data:load_example_data
+    - id: ai-on-demand.bioio_reader
+      title: Read bioimaging file formats
+      python_name: ai_on_demand.rle_io:get_bioio_reader
     - id: ai-on-demand.rle_reader
       title: Read RLE segmentations
       python_name: ai_on_demand.rle_io:get_rle_reader
@@ -42,6 +45,10 @@ contributions:
         - '*.pkl'
         - '*.pickle'
         - '*.rle'
+      accepts_directories: false
+    - command: ai-on-demand.bioio_reader
+      filename_patterns:
+      - '*'
       accepts_directories: false
   writers:
     - command: ai-on-demand.rle_writer

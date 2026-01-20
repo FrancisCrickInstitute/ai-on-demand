@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 import napari
-from napari.layers import Image
+from napari.layers import Image, Layer
 from napari.qt.threading import thread_worker
 import numpy as np
 from qtpy.QtWidgets import (
@@ -19,6 +19,7 @@ import pandas as pd
 
 from ai_on_demand.widget_classes import SubWidget
 from ai_on_demand.utils import format_tooltip, get_image_layer_path
+from ai_on_demand.rle_io import prepare_bioio_as_napari_layer
 import aiod_utils.io as aiod_io
 
 
@@ -248,39 +249,9 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         bioio_img, fpath = res
         # Add the image to the overall dict
         self.image_path_dict[fpath.stem] = fpath
-        # Handle JPEGs etc.
-        if isinstance(bioio_img, np.ndarray):
-            self.viewer.add_image(
-                bioio_img,
-                name=fpath.stem,
-            )
-        # Otherwise deal with BioIO object
-        else:
-            # TODO: Add metadata?
-            # TODO: We specify where we want the channel axis to be, so can pass this to the viewer
-            # Though if this splits one file to multiple layers...well, that needs addressing anyway
-            try:
-                bioio_metadata = bioio_img.ome_metadata
-            except NotImplementedError:
-                bioio_metadata = bioio_img.metadata
-            # NOTE: https://github.com/bioio-devs/bioio/issues/25 issue for adding units
-            try:
-                pixel_sizes = bioio_img.physical_pixel_sizes
-            except NotImplementedError:
-                pixel_sizes = None
-            # Add various metadata to the image
-            metadata = {
-                "bioio_metadata": bioio_metadata,
-                "pixel_sizes": pixel_sizes,
-                "bioio_dims": bioio_img.dims,
-            }
-            self.viewer.add_image(
-                bioio_img.get_image_dask_data(
-                    dimension_order_out="CZYX"
-                ).squeeze(),
-                name=fpath.stem,
-                metadata=metadata,
-            )
+        layer_data = prepare_bioio_as_napari_layer(bioio_img, fpath)
+        for l in layer_data:
+            self.viewer.add_layer(Layer.create(*l))
 
     def _finished_loading(self):
         """Signify to user that all images have been loaded."""
