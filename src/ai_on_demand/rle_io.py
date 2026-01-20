@@ -10,6 +10,8 @@ import aiod_utils.io
 
 
 def get_bioio_reader(path: Union[str, Path]):
+    if Path(path).suffix in [".jpg", ".jpeg", ".png"]:
+        return bioio_reader  # Handled separately in load_image
     # Check if bioio can read this
     try:
         plugin = BioImage.determine_plugin(path)
@@ -28,7 +30,7 @@ def get_bioio_reader(path: Union[str, Path]):
 
 
 def bioio_reader(
-    path: Union[str, Path], bioio_reader_class: Union[Reader, None]
+    path: Union[str, Path], bioio_reader_class: Union[Reader, None]=None
 ):
     # Load the image with utils loader, keeping defaults
     path = Path(path)
