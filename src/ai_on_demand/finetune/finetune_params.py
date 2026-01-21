@@ -1,8 +1,9 @@
 import napari
 from .run_finetuning import finetune
 from typing import Optional
+from pathlib import Path
 
-from aiod_registry import add_model_local
+from aiod_registry import add_model_local, load_manifests
 from qtpy.QtWidgets import (
     QWidget,
     QGridLayout,
@@ -34,6 +35,8 @@ class FinetuneParameters(SubWidget):
             tooltip=parent.tooltip,
         )
 
+    default_save_location = "/Users/ahmedn/.nextflow/aiod/aiod_cache/finetuned_models/"  # extact this from the base dir stuff
+
     def create_box(self):
         self.finetune_box = QGroupBox("Finetune Model")
 
@@ -51,11 +54,11 @@ class FinetuneParameters(SubWidget):
                 "layer3",
                 "layer4",
                 "all",
-            ]  # what would happen if we did none?
-        )
+            ]
+        )  # These layer refer to the encoder layers to unfreeze - "none" would be only decoder finetuning
         self.epochs = QSpinBox()
         self.epochs.setRange(0, 1000)
-        # TODO: would we every do finetuning for more than 1000 epochs?! maybe someone like Jon wants to retrain the model should we prevent that
+        # TODO: would we ever do finetuning for more than 1000 epochs?! maybe someone like Jon wants to retrain the model should we prevent that
         self.epochs.setValue(5)
         self.model_save_name = QLineEdit(
             placeholderText="Name you finetuned model"
@@ -73,15 +76,8 @@ class FinetuneParameters(SubWidget):
 
         self.finetune_layout.addWidget(QLabel("Finetuned model name: "), 5, 0)
         self.finetune_layout.addWidget(self.model_save_name, 5, 1)
-        # TODO: saving model should be auto or have a way of blocking the users from saving the model before it has run?
 
-        self.model_task = QLineEdit(
-            placeholderText="e.g. mito"
-        )  # this may need translating (there should be a translation function)
         self.manifest_name = QLineEdit(placeholderText="e.g. empanada")
-        self.model_ckp_location = QLineEdit(
-            placeholderText="Path to model checkpoint"
-        )
         self.add_model_btn = QPushButton("add model to registry")
         self.add_model_btn.setDisabled(True)
         self.add_model_btn.setToolTip(
@@ -96,16 +92,21 @@ class FinetuneParameters(SubWidget):
 
         self.inner_layout.addWidget(self.finetune_box)
 
-    def enable_add_model(self):
+    def enable_add_model(self, nxf_base_dir: str):
+        self.nxf_base_dir = nxf_base_dir
         self.add_model_btn.setDisabled(False)
 
     def add_model_to_registry(self):
         print("saving model to registry...")
         model_name = self.model_save_name.text()
-        model_task = self.model_task.text()
-        location = self.model_ckp_location.text()
+        model_task = self.parent.selected_task
+        model_save_fpath = (
+            f"{self.nxf_base_dir}/aiod_cache/finetuned_models/{model_name}.pth"
+        )
 
-        manifest_name = self.manifest_name.text()
+        manifest_name = self.parent.selected_model
 
-        add_model_local(model_name, model_task, location, manifest_name)
+        add_model_local(
+            model_name, model_task, model_save_fpath, manifest_name
+        )
         print("saved model to registry - please see the inference widget")
