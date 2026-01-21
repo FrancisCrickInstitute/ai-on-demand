@@ -42,7 +42,7 @@ class NxfWidget(SubWidget):
     _name = "nxf"
 
     config_ready = qtpy.QtCore.Signal()
-    finetuned_model_ready = qtpy.QtCore.Signal()
+    finetuned_model_ready = qtpy.QtCore.Signal(str)
 
     def __init__(
         self,
@@ -55,9 +55,7 @@ class NxfWidget(SubWidget):
         self.variant = variant
         # Define attributes that may be useful outside of this class
         # or throughout it
-        self.nxf_repo = (
-            "/Users/ahmedn/Work/ai-on-demand/src/ai_on_demand/Segment-Flow/"
-        )
+        self.nxf_repo = "/Users/ahmedn/Work/ai-on-demand/src/ai_on_demand/Segment-Flow/"  # TODO: return back to the remote repo
         # Set the base Nextflow command
         self.setup_nxf_dir_cmd()
         super().__init__(
@@ -745,6 +743,18 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             == ""
         ):
             raise ValueError("No Train directory selected!")
+        if (
+            self.parent.subwidgets["finetune_params"].model_save_name.text()
+            == ""
+        ):
+            raise ValueError("No save name given for finetuned model")
+        if not (
+            Path(
+                self.parent.subwidgets["finetune_params"].train_dir.text()
+            ).exists()
+        ):
+            raise FileNotFoundError("Training Directory not found")
+            # TODO: Add more comprehensive checks. Are there image and mask directories and files within.
 
         print("Done running checks for finetuning!")
 
@@ -783,7 +793,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         config_path = parent.subwidgets["model"].get_model_config()
 
         nxf_params["root_dir"] = str(self.nxf_base_dir)
-        nxf_params["img_dir"] = str(self.img_list_fpath)
+        nxf_params["model_save_dir"] = (
+            str(self.nxf_base_dir) + "/aiod_cache/finetuned_models"
+        )
         nxf_params["model"] = parent.selected_model
         nxf_params["model_config"] = str(config_path)
         nxf_params["model_type"] = sanitise_name(parent.executed_variant)
@@ -857,14 +869,14 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self.parent.store_settings()
             # store the image paths
             self.store_img_paths(img_paths=img_paths)
+            # Add postprocessing flag
+            nxf_params["postprocess"] = self.postprocess_btn.isChecked()
 
         # Add custom work directory
         if self.nxf_work_dir is not None:
             nxf_cmd += f" -w {self.nxf_work_dir}"
         # Add the selected profile to the command
         nxf_cmd += f" -profile {self.nxf_profile_box.currentText()}"
-        # Add postprocessing flag
-        nxf_params["postprocess"] = self.postprocess_btn.isChecked()
         # Add the Nextflow parameter hash to the command
         nxf_params["param_hash"] = self.parent.run_hash
         # Save the Nextflow parameters to a YAML file
@@ -961,13 +973,41 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self.parent.watcher_enabled = False
 
     def _finetune_start(self):
-        return
+        # Add a notification that the pipeline has started
+        show_info("Pipeline started!")
+        # Modify buttons during run
+        # Disable run button to avoid issues
+        # TODO: Enable multiple job execution, may require -bg flag?
+        self.nxf_run_btn.setEnabled(False)
+        # Update the button to signify it's running
+        self.nxf_run_btn.setText("Running Pipeline...")
+        # Add a cancel pipeline button
+        idx = self.inner_widget.layout().indexOf(self.nxf_run_btn)
+        row, col, rowspan, colspan = (
+            self.inner_widget.layout().getItemPosition(idx)
+        )
+        self.orig_colspan = colspan
+        self.cancel_btn = QPushButton("Cancel Pipeline")
+        self.cancel_btn.clicked.connect(self.cancel_pipeline)
+        self.cancel_btn.setToolTip("Cancel the currently running pipeline.")
+        new_colspan = colspan // 2 if colspan > 1 else 1
+        self.inner_widget.layout().addWidget(
+            self.nxf_run_btn, row, col, rowspan, new_colspan
+        )
+        self.inner_widget.layout().addWidget(
+            self.cancel_btn, row, col + new_colspan, rowspan, new_colspan
+        )
 
     def _finetune_finish(self):
-        self.finetuned_model_ready.emit()
-        return
+        # Add a notification that the pipeline has finished
+        show_info("Pipeline finished!")
+        self._reset_btns()
+        self.finetuned_model_ready.emit(str(self.nxf_base_dir))
 
-    def _finetune_fail(self):
+    def _finetune_fail(self, exc):
+        show_info("Pipeline failed! See terminal for details")
+        print(exc)
+        self._reset_btns()
         return
 
     def _remove_cancel_btn(self):

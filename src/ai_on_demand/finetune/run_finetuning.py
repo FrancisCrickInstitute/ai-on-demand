@@ -1,5 +1,4 @@
 import torch
-import cv2
 from .finetuning_utils import SingleClassInstanceDataset
 from .finetuning_utils import PanopticLoss
 from torch.utils.data import DataLoader

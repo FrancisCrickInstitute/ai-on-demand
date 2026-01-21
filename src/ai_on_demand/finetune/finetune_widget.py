@@ -42,7 +42,12 @@ class Finetune(MainWidget):
         # Create radio buttons for selecting the model to run
         # Functionality currently limited to Meta's Segment Anything Model
         self.register_widget(
-            ModelWidget(viewer=self.viewer, parent=self, expanded=False)
+            ModelWidget(
+                viewer=self.viewer,
+                variant="finetune",
+                parent=self,
+                expanded=False,
+            )
         )
 
         # # Create the box for selecting the directory, showing img count etc.
