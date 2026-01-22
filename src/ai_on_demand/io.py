@@ -4,6 +4,7 @@ from functools import partial
 import numpy as np
 from bioio import BioImage
 from bioio_base.reader import Reader
+from bioio_base.exceptions import UnsupportedFileFormatError
 
 import aiod_utils.rle
 import aiod_utils.io
@@ -25,6 +26,7 @@ def get_bioio_reader(path: Union[str, Path]):
     except (
         AttributeError,
         FileNotFoundError,
+        UnsupportedFileFormatError,
     ):
         return None
 
