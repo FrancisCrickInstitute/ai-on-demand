@@ -7,10 +7,8 @@ from ai_on_demand.finetune import FinetuneParameters
 
 from ai_on_demand.inference import (
     TaskWidget,
-    DataWidget,
     ModelWidget,
     NxfWidget,
-    ConfigWidget,
 )
 
 from ai_on_demand.widget_classes import MainWidget, SubWidget, QGroupBox
@@ -49,17 +47,6 @@ class Finetune(MainWidget):
                 expanded=False,
             )
         )
-
-        # # Create the box for selecting the directory, showing img count etc.
-        # self.register_widget(
-        #     DataWidget(
-        #         viewer=self.viewer,
-        #         parent=self,
-        #         expanded=False,
-        #         variant="finetune",
-        #     )
-        # )
-        # TODO: reevaluate if you can use the data widget for both image dir and masks nicely
 
         self.register_widget(
             FinetuneParameters(viewer=self.viewer, parent=self)

@@ -1,9 +1,7 @@
 import napari
-from .run_finetuning import finetune
 from typing import Optional
-from pathlib import Path
 
-from aiod_registry import add_model_local, load_manifests
+from aiod_registry import add_model_local
 from qtpy.QtWidgets import (
     QWidget,
     QGridLayout,
