@@ -997,18 +997,23 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.inner_widget.layout().addWidget(
             self.cancel_btn, row, col + new_colspan, rowspan, new_colspan
         )
+        # start the metrics file watcher
+        self.parent.watch_metrics_file()
 
     def _finetune_finish(self):
         # Add a notification that the pipeline has finished
         show_info("Pipeline finished!")
         self._reset_btns()
         self.finetuned_model_ready.emit(str(self.nxf_base_dir))
+        # stop the metrics file watcher
+        self.parent.watch_enabled = False
 
     def _finetune_fail(self, exc):
         show_info("Pipeline failed! See terminal for details")
         print(exc)
         self._reset_btns()
-        return
+        # stop the metrics file watcher
+        self.parent.watch_enabled = False
 
     def _remove_cancel_btn(self):
         # Remove the cancel pipeline button

@@ -1,6 +1,8 @@
 from typing import Optional, Union
 
 import napari
+import time
+from pathlib import Path
 from napari.qt.threading import thread_worker
 
 from ai_on_demand.finetune import FinetuneParameters
@@ -31,6 +33,7 @@ class Finetune(MainWidget):
         self.executed_model = None
         self.executed_variant = None
         self.run_hash = None
+        self.watch_enabled = None
 
         # Create radio buttons for selecting task (i.e. organelle)
         self.register_widget(
@@ -65,6 +68,36 @@ class Finetune(MainWidget):
         self.subwidgets["nxf"].finetuned_model_ready.connect(
             self.subwidgets["finetune_params"].enable_add_model
         )
+
+    def update_epoch(self, epoch):
+        self.subwidgets["finetune_params"].epochs.setValue(epoch)
+
+    def watch_metrics_file(self, metric_path="~/Desktop/training_metrics.csv"):
+        print("watcher has been called")
+        metrics = []
+
+        @thread_worker(connect={"yielded": self.update_epoch})
+        def _watch_metrics_file():
+            print(f"watching metrics file for finetuning {metric_path}")
+            last_epoch = 0
+            self.watch_enabled = True
+            while self.watch_enabled:  # enable at start of finetuning pipeline
+                if Path(metric_path).exists():
+                    with open(metric_path, "r") as f:
+                        try:
+                            last_line = f.read().splitlines()[-1]
+                            epoch, loss = last_line.split(",")
+                            epoch = int(epoch)
+                            if epoch > last_epoch:
+                                print(epoch, loss)
+                                metrics.append([epoch, loss])
+                                last_epoch = epoch
+                                yield epoch
+                        except:
+                            print("out of bounds error for file list")
+                time.sleep(2)
+
+        _watch_metrics_file()
 
     def get_run_hash(self, nxf_params: dict):
         """
