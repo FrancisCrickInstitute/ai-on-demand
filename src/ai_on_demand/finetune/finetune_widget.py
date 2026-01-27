@@ -1,20 +1,18 @@
+import time
+from pathlib import Path
 from typing import Optional, Union
 
 import napari
-import time
-from pathlib import Path
 from napari.qt.threading import thread_worker
 
 from ai_on_demand.finetune import FinetuneParameters
-
 from ai_on_demand.inference import (
-    TaskWidget,
     ModelWidget,
     NxfWidget,
+    TaskWidget,
 )
-
-from ai_on_demand.widget_classes import MainWidget, SubWidget, QGroupBox
 from ai_on_demand.utils import calc_param_hash
+from ai_on_demand.widget_classes import MainWidget, QGroupBox, SubWidget
 
 
 class Finetune(MainWidget):
@@ -70,9 +68,9 @@ class Finetune(MainWidget):
         )
 
     def update_epoch(self, epoch):
-        self.subwidgets["finetune_params"].epochs.setValue(epoch)
+        self.subwidgets["nxf"].update_finetune_pbar(epoch)
 
-    def watch_metrics_file(self, metric_path="~/Desktop/training_metrics.csv"):
+    def watch_metrics_file(self, metric_path):
         print("watcher has been called")
         metrics = []
 
@@ -81,20 +79,24 @@ class Finetune(MainWidget):
             print(f"watching metrics file for finetuning {metric_path}")
             last_epoch = 0
             self.watch_enabled = True
+            # TODO: fix the progress bar not hitting 100% issue - maybe clear upon pipeline start?
+            # Is it because it gets cleared before it can update or beacuse it while loop ends before check?
+            # both?
             while self.watch_enabled:  # enable at start of finetuning pipeline
                 if Path(metric_path).exists():
                     with open(metric_path, "r") as f:
-                        try:
-                            last_line = f.read().splitlines()[-1]
+                        lines = f.read().splitlines()
+                        if len(lines) > 0:
+                            last_line = lines[-1]
                             epoch, loss = last_line.split(",")
                             epoch = int(epoch)
                             if epoch > last_epoch:
-                                print(epoch, loss)
+                                print(
+                                    f"epoch: { epoch }, average loss: { loss } \n"
+                                )
                                 metrics.append([epoch, loss])
                                 last_epoch = epoch
                                 yield epoch
-                        except:
-                            print("out of bounds error for file list")
                 time.sleep(2)
 
         _watch_metrics_file()
