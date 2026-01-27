@@ -1,41 +1,41 @@
-from collections import defaultdict
-from pathlib import Path
 import shlex
 import shutil
 import subprocess
+from collections import defaultdict
+from pathlib import Path
 from typing import Optional, Union
 from urllib.parse import urlparse
 
-from aiod_registry import TASK_NAMES
+import aiod_utils.preprocess
 import napari
-from napari.qt.threading import thread_worker
-from napari.utils.notifications import show_info
 import pandas as pd
 import qtpy.QtCore
-from qtpy.QtWidgets import (
-    QWidget,
-    QLayout,
-    QGridLayout,
-    QHBoxLayout,
-    QVBoxLayout,
-    QLabel,
-    QComboBox,
-    QPushButton,
-    QFileDialog,
-    QProgressBar,
-    QCheckBox,
-    QSpinBox,
-    QDoubleSpinBox,
-    QGroupBox,
-    QMessageBox,
-)
 import tqdm
 import yaml
+from aiod_registry import TASK_NAMES
+from aiod_utils.stacks import Stack, calc_num_stacks, generate_stack_indices
+from napari.qt.threading import thread_worker
+from napari.utils.notifications import show_info
+from qtpy.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLayout,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
-from ai_on_demand.utils import sanitise_name, format_tooltip, get_img_dims
+from ai_on_demand.utils import format_tooltip, get_img_dims, sanitise_name
 from ai_on_demand.widget_classes import SubWidget
-import aiod_utils.preprocess
-from aiod_utils.stacks import generate_stack_indices, calc_num_stacks, Stack
 
 
 class NxfWidget(SubWidget):
@@ -69,11 +69,16 @@ The profile determines where the pipeline is run.
 """,
             **kwargs,
         )
-        # Whether all images have been loaded
-        # Needed to properly extract metadata
-        self.all_loaded = False
-        # Dictionary to monitor progress of each image
-        self.progress_dict = {}
+
+        if variant == "inference":
+            # Whether all images have been loaded
+            # Needed to properly extract metadata
+            self.all_loaded = False
+            # Dictionary to monitor progress of each image
+            self.progress_dict = {}
+        else:
+            self.max_epochs = 0
+            self.current_epoch = 0
 
         self.nxf_cmd = None
         self.nxf_params = None
@@ -214,15 +219,11 @@ The profile determines where the pipeline is run.
         # Button to inspect the base directory/cache
         self.nxf_dir_inspect_btn = QPushButton("Inspect cache")
         self.nxf_dir_inspect_btn.clicked.connect(self.on_click_inspect_cache)
-        self.nxf_dir_inspect_btn.setToolTip(
-            format_tooltip(
-                """
+        self.nxf_dir_inspect_btn.setToolTip(format_tooltip("""
 Open the base directory in the file explorer to inspect the cache.
 
 Note that 'opening' won't do anything, this is just to see what files are present.
-"""
-            )
-        )
+"""))
         # Button to clear the cache
         self.nxf_dir_clear_btn = QPushButton("Clear cache")
         self.nxf_dir_clear_btn.clicked.connect(self.on_click_clear_cache)
@@ -275,15 +276,11 @@ Note that 'opening' won't do anything, this is just to see what files are presen
         if self.variant == "inference":
             # Add a checkbox for overwriting existing results
             self.overwrite_btn = QCheckBox("Overwrite existing results")
-            self.overwrite_btn.setToolTip(
-                format_tooltip(
-                    """
+            self.overwrite_btn.setToolTip(format_tooltip("""
     Select/enable to overwrite any previous results.
 
     Exactly what is overwritten will depend on the pipeline selected. By default, any previous results matching the current setup will be loaded if possible. This can be disabled by ticking this box.
-            """
-                )
-            )
+            """))
             self.pipeline_layout.addWidget(self.overwrite_btn, 1, 0, 1, 1)
 
             # Add widget for advanced options
@@ -295,13 +292,9 @@ Note that 'opening' won't do anything, this is just to see what files are presen
                 f"QPushButton {{ text-align: left; }} QPushButton:checked {{background-color: {self.parent.subwidgets['model'].colour_selected}}}"
             )
             self.advanced_box.toggled.connect(self.on_toggle_advanced)
-            self.advanced_box.setToolTip(
-                format_tooltip(
-                    """
+            self.advanced_box.setToolTip(format_tooltip("""
     Show/hide advanced options for the Nextflow pipeline. These options define how to split an image into separate jobs in Nextflow. The underlying models will likely do their own splitting internally into patches, but this controls the trade-off between the number and size of each job.
-    """
-                )
-            )
+    """))
             self.advanced_widget = QWidget()
             self.advanced_layout = QGridLayout()
 
@@ -347,37 +340,25 @@ Note that 'opening' won't do anything, this is just to see what files are presen
 
     def _add_advanced_options(self):
         self.tile_x_label = QLabel("Number X tiles:")
-        self.tile_x_label.setToolTip(
-            format_tooltip(
-                """
+        self.tile_x_label.setToolTip(format_tooltip("""
 Number of tiles to split the image into in the X dimension. 'auto' allows Nextflow to decide an appropriate split.
-"""
-            )
-        )
+"""))
         self.tile_x = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_x.setSpecialValueText("auto")
         self.tile_x.setAlignment(qtpy.QtCore.Qt.AlignCenter)
 
         self.tile_y_label = QLabel("Number Y tiles:")
-        self.tile_y_label.setToolTip(
-            format_tooltip(
-                """
+        self.tile_y_label.setToolTip(format_tooltip("""
 Number of tiles to split the image into in the Y dimension. 'auto' allows Nextflow to decide an appropriate split.
-"""
-            )
-        )
+"""))
         self.tile_y = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_y.setSpecialValueText("auto")
         self.tile_y.setAlignment(qtpy.QtCore.Qt.AlignCenter)
 
         self.tile_z_label = QLabel("Number Z tiles:")
-        self.tile_z_label.setToolTip(
-            format_tooltip(
-                """
+        self.tile_z_label.setToolTip(format_tooltip("""
 Number of tiles to split the image into in the Z dimension. 'auto' allows Nextflow to decide an appropriate split.
-"""
-            )
-        )
+"""))
         self.tile_z = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_z.setSpecialValueText("auto")
         self.tile_z.setAlignment(qtpy.QtCore.Qt.AlignCenter)
@@ -443,23 +424,15 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         # Add post-processing options
         self.postprocess_btn = QCheckBox("Re-label output")
         self.postprocess_btn.setChecked(False)
-        self.postprocess_btn.setToolTip(
-            format_tooltip(
-                """
+        self.postprocess_btn.setToolTip(format_tooltip("""
 If checked, the model output will be re-labelled using connected components to create consistency across slices.
-            """
-            )
-        )
+            """))
         self.advanced_layout.addWidget(self.postprocess_btn, 7, 0, 1, 2)
         # Add threshold for IoU SAM post-processing
         self.iou_thresh_label = QLabel("IoU threshold (SAM only):")
-        self.iou_thresh_label.setToolTip(
-            format_tooltip(
-                """
+        self.iou_thresh_label.setToolTip(format_tooltip("""
 Threshold for the Intersection over Union (IoU) metric used in the SAM post-processing step.
-            """
-            )
-        )
+            """))
         self.iou_thresh = QDoubleSpinBox(minimum=0.0, maximum=1.0, value=0.8)
         self.iou_thresh.setSingleStep(0.01)
         self.iou_thresh.setAlignment(qtpy.QtCore.Qt.AlignCenter)
@@ -611,8 +584,10 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.parent.executed_model = self.parent.selected_model
         self.parent.executed_variant = self.parent.selected_variant
         # Set the starting Nextflow command
+        inference_config_fpath = self.nxf_repo + "inference.config"
         nxf_cmd = (
-            self.nxf_base_cmd + f"run {self.nxf_repo} -latest -entry inference"
+            self.nxf_base_cmd
+            + f"run {self.nxf_repo} -latest -entry inference -c {inference_config_fpath}"
         )
         # nxf_params can only be given when used standalone, which is rare
         if nxf_params is not None:
@@ -777,9 +752,10 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         nxf_cmd = (
             self.nxf_base_cmd
         )  # nextflow -log '/Users/ahmedn/.nextflow/aiod/nextflow.log'
+        finetune_config_fpath = self.nxf_repo + "finetune.config"
         nxf_cmd = (
             self.nxf_base_cmd
-            + f"run {self.nxf_repo} -latest -entry finetune"  # finetune workflow
+            + f"run {self.nxf_repo} -latest -entry finetune -c {finetune_config_fpath}"  # finetune workflow
         )
 
         # Store the selected task, model, and variant for execution
@@ -794,7 +770,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
         nxf_params["root_dir"] = str(self.nxf_base_dir)
         nxf_params["model_save_dir"] = (
-            str(self.nxf_base_dir) + "/aiod_cache/finetuned_models"
+            str(self.nxf_base_dir) + "/aiod_cache/finetune_cache"
         )
         nxf_params["model"] = parent.selected_model
         nxf_params["model_config"] = str(config_path)
@@ -829,6 +805,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         nxf_params["epochs"] = parent.subwidgets[
             "finetune_params"
         ].epochs.value()
+        self.max_epochs = nxf_params["epochs"]
         nxf_params["finetune_layers"] = parent.subwidgets[
             "finetune_params"
         ].finetune_layers.currentText()
@@ -981,6 +958,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.nxf_run_btn.setEnabled(False)
         # Update the button to signify it's running
         self.nxf_run_btn.setText("Running Pipeline...")
+        self.init_finetune_pbar(self.max_epochs)
         # Add a cancel pipeline button
         idx = self.inner_widget.layout().indexOf(self.nxf_run_btn)
         row, col, rowspan, colspan = (
@@ -998,7 +976,10 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self.cancel_btn, row, col + new_colspan, rowspan, new_colspan
         )
         # start the metrics file watcher
-        self.parent.watch_metrics_file()
+        training_metrics_path = (
+            self.nxf_params["model_save_dir"] + "/training_metrics.csv"
+        )
+        self.parent.watch_metrics_file(metric_path=training_metrics_path)
 
     def _finetune_finish(self):
         # Add a notification that the pipeline has finished
@@ -1042,6 +1023,28 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.nxf_dir_text.setText(str(base_dir))
         # Update the base directory and Nextflow command
         self.setup_nxf_dir_cmd(base_dir=base_dir)
+
+    def init_finetune_pbar(self, epochs):
+        self.pbar.setRange(0, epochs)
+        self.pbar.setValue(0)
+        self.tqdm_pbar = tqdm.tqdm(total=epochs)
+        self.pbar_label.setText("Progress: [--:--]")
+
+    def update_finetune_pbar(self, current_epoch):
+        # Update the progress bar to the current number of slices
+        self.pbar.setValue(current_epoch)
+        self.tqdm_pbar.update(current_epoch - self.tqdm_pbar.n)
+        # Update the label
+        elapsed = self.tqdm_pbar.format_dict["elapsed"]
+        rate = (
+            self.tqdm_pbar.format_dict["rate"]
+            if self.tqdm_pbar.format_dict["rate"]
+            else 1
+        )
+        remaining = (self.tqdm_pbar.total - self.tqdm_pbar.n) / rate
+        self.pbar_label.setText(
+            f"Progress: [{self.tqdm_pbar.format_interval(elapsed)}<{self.tqdm_pbar.format_interval(remaining)}]"
+        )
 
     def init_progress_bar(self):
         # Set the values of the Qt progress bar
