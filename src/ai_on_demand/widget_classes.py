@@ -1,24 +1,24 @@
+import string
 from abc import abstractmethod
 from pathlib import Path
-import string
 from typing import Optional
-import yaml
 
 import napari
+import qtpy.QtCore
+import yaml
 from napari.utils.notifications import show_info
 from npe2 import PluginManager
-from qtpy.QtWidgets import (
-    QWidget,
-    QScrollArea,
-    QLayout,
-    QGridLayout,
-    QLabel,
-    QVBoxLayout,
-    QFrame,
-    QGroupBox,
-)
 from qtpy.QtGui import QPixmap
-import qtpy.QtCore
+from qtpy.QtWidgets import (
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QLabel,
+    QLayout,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ai_on_demand.qcollapsible import QCollapsible
 from ai_on_demand.utils import (
@@ -164,6 +164,7 @@ class SubWidget(QCollapsible):
         viewer: napari.Viewer,
         title: str,
         parent: Optional[QWidget] = None,
+        variant: Optional[str] = None,
         layout: QLayout = QVBoxLayout,
         tooltip: Optional[str] = None,
         **kwargs,
@@ -222,13 +223,11 @@ class SubWidget(QCollapsible):
         divider_line = QFrame()
         divider_line.setFrameShape(QFrame.HLine)
         # divider_line.setFrameShadow(QFrame.Sunken)
-        divider_line.setStyleSheet(
-            """
+        divider_line.setStyleSheet("""
             QFrame[frameShape='4'] {
                 border: none;
             }
-        """
-        )
+        """)
         # Ensure minimal space taken
         divider_line.setMaximumHeight(1)
         self.content().layout().addWidget(divider_line)
