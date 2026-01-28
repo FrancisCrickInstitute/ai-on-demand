@@ -921,7 +921,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         )
         self.orig_colspan = colspan
         self.cancel_btn = QPushButton("Cancel Pipeline")
-        self.cancel_btn.clicked.connect(self.cancel_pipeline)
+        self.cancel_btn.clicked.connect(self.cancel_inference)
         self.cancel_btn.setToolTip("Cancel the currently running pipeline.")
         new_colspan = colspan // 2 if colspan > 1 else 1
         self.inner_widget.layout().addWidget(
@@ -966,7 +966,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         )
         self.orig_colspan = colspan
         self.cancel_btn = QPushButton("Cancel Pipeline")
-        self.cancel_btn.clicked.connect(self.cancel_pipeline)
+        self.cancel_btn.clicked.connect(self.cancel_finetuning)
         self.cancel_btn.setToolTip("Cancel the currently running pipeline.")
         new_colspan = colspan // 2 if colspan > 1 else 1
         self.inner_widget.layout().addWidget(
@@ -988,6 +988,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.finetuned_model_ready.emit(str(self.nxf_base_dir))
         # stop the metrics file watcher
         self.parent.watch_enabled = False
+        self.pbar.setValue(self.max_epochs)
 
     def _finetune_fail(self, exc):
         show_info("Pipeline failed! See terminal for details")
@@ -1080,13 +1081,19 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         # Reset the label
         self.pbar_label.setText("Progress: [--:--]")
 
-    def cancel_pipeline(self):
+    def cancel_inference(self):
         # Trigger Nextflow to cancel the pipeline
         self.process.send_signal(subprocess.signal.SIGTERM)
         # Reset the progress bar
         self.reset_progress_bar()
         # Remove mask layers that were added
         self.parent.remove_mask_layers()
+
+    def cancel_finetuning(self):
+        # Trigger Nextflow to cancel the pipeline
+        self.process.send_signal(subprocess.signal.SIGTERM)
+        # Reset the progress bar
+        self.reset_progress_bar()
 
     def update_tile_size(
         self, val: Union[int, float], clear_label: bool = False

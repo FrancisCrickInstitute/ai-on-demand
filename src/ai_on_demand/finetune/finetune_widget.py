@@ -1,4 +1,5 @@
 import time
+import os
 from pathlib import Path
 from typing import Optional, Union
 
@@ -12,7 +13,7 @@ from ai_on_demand.inference import (
     TaskWidget,
 )
 from ai_on_demand.utils import calc_param_hash
-from ai_on_demand.widget_classes import MainWidget, QGroupBox, SubWidget
+from ai_on_demand.widget_classes import MainWidget
 
 
 class Finetune(MainWidget):
@@ -71,17 +72,22 @@ class Finetune(MainWidget):
         self.subwidgets["nxf"].update_finetune_pbar(epoch)
 
     def watch_metrics_file(self, metric_path):
+        """
+        File watcher to watch for a change in the finetuning metrics file
+
+        This is used to update the progress bar based on completed epochs
+        """
         print("watcher has been called")
-        metrics = []
+        # Clear previous metrics
+        if os.path.exists(metric_path):
+            f = open(metric_path, "w+")
+            f.close
 
         @thread_worker(connect={"yielded": self.update_epoch})
         def _watch_metrics_file():
             print(f"watching metrics file for finetuning {metric_path}")
             last_epoch = 0
             self.watch_enabled = True
-            # TODO: fix the progress bar not hitting 100% issue - maybe clear upon pipeline start?
-            # Is it because it gets cleared before it can update or beacuse it while loop ends before check?
-            # both?
             while self.watch_enabled:  # enable at start of finetuning pipeline
                 if Path(metric_path).exists():
                     with open(metric_path, "r") as f:
@@ -94,7 +100,6 @@ class Finetune(MainWidget):
                                 print(
                                     f"epoch: { epoch }, average loss: { loss } \n"
                                 )
-                                metrics.append([epoch, loss])
                                 last_epoch = epoch
                                 yield epoch
                 time.sleep(2)

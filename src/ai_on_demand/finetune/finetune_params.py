@@ -99,7 +99,7 @@ class FinetuneParameters(SubWidget):
         model_name = self.model_save_name.text()
         model_task = self.parent.selected_task
         model_save_fpath = (
-            f"{self.nxf_base_dir}/aiod_cache/finetuned_models/{model_name}.pth"
+            f"{self.nxf_base_dir}/aiod_cache/finetune_cache/{model_name}.pth"
         )
 
         manifest_name = self.parent.selected_model
