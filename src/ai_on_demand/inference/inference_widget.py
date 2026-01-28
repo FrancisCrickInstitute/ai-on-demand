@@ -454,7 +454,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Add the extension
         return f"{mask_root}.{extension}"
 
-    def _reset_viewer(self):
+    def _reset_viewer(self, return_value=None):
         """
         Should help alleviate rendering issue where masks are mis-aligned.
 
