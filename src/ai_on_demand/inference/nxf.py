@@ -42,6 +42,7 @@ from ai_on_demand.utils import (
 from ai_on_demand.widget_classes import SubWidget
 import aiod_utils.preprocess
 from aiod_utils.stacks import generate_stack_indices, calc_num_stacks, Stack
+from aiod_utils.io import image_paths_to_csv
 
 
 class NxfWidget(SubWidget):
@@ -502,7 +503,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         TODO: May be subject to complete rewrite with dask/zarr
         """
         # Create container for metadata
-        output = defaultdict(list)
+        dims = []
         # Create container for knowing what images to track progress of
         self.progress_dict = {}
         # Counter for number of substacks (equivalent to number of submitted jobs!)
@@ -541,11 +542,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             layer = self.parent.viewer.layers[img_path.stem]
             # Get the number of slices, channels, height, and width
             H, W, num_slices, channels = get_img_dims(layer, img_path)
-            output["img_path"].append(str(img_path))
-            output["num_slices"].append(num_slices)
-            output["height"].append(H)
-            output["width"].append(W)
-            output["channels"].append(channels)
+            dims.append({
+                'Z':num_slices,
+                'Y':H,
+                'X':W,
+                'C':channels
+            })
             # Initialise the progress dict
             self.progress_dict[img_path.stem] = 0
             # Need to take account for multiple runs due to preprocessing
@@ -585,8 +587,13 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 )
                 total_substacks += num_substacks
         # Convert to a DataFrame and save
-        df = pd.DataFrame(output)
-        df.to_csv(self.img_list_fpath, index=False)
+        image_paths_to_csv(
+            img_paths,
+            self.img_list_fpath,
+            dims,
+            overwrite=True,
+            index=False
+        )
         # Store the total number of jobs
         self.total_substacks = total_substacks
 
