@@ -33,8 +33,6 @@ class FinetuneParameters(SubWidget):
             tooltip=parent.tooltip,
         )
 
-    default_save_location = "/Users/ahmedn/.nextflow/aiod/aiod_cache/finetuned_models/"  # extact this from the base dir stuff
-
     def create_box(self):
         self.finetune_box = QGroupBox("Finetune Model")
 
@@ -44,6 +42,10 @@ class FinetuneParameters(SubWidget):
         self.train_dir = QLineEdit(placeholderText="Train directory")
 
         self.finetune_layers = QComboBox()
+
+        self.patch_size = QLineEdit(placeholderText="Height,Width")
+        self.patch_size.setText("64,64")
+
         self.finetune_layers.addItems(
             [
                 "none",
@@ -66,11 +68,14 @@ class FinetuneParameters(SubWidget):
         self.finetune_layout.addWidget(QLabel("Train directory:"), 0, 0)
         self.finetune_layout.addWidget(self.train_dir, 0, 1)
 
-        self.finetune_layout.addWidget(QLabel("Finetune layers: "), 2, 0)
-        self.finetune_layout.addWidget(self.finetune_layers, 2, 1)
+        self.finetune_layout.addWidget(QLabel("Patch size"), 1, 0)
+        self.finetune_layout.addWidget(self.patch_size, 1, 1)
 
-        self.finetune_layout.addWidget(QLabel("Epochs: "), 3, 0)
-        self.finetune_layout.addWidget(self.epochs, 3, 1)
+        self.finetune_layout.addWidget(QLabel("Finetune layers: "), 3, 0)
+        self.finetune_layout.addWidget(self.finetune_layers, 3, 1)
+
+        self.finetune_layout.addWidget(QLabel("Epochs: "), 4, 0)
+        self.finetune_layout.addWidget(self.epochs, 4, 1)
 
         self.finetune_layout.addWidget(QLabel("Finetuned model name: "), 5, 0)
         self.finetune_layout.addWidget(self.model_save_name, 5, 1)
