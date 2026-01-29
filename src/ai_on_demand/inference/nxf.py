@@ -729,7 +729,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             ).exists()
         ):
             raise FileNotFoundError("Training Directory not found")
-            # TODO: Add more comprehensive checks. Are there image and mask directories and files within.
+        # TODO: check patch size in correct format
+        if self.parent.subwidgets["finetune_params"].patch_size.text() == "":
+            raise ValueError("No patch size provided")
+        # TODO: Add more comprehensive checks. Are there image and mask directories and files within.
+        # file structure from empanada is folder/folder/images,masks/x.tiff,mask,tiff
+        # first folder not needed
 
         print("Done running checks for finetuning!")
 
@@ -798,10 +803,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             nxf_params["model_chkpt_fname"] = res.name
 
         # adding the finetuning params to nxf_params
-        # nxf_params["patch_size"] = parent.subwidgets["finetune_params"]. TODO: add patch size option
         nxf_params["train_dir"] = parent.subwidgets[
             "finetune_params"
         ].train_dir.text()
+        nxf_params["patch_size"] = parent.subwidgets[
+            "finetune_params"
+        ].patch_size.text()
         nxf_params["epochs"] = parent.subwidgets[
             "finetune_params"
         ].epochs.value()
