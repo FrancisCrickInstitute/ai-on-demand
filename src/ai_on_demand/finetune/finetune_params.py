@@ -1,7 +1,9 @@
 import napari
 from typing import Optional
+from pathlib import Path
 
 from aiod_registry import add_model_local
+from napari._qt.qt_resources import QColoredSVGIcon
 from qtpy.QtWidgets import (
     QWidget,
     QGridLayout,
@@ -11,6 +13,8 @@ from qtpy.QtWidgets import (
     QPushButton,
     QSpinBox,
     QComboBox,
+    QFileDialog,
+    QMessageBox,
 )
 from ai_on_demand.widget_classes import SubWidget, QGroupBox
 from ai_on_demand.utils import format_tooltip
@@ -65,23 +69,46 @@ class FinetuneParameters(SubWidget):
         )
         # TODO: maybe not a good idea to let users pick names can be automatic like {model_name}_{finetuned}_{#}?
 
-        self.finetune_layout.addWidget(QLabel("Train directory:"), 0, 0)
-        self.finetune_layout.addWidget(self.train_dir, 0, 1)
+        self.train_dir_label = QLabel("train directory:")
+        train_dir_tooltip = "Select the directory where you have saved the training data with /images, /labels"
+        self.train_dir_label.setToolTip(format_tooltip(train_dir_tooltip))
+        self.train_dir_text = QLabel("")
+        self.train_dir_text.setWordWrap(True)
+        self.train_dir_text.setToolTip(
+            format_tooltip("The selected train directory.")
+        )
+        self.train_dir_text.setMaximumWidth(400)
+        # Button to change the base directory
+        self.train_dir_btn = QPushButton("Locate Training Data")
+        self.train_dir_btn.clicked.connect(self.on_click_train_dir)
+        self.train_dir_btn.setToolTip(format_tooltip(train_dir_tooltip))
+        self.train_dir_info = QPushButton("")
+        self.train_dir_info.setIcon(
+            QColoredSVGIcon.from_resources("help").colored(theme="dark")
+        )
+        self.train_dir_info.setFixedWidth(30)
+        self.train_dir_info.setToolTip("Help I don't how to structure my data")
+        self.train_dir_info.clicked.connect(self._show_train_dir_info)
 
-        self.finetune_layout.addWidget(QLabel("Patch size"), 1, 0)
-        self.finetune_layout.addWidget(self.patch_size, 1, 1)
+        self.finetune_layout.addWidget(self.train_dir_label, 0, 0)
+        self.finetune_layout.addWidget(self.train_dir_text, 0, 1, 1, 2)
+        self.finetune_layout.addWidget(self.train_dir_btn, 1, 0, 1, 2)
+        self.finetune_layout.addWidget(self.train_dir_info, 1, 2)
+
+        self.finetune_layout.addWidget(QLabel("Patch size"), 2, 0)
+        self.finetune_layout.addWidget(self.patch_size, 2, 1, 1, 2)
 
         self.finetune_layout.addWidget(QLabel("Finetune layers: "), 3, 0)
-        self.finetune_layout.addWidget(self.finetune_layers, 3, 1)
+        self.finetune_layout.addWidget(self.finetune_layers, 3, 1, 1, 2)
 
         self.finetune_layout.addWidget(QLabel("Epochs: "), 4, 0)
-        self.finetune_layout.addWidget(self.epochs, 4, 1)
+        self.finetune_layout.addWidget(self.epochs, 4, 1, 1, 2)
 
         self.finetune_layout.addWidget(QLabel("Finetuned model name: "), 5, 0)
-        self.finetune_layout.addWidget(self.model_save_name, 5, 1)
+        self.finetune_layout.addWidget(self.model_save_name, 5, 1, 1, 2)
 
         self.manifest_name = QLineEdit(placeholderText="e.g. empanada")
-        self.add_model_btn = QPushButton("add model to registry")
+        self.add_model_btn = QPushButton("Add Model To Registry")
         self.add_model_btn.setDisabled(True)
         self.add_model_btn.setToolTip(
             format_tooltip(
@@ -91,9 +118,38 @@ class FinetuneParameters(SubWidget):
         # name task location, manifestname
         self.add_model_btn.clicked.connect(self.add_model_to_registry)
 
-        self.finetune_layout.addWidget(self.add_model_btn, 6, 0, 1, 2)
+        self.finetune_layout.addWidget(self.add_model_btn, 6, 0, 1, 3)
 
         self.inner_layout.addWidget(self.finetune_box)
+
+    def on_click_train_dir(self):
+        """
+        Callback for when the train directory button is clicked. Opens a dialog to select a directory to get the trianing data from.
+        """
+        train_dir = QFileDialog.getExistingDirectory(
+            self,
+            caption="Select directory where the training data is",
+            directory=None,
+        )
+        # Skip if no directory selected
+        if train_dir == "":
+            return
+        # Replace any spaces, makes everything else easier
+        new_dir_name = Path(train_dir).name.replace(" ", "_")
+        train_dir = Path(train_dir).parent / new_dir_name
+        # Update the text
+        self.train_dir_text.setText(str(train_dir))
+
+    def _show_train_dir_info(self):
+        QMessageBox.information(
+            self,
+            "Training Data Information",
+            (
+                "Training data should be oranised in to 1 single directory containing:\n"
+                "images/ and masks/:\n"
+                "images and masks are paired by\n"  # TODO: make a clear folder structure and instructions
+            ),
+        )
 
     def enable_add_model(self, nxf_base_dir: str):
         self.nxf_base_dir = nxf_base_dir
