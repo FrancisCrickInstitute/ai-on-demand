@@ -714,7 +714,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 "Cannot run pipeline without finetune params widget"
             )
         if (
-            len(self.parent.subwidgets["finetune_params"].train_dir.text())
+            len(
+                self.parent.subwidgets["finetune_params"].train_dir_text.text()
+            )
             == ""
         ):
             raise ValueError("No Train directory selected!")
@@ -725,7 +727,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             raise ValueError("No save name given for finetuned model")
         if not (
             Path(
-                self.parent.subwidgets["finetune_params"].train_dir.text()
+                self.parent.subwidgets["finetune_params"].train_dir_text.text()
             ).exists()
         ):
             raise FileNotFoundError("Training Directory not found")
@@ -745,7 +747,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         # Store the image paths
         self.image_path_dict = self.parent.subwidgets[
             "finetune_params"
-        ].train_dir.text()
+        ].train_dir_text.text()
 
         img_paths = ""
         # self.image_path_dict.values()
@@ -805,7 +807,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         # adding the finetuning params to nxf_params
         nxf_params["train_dir"] = parent.subwidgets[
             "finetune_params"
-        ].train_dir.text()
+        ].train_dir_text.text()
         nxf_params["patch_size"] = parent.subwidgets[
             "finetune_params"
         ].patch_size.text()
