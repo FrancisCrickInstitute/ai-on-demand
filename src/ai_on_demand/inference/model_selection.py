@@ -861,3 +861,27 @@ Version: {task_model_version[2]}
             self, title="Model Information", content=model_info
         )
         self.model_window.show()
+
+    def refresh_ui(self):
+        print("refreshing widget")
+        self.extract_model_info()
+        self.update_model_box(self.parent.selected_task)
+
+
+class ModelInfoWindow(QDialog):
+    def __init__(self, parent=None, model_info: str = ""):
+        super().__init__(parent)
+
+        # Set the layout
+        self.layout = QVBoxLayout()
+        # Set the window title
+        self.setWindowTitle("Model Information")
+        # Add the info label
+        self.info_label = QTextEdit()
+        # Make the text selectable, but not editable
+        self.info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.info_label.setText(model_info)
+        self.info_label.setMinimumSize(500, 500)
+
+        self.layout.addWidget(self.info_label)
+        self.setLayout(self.layout)
