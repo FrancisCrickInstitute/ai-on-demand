@@ -29,7 +29,7 @@ from ai_on_demand.utils import (
     merge_dicts,
     calc_param_hash,
     load_config_file,
-    InfoWindow
+    InfoWindow,
 )
 
 
@@ -47,7 +47,7 @@ class ModelWidget(SubWidget):
         # Set selection colour
         # Needs to be done before super call
         self.colour_selected = "#F7AD6F"
-
+        self.variant = variant
         super().__init__(
             viewer=viewer,
             title="Model Selection",
@@ -86,6 +86,11 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             for version_name, version in model_manifest.versions.items():
                 # Get the tasks for this version
                 for task_name, task in version.tasks.items():
+                    # filter out models which don't have finetuning
+                    if self.variant == "finetune":
+                        if not hasattr(task, "finetuning_meta_data"):
+                            continue
+
                     # Add this task if not yet seen
                     if task_name not in self.versions_per_task:
                         self.versions_per_task[task_name] = {}
@@ -118,13 +123,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         model_box_layout.addWidget(self.model_dropdown, 0, 1, 1, 2)
         # Add label + dropdown for model variants/versions
         model_version_label = QLabel("Select version:")
-        model_version_label.setToolTip(
-            format_tooltip(
-                """
+        model_version_label.setToolTip(format_tooltip("""
         Select the model version to use. Versions can vary either by intended functionality, or are specifically for reproducibility.
-        """
-            )
-        )
+        """))
         self.model_version_dropdown = QComboBox()
         self.model_version_dropdown.addItems(["Select a model first!"])
         self.model_version_dropdown.activated.connect(
@@ -273,15 +274,18 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         # Add the button for loading a config file
         self.model_config_load_btn = QPushButton("Select model config")
         self.model_config_load_btn.clicked.connect(self.select_model_config)
-        self.model_config_load_btn.setToolTip(
-            format_tooltip(
-                """
+        self.model_config_load_btn.setToolTip(format_tooltip("""
             Select a config file to be used for the selected model.
             Note that no checking/validation is done on the config file, it is just given to the model.
-        """
-            )
+        """))
+        self.model_config_layout.addWidget(self.model_config_load_btn, 0, 0)
+        # Add a button for clearing the config file
+        self.model_config_clear_btn = QPushButton("Clear config selection")
+        self.model_config_clear_btn.clicked.connect(self.clear_model_config)
+        self.model_config_clear_btn.setToolTip(
+            format_tooltip("Clear the selected model config file.")
         )
-        self.model_config_layout.addWidget(self.model_config_load_btn, 0, 0, 1, 2)
+        self.model_config_layout.addWidget(self.model_config_clear_btn, 0, 1)
         # Add a label to display the selected config file (if any)
         self.model_config_label = QLabel("No model config file selected.")
         self.model_config_label.setWordWrap(True)
@@ -299,7 +303,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_param_widget = QWidget()
         self.model_param_layout = QVBoxLayout()
         # Add a button for resetting the config / UI params to defaults
-        self.model_config_clear_btn = QPushButton("Reset parameters to defaults")
+        self.model_config_clear_btn = QPushButton(
+            "Reset parameters to defaults"
+        )
         self.model_config_clear_btn.clicked.connect(self.reset_model_config)
         self.model_config_clear_btn.setToolTip(
             format_tooltip(
@@ -460,9 +466,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_param_layout.removeWidget(self.curr_model_param_widget)
         self.curr_model_param_widget.setParent(None)
 
-    def set_model_param_widget(
-        self, task_model_version: tuple | None = None
-    ):
+    def set_model_param_widget(self, task_model_version: tuple | None = None):
         if task_model_version is not None:
             self.curr_model_param_widget = self.model_param_widgets_dict[
                 task_model_version
@@ -505,7 +509,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             "Select a model config",
             str(self.config_dir),
             "Configs (*.yaml *.yml *.json)",
-        ) # type: ignore
+        )  # type: ignore
         # Reset if dialog cancelled
         if fname == "":
             return
@@ -537,7 +541,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
                 # Need to first load the project config
                 project_config = load_config_file(config_path)
                 # Then get the path to the model config contained therein
-                model_config_path = Path(project_config["model"]["model_config"])
+                model_config_path = Path(
+                    project_config["model"]["model_config"]
+                )
                 # Now try to load *that* config and populate the UI widgets
                 config = load_config_file(model_config_path)
                 self.fill_ui_from_config(config)
@@ -545,7 +551,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
                     f"Config '{model_config_path.name}' loaded into UI parameters."
                 )
             except KeyError as e:
-                show_error(f"Failed to load config '{config_path.name}': assumed input was a project config but no {e} key found!")
+                show_error(
+                    f"Failed to load config '{config_path.name}': assumed input was a project config but no {e} key found!"
+                )
                 self.model_config_label.setText("No model config file loaded.")
                 return
         except UserWarning as e:
@@ -745,7 +753,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             task_model_version = self.get_task_model_variant(executed=False)
         if not all(task_model_version):
             raise ValueError("Cannot read UI: no model/task/version selected.")
-        gui_dict = self.create_config_params(task_model_version=task_model_version)
+        gui_dict = self.create_config_params(
+            task_model_version=task_model_version
+        )
         return merge_dicts(config, gui_dict)
 
     def get_task_model_variant(
@@ -847,5 +857,7 @@ Version: {task_model_version[2]}
         if model_version.config_path is not None:
             model_info += f"\nConfig path: {model_version.config_path}"
 
-        self.model_window = InfoWindow(self, title="Model Information", content=model_info)
+        self.model_window = InfoWindow(
+            self, title="Model Information", content=model_info
+        )
         self.model_window.show()
