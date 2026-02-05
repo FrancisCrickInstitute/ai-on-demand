@@ -7,6 +7,7 @@ import napari
 import qtpy.QtCore
 import yaml
 from napari.utils.notifications import show_info
+from aiod_registry import load_manifests
 from npe2 import PluginManager
 from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import (
@@ -28,6 +29,9 @@ from ai_on_demand.utils import (
 
 
 class MainWidget(QWidget):
+
+    instances = {}
+
     def __init__(
         self,
         napari_viewer: napari.Viewer,
@@ -36,8 +40,10 @@ class MainWidget(QWidget):
     ):
         super().__init__()
         pm = PluginManager.instance()
-        self.all_manifests = pm.commands.execute("ai-on-demand.get_manifests")
+        self.all_manifests = load_manifests(filter_access=True)
         self.plugin_settings = pm.commands.execute("ai-on-demand.get_settings")
+
+        MainWidget.instances[title] = self
 
         self.viewer = napari_viewer
         self.scroll = QScrollArea()
@@ -124,6 +130,18 @@ class MainWidget(QWidget):
         with open(config_file_path, "w") as f:
             yaml.dump(config_settings, f)
         show_info(f"Config saved: {config_file_path}")
+
+    @classmethod
+    def refresh_instances(cls, instances_to_refresh):
+        for instance in instances_to_refresh:
+            cls.instances[instance].get_manifests()
+
+    def get_manifests(self):
+        # Re-retrieve manifests
+        self.all_manifests = load_manifests(filter_access=True)
+        self.subwidgets[
+            "model"
+        ].refresh_ui()  # can add further configuration of which subwidget to refresh
 
     @abstractmethod
     def get_run_hash(self):

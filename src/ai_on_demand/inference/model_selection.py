@@ -713,6 +713,11 @@ Version: {task_model_version[2]}
         self.model_window = ModelInfoWindow(self, model_info=model_info)
         self.model_window.show()
 
+    def refresh_ui(self):
+        print("refreshing widget")
+        self.extract_model_info()
+        self.update_model_box(self.parent.selected_task)
+
 
 class ModelInfoWindow(QDialog):
     def __init__(self, parent=None, model_info: str = ""):

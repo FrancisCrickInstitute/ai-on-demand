@@ -2,7 +2,8 @@ import napari
 from typing import Optional
 from pathlib import Path
 
-from aiod_registry import add_model_local
+from napari.utils.notifications import show_info
+from aiod_registry import add_model_local, load_manifests
 from napari._qt.qt_resources import QColoredSVGIcon
 from qtpy.QtWidgets import (
     QWidget,
@@ -168,4 +169,11 @@ class FinetuneParameters(SubWidget):
         add_model_local(
             model_name, model_task, model_save_fpath, manifest_name
         )
-        print("saved model to registry - please see the inference widget")
+
+        self.parent.refresh_instances(
+            instances_to_refresh=["Inference", "Finetuning"]
+        )
+
+        show_info(
+            "Fine-tuned model has been saved to registry and is ready to use"
+        )
