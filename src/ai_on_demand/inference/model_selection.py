@@ -86,11 +86,6 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             for version_name, version in model_manifest.versions.items():
                 # Get the tasks for this version
                 for task_name, task in version.tasks.items():
-                    # filter out models which don't have finetuning
-                    if self.variant == "finetune":
-                        if not hasattr(task, "finetuning_meta_data"):
-                            continue
-
                     # Add this task if not yet seen
                     if task_name not in self.versions_per_task:
                         self.versions_per_task[task_name] = {}
@@ -227,6 +222,14 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.update_model_param_config(
             self.parent.selected_model, self.parent.selected_variant
         )
+        if self.variant == "finetune":
+            task = self.parent.selected_task
+            model = self.parent.selected_model
+            version = self.model_version_dropdown.currentText()
+            task_model_version = (task, model, version)
+            self.parent.subwidgets["finetune_params"].update_finetune_layers(
+                task_model_version
+            )
 
     def on_model_version_select(self):
         # Update tracker for selected model variant/version
@@ -237,6 +240,14 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.update_model_param_config(
             self.parent.selected_model, self.parent.selected_variant
         )
+        if self.variant == "finetune":
+            task = self.parent.selected_task
+            model = self.parent.selected_model
+            version = self.model_version_dropdown.currentText()
+            task_model_version = (task, model, version)
+            self.parent.subwidgets["finetune_params"].update_finetune_layers(
+                task_model_version
+            )
 
     def on_click_model_params(self):
         # Uncheck config button

@@ -44,8 +44,8 @@ class Finetune(MainWidget):
         self.register_widget(
             ModelWidget(
                 viewer=self.viewer,
-                variant="finetune",
                 parent=self,
+                variant="finetune",
                 expanded=False,
             )
         )
