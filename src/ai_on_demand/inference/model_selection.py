@@ -47,7 +47,7 @@ class ModelWidget(SubWidget):
         # Set selection colour
         # Needs to be done before super call
         self.colour_selected = "#F7AD6F"
-
+        self.variant = variant
         super().__init__(
             viewer=viewer,
             title="Model Selection",
@@ -86,6 +86,11 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             for version_name, version in model_manifest.versions.items():
                 # Get the tasks for this version
                 for task_name, task in version.tasks.items():
+                    # filter out models which don't have finetuning
+                    if self.variant == "finetune":
+                        if not hasattr(task, "finetuning_meta_data"):
+                            continue
+
                     # Add this task if not yet seen
                     if task_name not in self.versions_per_task:
                         self.versions_per_task[task_name] = {}
@@ -118,13 +123,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         model_box_layout.addWidget(self.model_dropdown, 0, 1, 1, 2)
         # Add label + dropdown for model variants/versions
         model_version_label = QLabel("Select version:")
-        model_version_label.setToolTip(
-            format_tooltip(
-                """
+        model_version_label.setToolTip(format_tooltip("""
         Select the model version to use. Versions can vary either by intended functionality, or are specifically for reproducibility.
-        """
-            )
-        )
+        """))
         self.model_version_dropdown = QComboBox()
         self.model_version_dropdown.addItems(["Select a model first!"])
         self.model_version_dropdown.activated.connect(
@@ -272,14 +273,10 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         # Add the button for loading a config file
         self.model_config_load_btn = QPushButton("Select model config")
         self.model_config_load_btn.clicked.connect(self.select_model_config)
-        self.model_config_load_btn.setToolTip(
-            format_tooltip(
-                """
+        self.model_config_load_btn.setToolTip(format_tooltip("""
             Select a config file to be used for the selected model.
             Note that no checking/validation is done on the config file, it is just given to the model.
-        """
-            )
-        )
+        """))
         self.model_config_layout.addWidget(self.model_config_load_btn, 0, 0)
         # Add a button for clearing the config file
         self.model_config_clear_btn = QPushButton("Clear config selection")
