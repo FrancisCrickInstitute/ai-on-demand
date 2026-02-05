@@ -50,17 +50,6 @@ class FinetuneParameters(SubWidget):
 
         self.patch_size = QLineEdit(placeholderText="Height,Width")
         self.patch_size.setText("64,64")
-
-        self.finetune_layers.addItems(
-            [
-                "none",
-                "layer1",
-                "layer2",
-                "layer3",
-                "layer4",
-                "all",
-            ]
-        )  # These layer refer to the encoder layers to unfreeze - "none" would be only decoder finetuning
         self.epochs = QSpinBox()
         self.epochs.setRange(0, 1000)
         # TODO: would we ever do finetuning for more than 1000 epochs?! maybe someone like Jon wants to retrain the model should we prevent that
@@ -110,14 +99,14 @@ class FinetuneParameters(SubWidget):
 
         self.manifest_name = QLineEdit(placeholderText="e.g. empanada")
         self.add_model_btn = QPushButton("Add Model To Registry")
-        self.add_model_btn.setDisabled(True)
+        # self.add_model_btn.setDisabled(True)
         self.add_model_btn.setToolTip(
             format_tooltip(
                 "Adding model becomes available after running pipeline once"
             )
         )
         # name task location, manifestname
-        self.add_model_btn.clicked.connect(self.add_model_to_registry)
+        self.add_model_btn.clicked.connect(self.update_finetune_layers)
 
         self.finetune_layout.addWidget(self.add_model_btn, 6, 0, 1, 3)
 
@@ -151,6 +140,14 @@ class FinetuneParameters(SubWidget):
                 "images and masks are paired by\n"  # TODO: make a clear folder structure and instructions
             ),
         )
+
+    def update_finetune_layers(self, task_model_verson):
+        self.finetune_layers.clear()
+        version_data = self.parent.subwidgets["model"].model_version_tasks[
+            task_model_verson
+        ]
+        avail_layers = version_data.finetuning_meta_data.avail_layers
+        self.finetune_layers.addItems(avail_layers)
 
     def enable_add_model(self, nxf_base_dir: str):
         self.nxf_base_dir = nxf_base_dir
