@@ -22,10 +22,7 @@ from qtpy.QtWidgets import (
 )
 
 from ai_on_demand.qcollapsible import QCollapsible
-from ai_on_demand.utils import (
-    format_tooltip,
-    get_plugin_cache,
-)
+from ai_on_demand.utils import format_tooltip, get_plugin_cache, load_settings
 
 
 class MainWidget(QWidget):
@@ -41,7 +38,7 @@ class MainWidget(QWidget):
         super().__init__()
         pm = PluginManager.instance()
         self.all_manifests = load_manifests(filter_access=True)
-        self.plugin_settings = pm.commands.execute("ai-on-demand.get_settings")
+        self.plugin_settings = load_settings()
 
         MainWidget.instances[title] = self
 
