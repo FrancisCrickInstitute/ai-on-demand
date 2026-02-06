@@ -731,9 +731,29 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             ).exists()
         ):
             raise FileNotFoundError("Training Directory not found")
-        # TODO: check patch size in correct format
+        # check patchsize is divisible by patchsize divisor
         if self.parent.subwidgets["finetune_params"].patch_size.text() == "":
             raise ValueError("No patch size provided")
+        patch_size_w, patch_size_h = [
+            int(i)
+            for i in self.parent.subwidgets["finetune_params"]
+            .patch_size.text()
+            .split(",")
+        ]
+
+        patch_size_divisor = int(
+            self.parent.subwidgets["finetune_params"].finetuning_meta_data[
+                "patch_size_divisor"
+            ]
+        )
+        if (
+            patch_size_h % patch_size_divisor != 0
+            or patch_size_w % patch_size_divisor != 0
+        ):
+            raise ValueError(
+                "Please ensure that the patchsize is divisble by",
+                patch_size_divisor,
+            )
         # TODO: Add more comprehensive checks. Are there image and mask directories and files within.
         # file structure from empanada is folder/folder/images,masks/x.tiff,mask,tiff
         # first folder not needed

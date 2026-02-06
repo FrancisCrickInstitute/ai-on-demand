@@ -149,8 +149,8 @@ class FinetuneParameters(SubWidget):
             task_model_verson
         ]
         # save for later use when saving the model
-        self.finetuning_meta_data = version_data.finetuning_meta_data
-        avail_layers = self.finetuning_meta_data.avail_layers
+        self.finetuning_meta_data = dict(version_data.finetuning_meta_data)
+        avail_layers = self.finetuning_meta_data["avail_layers"]
         self.finetune_layers.addItems(avail_layers)
 
     def enable_add_model(self, nxf_base_dir: str):
@@ -171,7 +171,7 @@ class FinetuneParameters(SubWidget):
             model_task,
             model_save_fpath,
             manifest_name,
-            dict(self.finetuning_meta_data),
+            self.finetuning_meta_data,
         )
 
         self.parent.refresh_instances(
