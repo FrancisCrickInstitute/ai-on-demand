@@ -38,6 +38,8 @@ class FinetuneParameters(SubWidget):
             tooltip=parent.tooltip,
         )
 
+        self.finetuning_meta_data = None
+
     def create_box(self):
         self.finetune_box = QGroupBox("Finetune Model")
 
@@ -99,7 +101,7 @@ class FinetuneParameters(SubWidget):
 
         self.manifest_name = QLineEdit(placeholderText="e.g. empanada")
         self.add_model_btn = QPushButton("Add Model To Registry")
-        # self.add_model_btn.setDisabled(True)
+        self.add_model_btn.setDisabled(True)
         self.add_model_btn.setToolTip(
             format_tooltip(
                 "Adding model becomes available after running pipeline once"
@@ -146,7 +148,9 @@ class FinetuneParameters(SubWidget):
         version_data = self.parent.subwidgets["model"].model_version_tasks[
             task_model_verson
         ]
-        avail_layers = version_data.finetuning_meta_data.avail_layers
+        # save for later use when saving the model
+        self.finetuning_meta_data = version_data.finetuning_meta_data
+        avail_layers = self.finetuning_meta_data.avail_layers
         self.finetune_layers.addItems(avail_layers)
 
     def enable_add_model(self, nxf_base_dir: str):
@@ -160,11 +164,14 @@ class FinetuneParameters(SubWidget):
         model_save_fpath = (
             f"{self.nxf_base_dir}/aiod_cache/finetune_cache/{model_name}.pth"
         )
-
         manifest_name = self.parent.selected_model
 
         add_model_local(
-            model_name, model_task, model_save_fpath, manifest_name
+            model_name,
+            model_task,
+            model_save_fpath,
+            manifest_name,
+            dict(self.finetuning_meta_data),
         )
 
         self.parent.refresh_instances(
