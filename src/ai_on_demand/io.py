@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Union
 from functools import partial
+from bioio_base.dimensions import DEFAULT_DIMENSION_ORDER_WITH_SAMPLES
 import numpy as np
 from bioio import BioImage
 from bioio_base.reader import Reader
@@ -8,6 +9,7 @@ from bioio_base.exceptions import UnsupportedFileFormatError
 
 import aiod_utils.rle
 import aiod_utils.io
+import contextlib
 
 
 def get_bioio_reader(path: Union[str, Path]):
@@ -44,35 +46,50 @@ def bioio_reader(
 
 
 def prepare_bioio_as_napari_layer(bioio_img, path):
-    # Return LaterData tuple
-    # Handle JPEGs etc.
-    if isinstance(bioio_img, np.ndarray):
-        return [(bioio_img, {"name": path.stem}, "image")]
-    # Otherwise deal with BioIO object
-    # TODO: Add metadata?
-    # TODO: We specify where we want the channel axis to be, so can pass this to the viewer
-    # Though if this splits one file to multiple layers...well, that needs addressing anyway
-    try:
-        bioio_metadata = bioio_img.ome_metadata
-    except NotImplementedError:
-        bioio_metadata = bioio_img.metadata
-    # NOTE: https://github.com/bioio-devs/bioio/issues/25 issue for adding units
-    try:
-        pixel_sizes = bioio_img.physical_pixel_sizes
-    except NotImplementedError:
-        pixel_sizes = None
-    # Add various metadata to the image
-    metadata = {
-        "bioio_metadata": bioio_metadata,
-        "pixel_sizes": pixel_sizes,
-        "bioio_dims": bioio_img.dims,
+    """Return LaterData tuple"""
+    is_rgb = aiod_utils.io.guess_rgba(bioio_img)
+    dim_order = "".join(
+        d
+        for d in DEFAULT_DIMENSION_ORDER_WITH_SAMPLES
+        if d in bioio_img.standard_metadata.dimensions_present
+    )
+    # Construct attributes and metadata for the layer object
+    # * on scale values: https://github.com/napari/napari/issues/6968
+    layer_attributes = {
+        "name": path.stem,
+        "rgb": is_rgb,
+        "scale": [getattr(bioio_img.scale, d) or 1 for d in dim_order if d!='S'],
+        "metadata": {
+            "bioio_metadata": {
+                "standard": bioio_img.standard_metadata,
+                "ome": None,
+                "reader": bioio_img.metadata,
+            },
+            "pixel_sizes": None,
+            "dimensions": bioio_img.dims,
+        },
     }
+    with contextlib.suppress(NotImplementedError):
+        layer_attributes["metadata"]["bioio_metadata"]["ome"] = (
+            bioio_img.ome_metadata
+        )
+    # NOTE: https://github.com/bioio-devs/bioio/issues/25 issue for adding units
+    with contextlib.suppress(NotImplementedError):
+        layer_attributes["metadata"]["pixel_sizes"] = (
+            bioio_img.physical_pixel_sizes
+        )
+    layer_data = aiod_utils.io.load_image_data(
+        bioio_img,
+        as_dask=True,
+        dim_order=dim_order,
+        rgb_as_channels=False,
+    )
+    # Napari layer data tuple
+    # TODO: multichannel images could be split into separate layers here
     return [
         (
-            bioio_img.get_image_dask_data(
-                dimension_order_out="CZYX"
-            ).squeeze(),
-            {"name": path.stem, "metadata": metadata},
+            layer_data,
+            layer_attributes,
             "image",
         )
     ]
