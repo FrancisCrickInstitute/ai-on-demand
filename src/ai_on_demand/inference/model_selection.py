@@ -86,6 +86,12 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             for version_name, version in model_manifest.versions.items():
                 # Get the tasks for this version
                 for task_name, task in version.tasks.items():
+                    # filter out the models without finetuning available for the finetune widget
+                    if (
+                        getattr(task, "finetuning_meta_data") == None
+                        and self.variant == "finetune"
+                    ):
+                        continue
                     # Add this task if not yet seen
                     if task_name not in self.versions_per_task:
                         self.versions_per_task[task_name] = {}

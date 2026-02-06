@@ -106,7 +106,7 @@ class FinetuneParameters(SubWidget):
             )
         )
         # name task location, manifestname
-        self.add_model_btn.clicked.connect(self.update_finetune_layers)
+        self.add_model_btn.clicked.connect(self.add_model_to_registry)
 
         self.finetune_layout.addWidget(self.add_model_btn, 6, 0, 1, 3)
 

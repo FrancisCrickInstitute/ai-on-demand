@@ -131,7 +131,8 @@ class MainWidget(QWidget):
     @classmethod
     def refresh_instances(cls, instances_to_refresh):
         for instance in instances_to_refresh:
-            cls.instances[instance].get_manifests()
+            if instance in cls.instances.keys():
+                cls.instances[instance].get_manifests()
 
     def get_manifests(self):
         # Re-retrieve manifests
