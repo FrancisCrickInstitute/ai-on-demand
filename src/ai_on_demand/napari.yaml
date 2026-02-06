@@ -1,6 +1,5 @@
 name: ai-on-demand
 display_name: AI OnDemand
-on_activate: ai_on_demand.load_manifests:activate_plugin
 contributions:
   commands:
     - id: ai-on-demand.inference
@@ -45,15 +44,15 @@ contributions:
   readers:
     - command: ai-on-demand.rle_reader
       filename_patterns:
-        - '*.pkl'
-        - '*.pickle'
-        - '*.rle'
+        - "*.pkl"
+        - "*.pickle"
+        - "*.rle"
       accepts_directories: false
   writers:
     - command: ai-on-demand.rle_writer
       layer_types:
         - labels
       filename_extensions:
-        - '*.pkl'
-        - '*.pickle'
-        - '*.rle'
+        - "*.pkl"
+        - "*.pickle"
+        - "*.rle"
