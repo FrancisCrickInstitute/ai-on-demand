@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Union
 from functools import partial
 from bioio_base.dimensions import DEFAULT_DIMENSION_ORDER_WITH_SAMPLES
-import numpy as np
 from bioio import BioImage
 from bioio_base.reader import Reader
 from bioio_base.exceptions import UnsupportedFileFormatError
@@ -13,17 +12,18 @@ import contextlib
 
 
 def get_bioio_reader(path: Union[str, Path]):
-    if Path(path).suffix in [".jpg", ".jpeg", ".png"]:
-        return bioio_reader  # Handled separately in load_image
     # Check if bioio can read this
     try:
-        plugin = BioImage.determine_plugin(path)
-        # If determine_plugin returns None, no plugin can handle this file
-        if plugin is None:
-            return None
-        # NOTE: this reduces redundancy, as BioImage.__init__() internally will call determine_plugin() again internally anyway, unless a specific reader is forwarded to BioImage later on.
+        reader, plugin = aiod_utils.io._guess_reader(path), None
+        if reader is None:
+            # Run more exhaustive check for any compatible available reader
+            plugin = BioImage.determine_plugin(path)
+            if plugin is None:
+                # No plugin can handle this file
+                return None
+        # INFO: this reduces redundancy, as BioImage.__init__() will call determine_plugin() again internally anyway, unless a specific reader is forwarded to BioImage later on.
         return partial(
-            bioio_reader, bioio_reader_class=plugin.metadata.get_reader()
+            bioio_reader, bioio_reader_class=reader or plugin.metadata.get_reader()
         )
     except (
         AttributeError,
