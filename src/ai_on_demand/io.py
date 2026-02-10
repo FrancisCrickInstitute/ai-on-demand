@@ -47,17 +47,17 @@ def bioio_reader(
 
 def prepare_bioio_as_napari_layer(bioio_img, path):
     """Return LaterData tuple"""
-    is_rgb = aiod_utils.io.guess_rgba(bioio_img)
     dim_order = "".join(
         d
         for d in DEFAULT_DIMENSION_ORDER_WITH_SAMPLES
         if d in bioio_img.standard_metadata.dimensions_present
     )
     # Construct attributes and metadata for the layer object
-    # * on scale values: https://github.com/napari/napari/issues/6968
+    # Keys are valid napari Layer constructor arguments
+    # on scale values: https://github.com/napari/napari/issues/6968
     layer_attributes = {
         "name": path.stem,
-        "rgb": is_rgb,
+        "rgb": aiod_utils.io.guess_rgba(bioio_img),
         "scale": [getattr(bioio_img.scale, d) or 1 for d in dim_order if d!='S'],
         "metadata": {
             "bioio_metadata": {
@@ -78,6 +78,7 @@ def prepare_bioio_as_napari_layer(bioio_img, path):
         layer_attributes["metadata"]["pixel_sizes"] = (
             bioio_img.physical_pixel_sizes
         )
+    # Load image in napari-friendly order (with RGB dimension last)
     layer_data = aiod_utils.io.load_image_data(
         bioio_img,
         as_dask=True,
