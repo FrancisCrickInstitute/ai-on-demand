@@ -14,6 +14,7 @@ from qtpy.QtWidgets import (
     QTextEdit,
 )
 from platformdirs import user_cache_dir
+import aiod_utils.io
 
 
 def sanitise_name(name: str) -> str:
@@ -135,59 +136,20 @@ def get_image_layer_path(
 def get_img_dims(
     layer: Image, img_path: Optional[Path] = None, verbose: bool = True
 ) -> tuple[int, int, int, Optional[int]]:
-    # Squeeze the data to remove any singleton dimensions
-    arr = layer.data.squeeze()
-    # TODO: What if multi-channel but not RGB? Does Napari allow this?
-    # Check if the image is RGB or not
-    if layer.rgb:
-        res = arr.shape[:-1]
-        channels = arr.shape[-1]
-    else:
-        res = arr.shape
-        channels = None
-    # It could be multi-channel but not RGB
-    # 2D
-    if len(res) == 2:
-        num_slices = 1
-        H, W = res
-        channels = 1 if channels is None else channels
-    # 3D
-    elif len(res) == 3:
-        # Without metadata, we can't know if the 3rd dimension is channels or slices
-        # TODO: Use bioio to get metadata and infer this
-        num_slices, H, W = res
-        channels = 1 if channels is None else channels
-        # NOTE: This can get triggered a lot through nxf.update_tile_size
-        if verbose:
-            warnings.warn(
-                f"Assuming the first dimension is slices for {layer.name} image layer ({layer} with shape {res})."
-            )
-    # 4D
-    elif len(res) == 4:
-        # We assume the first two dims are slices and channels, in some order
-        # Assume whichever is smaller are the channels
-        if verbose:
-            warnings.warn(
-                f"Assuming the first two dimensions are channels and slices for {layer.name} image layer ({layer}), and using the smaller of the two as the number of channels."
-            )
-        if channels is not None:
-            num_slices, H, W = res
-        else:
-            if res[0] < res[1]:
-                channels, num_slices, H, W = res
-            else:
-                num_slices, channels, H, W = res
-    # Who knows
-    else:
-        if img_path is None:
-            raise ValueError(
-                f"Unexpected number of dimensions for {layer.name} image layer ({layer})!"
-            )
-        else:
-            raise ValueError(
-                f"Unexpected number of dimensions for image {img_path}!"
-            )
-    return H, W, num_slices, channels
+    # Hope image loaded with custom bioio loader, or that the original file can be read
+    dims = (
+        layer.metadata.get("dimensions")
+        or aiod_utils.io.load_image(get_image_layer_path(layer)).dims
+    )
+    # TODO: allow time dimension instead of Z for some models
+    # TODO: explicitly check for multi-channel RGB image
+    return (
+        dims.Y,
+        dims.X,
+        dims.Z,
+        dims.S if layer.rgb or "S" in dims.order else dims.C,
+    )
+    # FIXME: catch issues with finding dims and extract directly from layer data as fallback
 
 
 class InfoWindow(QDialog):
