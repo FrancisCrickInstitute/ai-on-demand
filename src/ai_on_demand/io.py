@@ -60,6 +60,7 @@ def prepare_bioio_as_napari_layer(bioio_img, path):
         "rgb": aiod_utils.io.guess_rgba(bioio_img),
         "scale": [getattr(bioio_img.scale, d) or 1 for d in dim_order if d!='S'],
         "metadata": {
+            "path": path,
             "bioio_metadata": {
                 "standard": bioio_img.standard_metadata,
                 "ome": None,

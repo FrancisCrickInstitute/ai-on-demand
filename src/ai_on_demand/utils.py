@@ -1,5 +1,10 @@
 import hashlib
 import json
+from bioio_base.dimensions import (
+    DEFAULT_DIMENSION_ORDER,
+    DEFAULT_DIMENSION_ORDER_WITH_SAMPLES,
+    Dimensions,
+)
 from napari.layers import Image
 from napari.utils.notifications import show_info
 from pathlib import Path
@@ -137,10 +142,28 @@ def get_img_dims(
     layer: Image, img_path: Optional[Path] = None, verbose: bool = True
 ) -> tuple[int, int, int, Optional[int]]:
     # Hope image loaded with custom bioio loader, or that the original file can be read
-    dims = (
-        layer.metadata.get("dimensions")
-        or aiod_utils.io.load_image(get_image_layer_path(layer)).dims
-    )
+    try:
+        dims = (
+            layer.metadata.get("dimensions")
+            or aiod_utils.io.load_image(
+                img_path or get_image_layer_path(layer)
+            ).dims
+        )
+    except TypeError:
+        # layer path returned None so fall back on dimensions from layer data
+        if verbose:
+            show_info(
+                f"Could not get dimensions from metadata or image file for layer {layer}. Falling back on guesing dimensions from layer data. This may cause issues with some models. Please check the layer metadata and ensure the image was loaded with the AI on Demand loader."
+            )
+        dims = Dimensions(
+            d := (
+                DEFAULT_DIMENSION_ORDER_WITH_SAMPLES
+                if layer.rgb
+                else DEFAULT_DIMENSION_ORDER
+            ),
+            # Expand shape to include singleton dimensions
+            (1,) * (len(d) - layer.data.ndim) + layer.data.shape,
+        )
     # TODO: allow time dimension instead of Z for some models
     # TODO: explicitly check for multi-channel RGB image
     return (
@@ -149,7 +172,6 @@ def get_img_dims(
         dims.Z,
         dims.S if layer.rgb or "S" in dims.order else dims.C,
     )
-    # FIXME: catch issues with finding dims and extract directly from layer data as fallback
 
 
 class InfoWindow(QDialog):
