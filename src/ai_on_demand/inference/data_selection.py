@@ -14,7 +14,6 @@ from qtpy.QtWidgets import (
     QLabel,
     QFileDialog,
 )
-import skimage.io
 import pandas as pd
 
 from ai_on_demand.widget_classes import SubWidget
@@ -227,12 +226,8 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             }
         )
         def _load_image(fpath):
-            # NOTE: bioio got the channels wrong in some local examples, so stick to skimage for some extensions
-            if Path(fpath).suffix in [".jpg", ".jpeg", ".png"]:
-                return skimage.io.imread(fpath), Path(fpath)
-            else:
-                # NOTE: Default is for dims to exist when e.g. C=1 or Z/D=1, so squeeze to remove (and align with masks)
-                return aiod_io.load_image(fpath), Path(fpath)
+            # can't directly use viewer.open with plugin outside of main thread :(
+            return aiod_io.load_image(fpath), Path(fpath)
 
         # Load each image in a separate thread
         for fpath in imgs_to_load:
