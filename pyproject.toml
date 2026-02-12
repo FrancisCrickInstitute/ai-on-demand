@@ -6,6 +6,9 @@ readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
   {name = "Cameron Shand", email = "cameron.shand@crick.ac.uk"},
+  {name = "Matous Elphick", email = "matous.elphick@crick.ac.uk"},
+  {name = "Fiona Young", email = "fiona.young@crick.ac.uk"},
+  {name = "Numan Ahmed", email = "numan.ahmed@crick.ac.uk"}
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -34,8 +37,8 @@ dependencies = [
     "tabulate",
     "glasbey",
     "dask-image",
-    "aiod_utils @ git+https://github.com/FrancisCrickInstitute/aiod_utils.git",
-    "aiod_registry @ git+https://github.com/FrancisCrickInstitute/AIoD-Model-Registry.git",
+    "aiod_utils==0.1.0",
+    "aiod_registry==0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -54,7 +57,7 @@ ai-on-demand = "ai_on_demand:napari.yaml"
 
 
 [build-system]
-requires = ["setuptools>=42.0.0", "wheel"]
+requires = ["setuptools>=42.0.0", "wheel", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
@@ -66,9 +69,8 @@ where = ["src"]
 [tool.setuptools.package-data]
 "*" = ["*.yaml"]
 
-
-[tool.setuptools.dynamic]
-version = {attr = "ai_on_demand.__init__.__version__"}
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
 
 [tool.black]
 line-length = 79
