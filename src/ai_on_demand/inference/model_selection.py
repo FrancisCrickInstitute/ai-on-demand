@@ -185,7 +185,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.params_config_layout.setSpacing(5)
         self.params_config_widget.setLayout(self.params_config_layout)
         # Add the widgets to the overall container
-        self.inner_layout.addWidget(self.params_config_widget, 1, 0)
+
+        if self.variant == "inference":
+            self.inner_layout.addWidget(self.params_config_widget, 1, 0)
 
         # Create widgets for the two options
         self.create_model_param_widget()
