@@ -38,11 +38,11 @@ class MergeMasks(SubWidget):
         **kwargs,
     ):
         super().__init__(
-            viewer,
-            "Merge",
-            parent,
-            layout,
-            """
+            viewer=viewer,
+            title="Merge",
+            parent=parent,
+            layout=layout,
+            tooltip="""
 Merge masks using various methods. Note that all buttons will use whatever Labels layers are currently selected.
 """,
             **kwargs,
