@@ -50,11 +50,11 @@ class FilterMasks(SubWidget):
         **kwargs,
     ):
         super().__init__(
-            viewer,
-            "Filter",
-            parent,
-            layout,
-            """
+            viewer=viewer,
+            title="Filter",
+            parent=parent,
+            layout=layout,
+            tooltip="""
 Filter masks using various methods. Each function works on the currently selected Labels layer only, and modifies in-place.
 """,
             **kwargs,
