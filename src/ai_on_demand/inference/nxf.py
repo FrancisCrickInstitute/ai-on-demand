@@ -1,3 +1,4 @@
+from os import environ
 from collections import defaultdict
 from pathlib import Path
 import shlex
@@ -60,7 +61,11 @@ class NxfWidget(SubWidget):
     ):
         # Define attributes that may be useful outside of this class
         # or throughout it
-        self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
+        self.nxf_repo = (
+            Path(environ["AIOD_NXF_REPO"])
+            if "AIOD_NXF_REPO" in environ
+            else "FrancisCrickInstitute/Segment-Flow"
+        )
         # Set the base Nextflow command
         self.setup_nxf_dir_cmd()
         super().__init__(
