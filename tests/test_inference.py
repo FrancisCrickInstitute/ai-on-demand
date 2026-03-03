@@ -55,11 +55,20 @@ def pytest_generate_tests(metafunc):
     """Parametrize task/model/variant at one of three levels of coverage:
 
     - (default)       SMOKE_PARAMS: one hardcoded combo as a quick sanity check.
+    - --one-model:     a single user-specified (task, model, variant) combo.
     - --one-per-model: first variant for every (task, model) pair in the manifests.
     - --full-models:  every (task, model, variant) combination in the manifests.
     """
     if {"task", "model", "variant"}.issubset(metafunc.fixturenames):
-        if metafunc.config.getoption("--full-models"):
+        one_model = metafunc.config.getoption("--one-model")
+        if one_model:
+            parts = one_model.split(",", maxsplit=2)
+            if len(parts) != 3:
+                raise ValueError(
+                    f"--one-model expects 'task,model,variant', got: {one_model!r}"
+                )
+            params = [(parts[0].strip(), parts[1].strip(), parts[2].strip())]
+        elif metafunc.config.getoption("--full-models"):
             params = _build_all_model_params()
         elif metafunc.config.getoption("--one-per-model"):
             params = _build_one_variant_per_model_params()
@@ -132,7 +141,10 @@ class TestInferenceWorkflow:
         variant,
     ):
         """Run one full inference pipeline pass for the given task/model/variant."""
-        napari_viewer, plugin_widget = inference_widget.viewer, inference_widget.widget
+        napari_viewer, plugin_widget = (
+            inference_widget.viewer,
+            inference_widget.widget,
+        )
 
         plugin_widget.subwidgets["data"].update_file_count(paths=dummy_images)
         plugin_widget.subwidgets["data"].view_images()
