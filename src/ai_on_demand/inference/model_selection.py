@@ -149,9 +149,6 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
 
         self.inner_layout.addLayout(model_box_layout, 0, 0)
 
-        # Store model config location if given
-        self.model_config = None
-
         # Create container for switching between setting params and loading config
         self.params_config_widget = QWidget()
         self.params_config_layout = QHBoxLayout()
@@ -169,7 +166,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_param_btn.clicked.connect(self.on_click_model_params)
         self.params_config_layout.addWidget(self.model_param_btn)
         # Create button for displaying model config options
-        self.model_config_btn = QPushButton("Load/Save Config File")
+        self.model_config_btn = QPushButton("Load Config File")
         self.model_config_btn.setToolTip(
             format_tooltip(
                 "Open options for loading a config file to pass to the model."
@@ -281,11 +278,13 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             )
         )
         self.model_config_layout.addWidget(self.model_config_load_btn, 0, 0)
-        # Add a button for clearing the config file
-        self.model_config_clear_btn = QPushButton("Clear config selection")
-        self.model_config_clear_btn.clicked.connect(self.clear_model_config)
+        # Add a button for resetting the config / UI params to defaults
+        self.model_config_clear_btn = QPushButton("Reset parameters to defaults")
+        self.model_config_clear_btn.clicked.connect(self.reset_model_config)
         self.model_config_clear_btn.setToolTip(
-            format_tooltip("Clear the selected model config file.")
+            format_tooltip(
+                "Reset all model parameters to their defaults and clear any loaded config file."
+            )
         )
         self.model_config_layout.addWidget(self.model_config_clear_btn, 0, 1)
         # Add a label to display the selected config file (if any)
@@ -499,61 +498,80 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         )
         # Reset if dialog cancelled
         if fname == "":
-            self.model_config_label.setText("No model config file selected.")
-            self.model_config = None
             return
         fname = Path(fname)
-        # Add a label to show that the config was selected
+        # Parse the config and populate the UI widgets
+        try:
+            config = load_model_config(fname)
+            self.fill_ui_from_config(config)
+        except Exception as e:
+            show_error(f"Failed to load config '{fname.name}': {e}")
+            self.model_config_label.setText("No model config file loaded.")
+            return
         self.model_config_label.setText(
-            f"Model config file ({fname.name}) selected."
+            f"Config '{fname.name}' loaded into UI parameters."
         )
-        # Register config location for use in the pipeline
-        self.model_config = fname
-        # TODO: Actually fix model config load functionality
 
-    def clear_model_config(self):
-        self.model_config_label.setText("No model config file selected.")
-        self.model_config = None
+    def reset_model_config(self):
+        """Reset model parameter widgets to their schema defaults."""
+        self.model_config_label.setText("No model config file loaded.")
+
+        task_model_version = self.get_task_model_variant(executed=False)
+        # Nothing selected yet — nothing to reset
+        if not all(task_model_version):
+            return
+        param_list = self.model_version_tasks[task_model_version].params
+        if param_list is None:
+            return
+        # Guard: widget dict may not exist if model was never fully rendered
+        if task_model_version not in self.model_param_dict:
+            return
+
+        widget_dict = self.model_param_dict[task_model_version]
+        for param in param_list:
+            widget = widget_dict[param.name]["value"]
+            default = param.value
+            if isinstance(widget, QCheckBox):
+                widget.setChecked(bool(default))
+            elif isinstance(widget, QComboBox):
+                # Default is the first item in the list
+                widget.setCurrentIndex(0)
+            elif isinstance(widget, QLineEdit):
+                widget.setText(str(default) if default is not None else "None")
+        self.changed_defaults = False
 
     def get_model_config(self) -> Path:
         """
-        Need to construct the final model configuration.
+        Construct the final model configuration from the UI.
 
-        If a model is found in the schema, this is loaded in as the base config.
+        If the model has a schema config path, it is loaded as the base and UI
+        parameter values are merged on top. Since param.value defaults are
+        sourced from the same schema, the merge is always safe: unchanged widgets
+        produce identical values to the config file, and any keys in config_path
+        not covered by params pass through untouched.
 
-        If a config file is loaded, this simply replaces the base config. We do not merge them!
-
-        If a config file is not loaded, if GUI parameters exist we merge them into the base config.
+        If there is no schema config, the config is built entirely from the UI
+        parameter widgets.
         """
-        # First check if there is a config file for this model
-        # Use the executed model, variant, and task to get the version
-        # NOTE: Almost 100% sure same as selected at this point
         task_model_version = self.get_task_model_variant(executed=True)
         model_version = self.model_version_tasks[task_model_version]
 
-        if self.model_config is not None:
-            # Load the config file
-            model_dict = load_model_config(self.model_config)
-        elif model_version.config_path is not None:
-            # Set this as the base config
-            model_dict = load_model_config(Path(model_version.config_path))
-            # Merge in the GUI params if they exist and have changed
-            if model_version.params is not None and self.changed_defaults:
-                gui_dict = self.create_config_params(
-                    task_model_version=task_model_version
+        if model_version.config_path is not None:
+            base_dict = load_model_config(Path(model_version.config_path))
+            if model_version.params is not None:
+                model_dict = self.fill_config_from_ui(
+                    base_dict, task_model_version=task_model_version
                 )
-                model_dict = merge_dicts(model_dict, gui_dict)
-        # No loaded config, no schema config
+            else:
+                model_dict = base_dict
         else:
-            # NOTE: May fail if there are no GUI params, on top of no schema or loaded config
-            model_dict = self.create_config_params(
-                task_model_version=task_model_version
+            # No schema config: UI widgets are the sole source of truth
+            model_dict = self.fill_config_from_ui(
+                {}, task_model_version=task_model_version
             )
-        # Get the unique hash to this set of parameters
+        # Extract hash for model configs for tracking/reproducibility
         self.model_param_hash = calc_param_hash(model_dict)
-        # Save the model config
-        model_config_fpath = self.save_model_config(model_dict)
-        return model_config_fpath
+        return self.save_model_config(model_dict)
 
     def save_model_config(self, model_dict: dict) -> Path:
         # Define save path for the model config
@@ -617,6 +635,67 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             else:
                 model_dict[orig_param.arg_name] = orig_param.dtype(param_value)
         return model_dict
+
+    def fill_ui_from_config(self, config: dict):
+        """
+        Populate model parameter widgets from a config dict.
+
+        Keys in the config that are not present in the UI raise a ValueError.
+        Keys missing from the config are left at their current/default values.
+        """
+        task_model_version = self.get_task_model_variant(executed=False)
+        if not all(task_model_version):
+            raise ValueError("Cannot fill UI: no model/task/version selected.")
+
+        param_list = self.model_version_tasks[task_model_version].params
+        if param_list is None:
+            raise ValueError(
+                "Selected model has no UI parameters; use a config file directly."
+            )
+
+        # Build mapping from arg_name -> display name (widget dict key)
+        arg_to_name = {p.arg_name: p.name for p in param_list}
+
+        # Error on any key not represented in the UI
+        unknown = set(config.keys()) - set(arg_to_name.keys())
+        if unknown:
+            raise ValueError(
+                f"Config contains keys not present in the UI: {sorted(unknown)}"
+            )
+
+        widget_dict = self.model_param_dict[task_model_version]
+        for arg_name, value in config.items():
+            param_name = arg_to_name[arg_name]
+            widget = widget_dict[param_name]["value"]
+            if isinstance(widget, QCheckBox):
+                widget.setChecked(bool(value))
+            elif isinstance(widget, QComboBox):
+                idx = widget.findText(str(value))
+                if idx != -1:
+                    widget.setCurrentIndex(idx)
+            elif isinstance(widget, QLineEdit):
+                widget.setText(str(value) if value is not None else "None")
+            else:
+                raise NotImplementedError(
+                    f"Unknown widget type for parameter '{param_name}'"
+                )
+        self.changed_defaults = True
+
+    def fill_config_from_ui(
+        self, config: dict, task_model_version: tuple | None = None
+    ) -> dict:
+        """
+        Return a copy of config overridden by the current UI parameter widgets.
+
+        UI values take precedence over any values already in config.
+        If task_model_version is not provided, the currently selected model is used.
+        """
+        if task_model_version is None:
+            task_model_version = self.get_task_model_variant(executed=False)
+        if not all(task_model_version):
+            raise ValueError("Cannot read UI: no model/task/version selected.")
+        gui_dict = self.create_config_params(task_model_version=task_model_version)
+        return merge_dicts(config, gui_dict)
 
     def get_task_model_variant(
         self, executed: bool = True
