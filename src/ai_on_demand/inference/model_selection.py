@@ -1,6 +1,5 @@
 import builtins
 from pathlib import Path
-from typing import Optional
 
 import napari
 from napari.utils.notifications import show_error
@@ -40,7 +39,7 @@ class ModelWidget(SubWidget):
     def __init__(
         self,
         viewer: napari.Viewer,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
         layout: QLayout = QVBoxLayout,
         **kwargs,
     ):
@@ -101,7 +100,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
                         (task_name, base_name, version_name)
                     ] = task
 
-    def create_box(self, variant: Optional[str] = None):
+    def create_box(self, variant: str | None = None):
         # TODO: This will have to become a variant for e.g. fine-tuning
         model_box_layout = QGridLayout()
         # Create a label for the dropdown
@@ -451,7 +450,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.curr_model_param_widget.setParent(None)
 
     def set_model_param_widget(
-        self, task_model_version: Optional[tuple] = None
+        self, task_model_version: tuple | None = None
     ):
         if task_model_version is not None:
             self.curr_model_param_widget = self.model_param_widgets_dict[
@@ -474,7 +473,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             model_names = sorted(
                 [
                     self.base_to_display[i]
-                    for i in self.versions_per_task[task_name].keys()
+                    for i in self.versions_per_task[task_name]
                 ]
             )
         else:
@@ -591,7 +590,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         return model_config_fpath
 
     def create_config_params(
-        self, task_model_version: Optional[tuple] = None
+        self, task_model_version: tuple | None = None
     ) -> dict:
         """
         Construct the model config from the parameter widgets.
