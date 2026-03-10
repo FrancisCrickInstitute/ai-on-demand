@@ -28,7 +28,7 @@ from ai_on_demand.utils import (
     sanitise_name,
     merge_dicts,
     calc_param_hash,
-    load_model_config,
+    load_config_file,
     InfoWindow
 )
 
@@ -498,17 +498,20 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         # Reset if dialog cancelled
         if fname == "":
             return
-        fname = Path(fname)
+        # Load the config and populate the UI widgets with the values from the config
+        self.load_model_config(Path(fname))
+
+    def load_model_config(self, config_path: Path):
         # Parse the config and populate the UI widgets
         try:
-            config = load_model_config(fname)
+            config = load_config_file(config_path)
             self.fill_ui_from_config(config)
         except Exception as e:
-            show_error(f"Failed to load config '{fname.name}': {e}")
+            show_error(f"Failed to load config '{config_path.name}': {e}")
             self.model_config_label.setText("No model config file loaded.")
             return
         self.model_config_label.setText(
-            f"Config '{fname.name}' loaded into UI parameters."
+            f"Config '{config_path.name}' loaded into UI parameters."
         )
 
     def reset_model_config(self):
@@ -556,7 +559,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         model_version = self.model_version_tasks[task_model_version]
 
         if model_version.config_path is not None:
-            base_dict = load_model_config(Path(model_version.config_path))
+            base_dict = load_config_file(Path(model_version.config_path))
             if model_version.params is not None:
                 model_dict = self.fill_config_from_ui(
                     base_dict, task_model_version=task_model_version
@@ -720,6 +723,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
     def load_config(self, config):
         model_name = config["name"]
         model_version = config["model_type"]
+        model_config_path = config["model_config"]
 
         model_display_name = self.base_to_display.get(model_name, None)
         if model_display_name is None:
@@ -744,6 +748,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             )
         self.model_version_dropdown.setCurrentIndex(version_index)
         self.on_model_version_select()
+
+        # Now load and apply model config
+        self.load_model_config(Path(model_config_path))
 
     def get_config_params(self, params):
         widget_config = {

@@ -74,17 +74,17 @@ def calc_param_hash(d: dict) -> str:
     return hashlib.md5(json.dumps(sorted_d).encode("utf-8")).hexdigest()
 
 
-def load_model_config(config_path: Union[str, Path]) -> dict:
+def load_config_file(config_path: Union[str, Path]) -> dict:
     with open(Path(config_path), "r") as f:
         if config_path.suffix == ".json":
-            model_dict = json.load(f)
+            config_dict = json.load(f)
         elif config_path.suffix in (".yaml", ".yml"):
-            model_dict = yaml.safe_load(f)
+            config_dict = yaml.safe_load(f)
         else:
             raise ValueError(
                 f"Config file (path: {config_path}) is not JSON or YAML!"
             )
-    return model_dict
+    return config_dict
 
 
 def get_plugin_cache() -> tuple[Path, Path]:
