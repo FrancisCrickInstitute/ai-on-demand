@@ -5,7 +5,11 @@ description = "A plugin for segmenting images using AI models via the Segment-Fl
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [
-  {name = "Cameron Shand", email = "cameron.shand@crick.ac.uk"},
+    {name = "Cameron Shand", email = "cameron.shand@crick.ac.uk"},
+    {name = "Numan Ahmed", email = "numan.ahmed@crick.ac.uk"},
+    {name = "Fiona Young", email = "fiona.young@crick.ac.uk"},
+    {name = "Qin Yu", email = "qin.yu@crick.ac.uk"},
+    {name = "Jon Smith", email = "jon.smith@crick.ac.uk"}
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
