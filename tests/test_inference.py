@@ -2,6 +2,7 @@ from typing import NamedTuple
 from napari import run as napari_run
 import numpy as np
 import pytest
+from qtpy.QtCore import QTimer
 from qtpy.QtWidgets import QApplication
 from skimage import io
 
@@ -113,6 +114,12 @@ class InferenceFixture(NamedTuple):
 
 
 @pytest.fixture
+def pipeline_timeout(request) -> int:
+    """Return the pipeline timeout in seconds from the --pipeline-timeout CLI option."""
+    return int(request.config.getoption("--pipeline-timeout"))
+
+
+@pytest.fixture
 def inference_widget(make_napari_viewer_proxy, base_dir, monkeypatch):
     """Load the AI on Demand Inference dock widget into the viewer.
 
@@ -136,6 +143,7 @@ class TestInferenceWorkflow:
         self,
         inference_widget,
         dummy_images,
+        pipeline_timeout,
         task,
         model,
         variant,
@@ -177,6 +185,7 @@ class TestInferenceWorkflow:
         assert overwrite_btn.isChecked()
 
         pipeline_done = False
+        timed_out = False
 
         def _quit_app():
             app = QApplication.instance()
@@ -196,6 +205,16 @@ class TestInferenceWorkflow:
             _quit_app()
             pytest.fail("Inference pipeline failed")
 
+        def on_timeout():
+            nonlocal pipeline_done, timed_out
+            if not pipeline_done:
+                pipeline_done = True
+                timed_out = True
+                napari_viewer.close()
+                _quit_app()
+
+        QTimer.singleShot(pipeline_timeout * 1000, on_timeout)
+
         plugin_widget.subwidgets["nxf"].pipeline_finished.connect(
             on_pipeline_finished
         )
@@ -209,3 +228,9 @@ class TestInferenceWorkflow:
         plugin_widget.subwidgets["data"].images_loaded.connect(run_pipeline)
 
         napari_run()
+
+        if timed_out:
+            pytest.fail(
+                f"Inference pipeline timed out after {pipeline_timeout}s "
+                f"(task={task!r}, model={model!r}, variant={variant!r})"
+            )
