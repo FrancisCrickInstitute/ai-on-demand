@@ -1,3 +1,4 @@
+from os import environ
 from collections import defaultdict
 from pathlib import Path
 import shlex
@@ -42,12 +43,15 @@ from ai_on_demand.utils import (
 from ai_on_demand.widget_classes import SubWidget
 import aiod_utils.preprocess
 from aiod_utils.stacks import generate_stack_indices, calc_num_stacks, Stack
+from aiod_utils.io import image_paths_to_csv
 
 
 class NxfWidget(SubWidget):
     _name = "nxf"
 
     config_ready = qtpy.QtCore.Signal()
+    pipeline_finished = qtpy.QtCore.Signal()
+    pipeline_failed = qtpy.QtCore.Signal()
 
     def __init__(
         self,
@@ -59,7 +63,11 @@ class NxfWidget(SubWidget):
     ):
         # Define attributes that may be useful outside of this class
         # or throughout it
-        self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
+        self.nxf_repo = (
+            Path(environ["AIOD_NXF_REPO"])
+            if "AIOD_NXF_REPO" in environ
+            else "FrancisCrickInstitute/Segment-Flow"
+        )
         # Set the base Nextflow command
         self.setup_nxf_dir_cmd()
         super().__init__(
@@ -502,7 +510,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         TODO: May be subject to complete rewrite with dask/zarr
         """
         # Create container for metadata
-        output = defaultdict(list)
+        dims = []
         # Create container for knowing what images to track progress of
         self.progress_dict = {}
         # Counter for number of substacks (equivalent to number of submitted jobs!)
@@ -541,11 +549,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             layer = self.parent.viewer.layers[img_path.stem]
             # Get the number of slices, channels, height, and width
             H, W, num_slices, channels = get_img_dims(layer, img_path)
-            output["img_path"].append(str(img_path))
-            output["num_slices"].append(num_slices)
-            output["height"].append(H)
-            output["width"].append(W)
-            output["channels"].append(channels)
+            dims.append({
+                'Z':num_slices,
+                'Y':H,
+                'X':W,
+                'C':channels
+            })
             # Initialise the progress dict
             self.progress_dict[img_path.stem] = 0
             # Need to take account for multiple runs due to preprocessing
@@ -585,8 +594,13 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 )
                 total_substacks += num_substacks
         # Convert to a DataFrame and save
-        df = pd.DataFrame(output)
-        df.to_csv(self.img_list_fpath, index=False)
+        image_paths_to_csv(
+            img_paths,
+            self.img_list_fpath,
+            dims,
+            overwrite=True,
+            index=False
+        )
         # Store the total number of jobs
         self.total_substacks = total_substacks
 
@@ -862,6 +876,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.parent.insert_final_masks()
         # Ensure progress bar is at 100%
         self.pbar.setValue(self.total_substacks)
+        self.pipeline_finished.emit()
 
     def _pipeline_fail(self, exc):
         show_info("Pipeline failed! See terminal for details")
@@ -871,6 +886,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         if hasattr(self.parent, "watcher_enabled"):
             print("Deactivating watcher...")
             self.parent.watcher_enabled = False
+        self.pipeline_failed.emit()
 
     def _remove_cancel_btn(self):
         # Remove the cancel pipeline button
