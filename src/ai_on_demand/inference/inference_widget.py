@@ -11,7 +11,7 @@ from ai_on_demand.inference import (
     DataWidget,
     ExportWidget,
     ModelWidget,
-    NxfWidget,
+    InferenceNxfWidget,
     PreprocessWidget,
     ConfigWidget,
 )
@@ -72,10 +72,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
 
         # Add the button for running the Nextflow pipeline
         self.register_widget(
-            NxfWidget(
+            InferenceNxfWidget(
                 viewer=self.viewer,
                 parent=self,
-                variant="inference",
                 expanded=False,
             )
         )
