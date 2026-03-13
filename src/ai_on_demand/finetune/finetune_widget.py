@@ -6,10 +6,10 @@ from typing import Optional, Union
 import napari
 from napari.qt.threading import thread_worker
 
-from ai_on_demand.finetune import FinetuneParameters
+from ai_on_demand.finetune.finetune_params import FinetuneParameters
+from ai_on_demand.finetune.nxf import FinetuneNxfWidget
 from ai_on_demand.inference import (
     ModelWidget,
-    NxfWidget,
     TaskWidget,
 )
 from ai_on_demand.utils import calc_param_hash
@@ -56,10 +56,9 @@ class Finetune(MainWidget):
 
         # Add the button for running the Nextflow pipeline
         self.register_widget(
-            NxfWidget(
+            FinetuneNxfWidget(
                 viewer=self.viewer,
                 parent=self,
-                variant="finetune",
                 expanded=False,
             )
         )

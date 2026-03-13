@@ -1,5 +1,4 @@
 import shlex
-import shutil
 import subprocess
 from collections import defaultdict
 from pathlib import Path
@@ -14,329 +13,88 @@ import tqdm
 import yaml
 from aiod_registry import TASK_NAMES
 from aiod_utils.stacks import Stack, calc_num_stacks, generate_stack_indices
-from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 from qtpy.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDoubleSpinBox,
-    QFileDialog,
     QGridLayout,
-    QGroupBox,
-    QHBoxLayout,
     QLabel,
     QLayout,
-    QMessageBox,
-    QProgressBar,
-    QPushButton,
     QSpinBox,
     QVBoxLayout,
+    QPushButton,
     QWidget,
 )
 
 from ai_on_demand.utils import format_tooltip, get_img_dims, sanitise_name
-from ai_on_demand.widget_classes import SubWidget
+from ai_on_demand.widget_classes import BaseNxfWidget
 
 
-class NxfWidget(SubWidget):
+class InferenceNxfWidget(BaseNxfWidget):
+    """
+    Nextflow sub-widget for the Inference pipeline.
+
+    Extends BaseNxfWidget with inference-specific UI (overwrite checkbox,
+    advanced tiling/overlap options) and the inference pipeline logic.
+    """
+
     _name = "nxf"
-
-    config_ready = qtpy.QtCore.Signal()
-    finetuned_model_ready = qtpy.QtCore.Signal(str)
 
     def __init__(
         self,
         viewer: napari.Viewer,
-        variant: str,
         parent: Optional[QWidget] = None,
         layout: QLayout = QGridLayout,
         **kwargs,
     ):
-        self.variant = variant
-        # Define attributes that may be useful outside of this class
-        # or throughout it
-        self.nxf_repo = "/Users/ahmedn/Work/ai-on-demand/src/ai_on_demand/Segment-Flow/"  # TODO: return back to the remote repo
-        # Set the base Nextflow command
-        self.setup_nxf_dir_cmd()
+        # Whether all images have been loaded – needed to extract metadata
+        self.all_loaded = False
+        # Dictionary to monitor per-image progress
+        self.progress_dict = {}
+
         super().__init__(
             viewer=viewer,
-            title="Run Pipeline",
             parent=parent,
             layout=layout,
-            tooltip="""
-Allows for the computational pipeline to be triggered, with different additional options depending on the main widget selected.
-The profile determines where the pipeline is run.
-""",
             **kwargs,
         )
 
-        if variant == "inference":
-            # Whether all images have been loaded
-            # Needed to properly extract metadata
-            self.all_loaded = False
-            # Dictionary to monitor progress of each image
-            self.progress_dict = {}
-        else:
-            self.max_epochs = 0
-            self.current_epoch = 0
+    def _create_variant_ui(self):
+        """Inject the overwrite checkbox and Advanced Options into the pipeline group."""
+        # Overwrite existing results checkbox
+        self.overwrite_btn = QCheckBox("Overwrite existing results")
+        self.overwrite_btn.setToolTip(format_tooltip("""
+Select/enable to overwrite any previous results.
 
-        self.nxf_cmd = None
-        self.nxf_params = None
+Exactly what is overwritten will depend on the pipeline selected. By default, any previous results matching the current setup will be loaded if possible. This can be disabled by ticking this box.
+        """))
+        self.pipeline_layout.addWidget(self.overwrite_btn, 1, 0, 1, 1)
 
-        self.pipeline = variant
-        # Available pipelines and their funcs
-        self.pipelines = {
-            "inference": {
-                "check": self.check_inference,
-                "setup": self.setup_inference,
-                "start": self._inference_start,
-                "finish": self._inference_finish,
-                "fail": self._inference_fail,
-            },
-            "finetune": {
-                "check": self.check_finetuning,
-                "setup": self.setup_finetuning,
-                "start": self._finetune_start,
-                "finish": self._finetune_finish,
-                "fail": self._finetune_fail,
-            },
-        }
-
-    def load_settings(self):
-        """
-        Load the settings for the plugin from the parent widget.
-        """
-        if not self.parent.plugin_settings:
-            return
-        if "nxf" in self.parent.plugin_settings:
-            settings = self.parent.plugin_settings["nxf"]
-            # Set the profile
-            if "profile" in settings:
-                idx = self.nxf_profile_box.findText(settings["profile"])
-                if idx != -1:
-                    self.nxf_profile_box.setCurrentIndex(idx)
-            # Set the base directory
-            if "base_dir" in settings:
-                nxf_base_dir = Path(settings["base_dir"])
-                self.nxf_dir_text.setText(str(nxf_base_dir))
-                # Update the base directory and Nextflow command
-                self.setup_nxf_dir_cmd(base_dir=Path(nxf_base_dir))
-
-    def get_settings(self) -> dict:
-        """
-        Get the settings for the plugin to store for future sessions.
-        """
-        settings = {
-            "base_dir": str(self.nxf_base_dir),
-            "profile": self.nxf_profile_box.currentText(),
-        }
-        return settings
-
-    def get_config_params(self, params):
-        widget_config = {
-            "base_dir": str(self.nxf_base_dir),
-            "profile": self.nxf_profile_box.currentText(),
-            "advanced_options": {
-                "num_substacks": params.get("num_substacks"),
-                "overlap": params.get("overlap"),
-                "iou_threshold": params.get("iou_threshold"),
-            },
-        }
-        return widget_config
-
-    def load_config(self, config):
-        profile_index = self.nxf_profile_box.findText(config["profile"])
-        if profile_index != -1:
-            self.nxf_profile_box.setCurrentIndex(profile_index)
-        base_dir = config["base_dir"]
-        if self.nxf_dir_text.text() != base_dir:
-            self.nxf_dir_text.setText(base_dir)
-            self.setup_nxf_dir_cmd(base_dir=Path(base_dir))
-
-        # loading advanced options
-        adv = config["advanced_options"]
-        num_substacks = adv.get("num_substacks")
-        tile_boxes = [self.tile_x, self.tile_y, self.tile_z]
-        for box, val in zip(tile_boxes, num_substacks.split(",")):
-            if val == "auto":
-                box.setValue(-1)
-            else:
-                box.setValue(int(val))
-
-        overlap_str = adv.get("overlap")
-        overlap = [float(i) for i in overlap_str.split(",")]
-
-        self.overlap_x.setValue(overlap[0])
-        self.overlap_y.setValue(overlap[1])
-        self.overlap_z.setValue(overlap[2])
-
-        self.iou_thresh.setValue(float(adv.get("iou_threshold")))
-
-    def setup_nxf_dir_cmd(self, base_dir: Optional[Path] = None):
-        # Set the basepath to store masks/checkpoints etc. in
-        if base_dir is not None:
-            self.nxf_base_dir = base_dir
-        else:
-            self.nxf_base_dir = Path.home() / ".nextflow" / "aiod"
-        self.nxf_base_dir.mkdir(parents=True, exist_ok=True)
-        self.nxf_store_dir = self.nxf_base_dir / "aiod_cache"
-        self.nxf_store_dir.mkdir(parents=True, exist_ok=True)
-        # Set the base Nextflow command
-        # Ensures logs are stored in the right place (must be before run)
-        self.nxf_base_cmd = (
-            f"nextflow -log '{str(self.nxf_base_dir / 'nextflow.log')}' "
+        # Advanced options collapsible section
+        self.options_widget = QWidget()
+        self.options_layout = QVBoxLayout()
+        self.advanced_box = QPushButton(" ▶ Advanced Options")
+        self.advanced_box.setCheckable(True)
+        self.advanced_box.setStyleSheet(
+            f"QPushButton {{ text-align: left; }} QPushButton:checked {{background-color: {self.parent.subwidgets['model'].colour_selected}}}"
         )
-        # Path to store the text file containing the image paths
-        self.img_list_fpath = self.nxf_store_dir / "all_img_paths.csv"
-        # Working directory for Nextflow
-        self.nxf_work_dir = self.nxf_base_dir / "work"
-        self.nxf_work_dir.mkdir(parents=True, exist_ok=True)
-
-    def create_box(self):
-        # Create box for the cache settings
-        self.cache_box = QGroupBox("Cache Settings")
-        self.cache_box.setToolTip(
-            format_tooltip(
-                "Settings for the AIoD/Nextflow cache for storing models and results."
-            )
-        )
-        self.cache_layout = QGridLayout()
-        self.cache_box.setLayout(self.cache_layout)
-        # Create the option for selecting base directory
-        self.nxf_dir_label = QLabel("Base directory:")
-        base_dir_tooltip = "Select the base directory to store the Nextflow cache (i.e. all models & results) in."
-        self.nxf_dir_label.setToolTip(format_tooltip(base_dir_tooltip))
-        self.nxf_dir_text = QLabel(str(self.nxf_base_dir))
-        self.nxf_dir_text.setWordWrap(True)
-        self.nxf_dir_text.setToolTip(
-            format_tooltip("The selected base directory.")
-        )
-        self.nxf_dir_text.setMaximumWidth(400)
-        # Button to change the base directory
-        self.nxf_dir_btn = QPushButton("Change")
-        self.nxf_dir_btn.clicked.connect(self.on_click_base_dir)
-        self.nxf_dir_btn.setToolTip(format_tooltip(base_dir_tooltip))
-        # Button to inspect the base directory/cache
-        self.nxf_dir_inspect_btn = QPushButton("Inspect cache")
-        self.nxf_dir_inspect_btn.clicked.connect(self.on_click_inspect_cache)
-        self.nxf_dir_inspect_btn.setToolTip(format_tooltip("""
-Open the base directory in the file explorer to inspect the cache.
-
-Note that 'opening' won't do anything, this is just to see what files are present.
+        self.advanced_box.toggled.connect(self.on_toggle_advanced)
+        self.advanced_box.setToolTip(format_tooltip("""
+        Show/hide advanced options for the Nextflow pipeline. These options define how to split an image into separate jobs in Nextflow. The underlying models will likely do their own splitting internally into patches, but this controls the trade-off between the number and size of each job.
 """))
-        # Button to clear the cache
-        self.nxf_dir_clear_btn = QPushButton("Clear cache")
-        self.nxf_dir_clear_btn.clicked.connect(self.on_click_clear_cache)
-        self.nxf_dir_clear_btn.setToolTip(
-            format_tooltip(
-                "Clear the cache of all models and results. WARNING: This will remove all models and results from the cache."
-            )
-        )
+        self.advanced_widget = QWidget()
+        self.advanced_layout = QGridLayout()
 
-        # Layout all the cache settings
-        self.cache_layout.addWidget(self.nxf_dir_label, 0, 0, 1, 2)
-        self.cache_layout.addWidget(self.nxf_dir_text, 0, 2, 1, 3)
-        self.cache_layout.addWidget(self.nxf_dir_btn, 0, 5, 1, 1)
-        self.cache_layout.addWidget(self.nxf_dir_inspect_btn, 1, 0, 1, 3)
-        self.cache_layout.addWidget(self.nxf_dir_clear_btn, 1, 3, 1, 3)
+        self._add_advanced_options()
 
-        # Add the cache box to the main layout
-        self.inner_layout.addWidget(self.cache_box, 0, 0, 1, 2)
-
-        # Create box for the cache settings
-        self.pipeline_box = QGroupBox("Pipeline Settings")
-        self.pipeline_box.setToolTip(
-            format_tooltip("Settings for the Segment-Flow pipeline itself.")
-        )
-        self.pipeline_layout = QGridLayout()
-        self.pipeline_box.setLayout(self.pipeline_layout)
-
-        # Create a drop-down box to select the execution profile
-        self.nxf_profile_label = QLabel("Execution profile:")
-        self.nxf_profile_label.setToolTip(
-            format_tooltip("Select the execution profile to use.")
-        )
-        self.nxf_profile_box = QComboBox()
-        # Get the available profiles from config dir
-        config_dir = Path(__file__).parent.parent / "Segment-Flow" / "profiles"
-        avail_confs = [str(i.stem) for i in config_dir.glob("*.conf")]
-        avail_confs.sort()
-        if len(avail_confs) == 0:
-            raise FileNotFoundError(
-                f"No Nextflow profiles found in {config_dir}!"
-            )
-        self.nxf_profile_box.addItems(avail_confs)
-        self.nxf_profile_box.setFocusPolicy(
-            qtpy.QtCore.Qt.FocusPolicy.StrongFocus
-        )
-        self.pipeline_layout.addWidget(self.nxf_profile_label, 0, 0)
-        self.pipeline_layout.addWidget(self.nxf_profile_box, 0, 1)
-
-        # Overwrite button and Advanced options only needed for inference
-        if self.variant == "inference":
-            # Add a checkbox for overwriting existing results
-            self.overwrite_btn = QCheckBox("Overwrite existing results")
-            self.overwrite_btn.setToolTip(format_tooltip("""
-    Select/enable to overwrite any previous results.
-
-    Exactly what is overwritten will depend on the pipeline selected. By default, any previous results matching the current setup will be loaded if possible. This can be disabled by ticking this box.
-            """))
-            self.pipeline_layout.addWidget(self.overwrite_btn, 1, 0, 1, 1)
-
-            # Add widget for advanced options
-            self.options_widget = QWidget()
-            self.options_layout = QVBoxLayout()
-            self.advanced_box = QPushButton(" ▶ Advanced Options")
-            self.advanced_box.setCheckable(True)
-            self.advanced_box.setStyleSheet(
-                f"QPushButton {{ text-align: left; }} QPushButton:checked {{background-color: {self.parent.subwidgets['model'].colour_selected}}}"
-            )
-            self.advanced_box.toggled.connect(self.on_toggle_advanced)
-            self.advanced_box.setToolTip(format_tooltip("""
-    Show/hide advanced options for the Nextflow pipeline. These options define how to split an image into separate jobs in Nextflow. The underlying models will likely do their own splitting internally into patches, but this controls the trade-off between the number and size of each job.
-    """))
-            self.advanced_widget = QWidget()
-            self.advanced_layout = QGridLayout()
-
-            # Add the advanced options
-            # Moved out due to length
-            self._add_advanced_options()
-
-            self.advanced_widget.setLayout(self.advanced_layout)
-            self.advanced_widget.setVisible(False)
-            self.options_layout.addWidget(self.advanced_box)
-            self.options_layout.addWidget(self.advanced_widget)
-            self.options_layout.setContentsMargins(0, 0, 0, 0)
-            self.advanced_layout.setContentsMargins(4, 0, 4, 0)
-            self.options_widget.setLayout(self.options_layout)
-            self.pipeline_layout.addWidget(self.options_widget, 3, 0, 1, 2)
-
-        self.inner_layout.addWidget(self.pipeline_box, 1, 0, 1, 2)
-
-        # Create a button to navigate to a directory to take images from
-        self.nxf_run_btn = QPushButton("Run Pipeline!")
-        self.nxf_run_btn.clicked.connect(self.run_pipeline)
-        self.nxf_run_btn.setToolTip(
-            format_tooltip(
-                "Run the pipeline with the chosen organelle(s), model, and images."
-            )
-        )
-        self.inner_layout.addWidget(self.nxf_run_btn, 2, 0, 1, 2)
-
-        pbar_layout = QHBoxLayout()
-        # Add progress bar
-        self.pbar = QProgressBar()
-        # Create the label associated with the progress bar
-        self.pbar_label = QLabel("Progress: [--:--]")
-        self.pbar_label.setToolTip(
-            format_tooltip("Shows [elapsed<remaining] time for current run.")
-        )
-        # Add the label and progress bar to the layout
-        pbar_layout.addWidget(self.pbar_label)
-        pbar_layout.addWidget(self.pbar)
-        self.inner_layout.addLayout(pbar_layout, 5, 0, 1, 2)
-        # TQDM progress bar to monitor completion time
-        self.tqdm_pbar = None
+        self.advanced_widget.setLayout(self.advanced_layout)
+        self.advanced_widget.setVisible(False)
+        self.options_layout.addWidget(self.advanced_box)
+        self.options_layout.addWidget(self.advanced_widget)
+        self.options_layout.setContentsMargins(0, 0, 0, 0)
+        self.advanced_layout.setContentsMargins(4, 0, 4, 0)
+        self.options_widget.setLayout(self.options_layout)
+        self.pipeline_layout.addWidget(self.options_widget, 3, 0, 1, 2)
 
     def _add_advanced_options(self):
         self.tile_x_label = QLabel("Number X tiles:")
@@ -407,7 +165,6 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         self.advanced_layout.addWidget(self.overlap_z_label, 5, 0, 1, 1)
         self.advanced_layout.addWidget(self.overlap_z, 5, 1, 1, 1)
 
-        # Connect all the spinboxes to the same function
         self.tile_x.valueChanged.connect(self.update_tile_size)
         self.tile_y.valueChanged.connect(self.update_tile_size)
         self.tile_z.valueChanged.connect(self.update_tile_size)
@@ -421,25 +178,23 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         )
         self.advanced_layout.addWidget(self.tile_size_label, 6, 0, 1, 2)
 
-        # Add post-processing options
         self.postprocess_btn = QCheckBox("Re-label output")
         self.postprocess_btn.setChecked(False)
         self.postprocess_btn.setToolTip(format_tooltip("""
 If checked, the model output will be re-labelled using connected components to create consistency across slices.
-            """))
+        """))
         self.advanced_layout.addWidget(self.postprocess_btn, 7, 0, 1, 2)
-        # Add threshold for IoU SAM post-processing
+
         self.iou_thresh_label = QLabel("IoU threshold (SAM only):")
         self.iou_thresh_label.setToolTip(format_tooltip("""
 Threshold for the Intersection over Union (IoU) metric used in the SAM post-processing step.
-            """))
+        """))
         self.iou_thresh = QDoubleSpinBox(minimum=0.0, maximum=1.0, value=0.8)
         self.iou_thresh.setSingleStep(0.01)
         self.iou_thresh.setAlignment(qtpy.QtCore.Qt.AlignCenter)
         self.advanced_layout.addWidget(self.iou_thresh_label, 8, 0, 1, 1)
         self.advanced_layout.addWidget(self.iou_thresh, 8, 1, 1, 1)
 
-        # Run the function to update the tile size label to get initial value
         self.update_tile_size(val=None, clear_label=False)
 
     def on_toggle_advanced(self):
@@ -450,19 +205,47 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             self.advanced_widget.setVisible(False)
             self.advanced_box.setText(" ▶ Advanced Options")
 
-    def store_img_paths(self, img_paths: list[Path]):
-        """
-        Writes the provided image paths to a file to pass into Nextflow.
+    def get_config_params(self, params):
+        config = super().get_config_params(params)
+        config["advanced_options"] = {
+            "num_substacks": params.get("num_substacks"),
+            "overlap": params.get("overlap"),
+            "iou_threshold": params.get("iou_threshold"),
+        }
+        return config
 
-        TODO: May be subject to complete rewrite with dask/zarr
+    def load_config(self, config):
+        super().load_config(config)
+        adv = config.get("advanced_options", {})
+
+        num_substacks = adv.get("num_substacks")
+        if num_substacks is not None:
+            tile_boxes = [self.tile_x, self.tile_y, self.tile_z]
+            for box, val in zip(tile_boxes, num_substacks.split(",")):
+                if val == "auto":
+                    box.setValue(-1)
+                else:
+                    box.setValue(int(val))
+
+        overlap_str = adv.get("overlap")
+        if overlap_str is not None:
+            overlap = [float(i) for i in overlap_str.split(",")]
+            self.overlap_x.setValue(overlap[0])
+            self.overlap_y.setValue(overlap[1])
+            self.overlap_z.setValue(overlap[2])
+
+        iou = adv.get("iou_threshold")
+        if iou is not None:
+            self.iou_thresh.setValue(float(iou))
+
+    def store_img_paths(self, img_paths: list):
         """
-        # Create container for metadata
+        Writes the provided image paths to a CSV file to pass into Nextflow.
+        """
         output = defaultdict(list)
-        # Create container for knowing what images to track progress of
         self.progress_dict = {}
-        # Counter for number of substacks (equivalent to number of submitted jobs!)
         total_substacks = 0
-        # Extract inputted stack size
+
         stack_size = (
             (
                 "auto"
@@ -480,37 +263,31 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 else self.tile_z.value()
             ),
         )
-        # Convert into Stack namedtuple
         stack_size = Stack(
             height=stack_size[0], width=stack_size[1], depth=stack_size[2]
         )
-        # Extract overlap fraction
         overlap_frac = Stack(
             height=round(self.overlap_x.value(), 2),
             width=round(self.overlap_y.value(), 2),
             depth=round(self.overlap_z.value(), 2),
         )
-        # Extract info from each image
+
         for img_path in img_paths:
-            # Get the mask layer name
             layer = self.parent.viewer.layers[img_path.stem]
-            # Get the number of slices, channels, height, and width
             H, W, num_slices, channels = get_img_dims(layer, img_path)
             output["img_path"].append(str(img_path))
             output["num_slices"].append(num_slices)
             output["height"].append(H)
             output["width"].append(W)
             output["channels"].append(channels)
-            # Initialise the progress dict
             self.progress_dict[img_path.stem] = 0
-            # Need to take account for multiple runs due to preprocessing
+
             relevant_runs = [
                 i
                 for i in self.parent.img_mask_info
                 if i["img_path"].stem == img_path.stem
             ]
             for d in relevant_runs:
-                # Get the shape after preprocessing (if any)
                 if d["prep_set"] is None:
                     final_shape = Stack(
                         height=H, width=W, depth=num_slices, channels=channels
@@ -525,13 +302,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                         depth=output_shape[0],
                         channels=channels,
                     )
-                # Calculate the number of substacks
                 num_substacks, eff_shape = calc_num_stacks(
                     image_shape=final_shape,
                     req_stacks=stack_size,
                     overlap_fraction=overlap_frac,
                 )
-                # Get the number of substacks
                 _, num_substacks, _ = generate_stack_indices(
                     image_shape=final_shape,
                     num_substacks=num_substacks,
@@ -539,21 +314,13 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                     eff_shape=eff_shape,
                 )
                 total_substacks += num_substacks
-        # Convert to a DataFrame and save
+
         df = pd.DataFrame(output)
         df.to_csv(self.img_list_fpath, index=False)
-        # Store the total number of jobs
         self.total_substacks = total_substacks
 
-    def check_inference(self):
-        """
-        Checks that all the necessary parameters are set for inference.
-
-        Checks that:
-        - A task has been selected
-        - A model has been selected
-        - Data has been selected
-        """
+    def check_pipeline(self):
+        """Validate all required inputs for inference."""
         if self.parent.selected_task is None:
             raise ValueError("No task/organelle selected!")
         if self.parent.selected_model is None:
@@ -563,7 +330,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         if len(self.parent.subwidgets["data"].image_path_dict) == 0:
             raise ValueError("No data selected!")
         if self.all_loaded is False:
-            # Check whether layers already existed when plugin started, and if all were loaded
             if not (
                 len(self.image_path_dict) > 0
                 and self.parent.subwidgets["data"].existing_loaded
@@ -571,38 +337,27 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 show_info("Not all images have loaded, please wait...")
                 return
 
-    def setup_inference(self, nxf_params: Optional[dict] = None):
-        """
-        Runs the inference pipeline in Nextflow.
-
-        `nxf_params` is a dict containing everything that Nextflow needs at the command line.
-        """
-        # Store the image paths
+    def setup_pipeline(self):
+        """Build the Nextflow command and params dict for inference."""
         self.image_path_dict = self.parent.subwidgets["data"].image_path_dict
-        # Store the selected task, model, and variant for execution
         self.parent.executed_task = self.parent.selected_task
         self.parent.executed_model = self.parent.selected_model
         self.parent.executed_variant = self.parent.selected_variant
-        # Set the starting Nextflow command
+
         inference_config_fpath = self.nxf_repo + "inference.config"
         nxf_cmd = (
             self.nxf_base_cmd
             + f"run {self.nxf_repo} -latest -entry inference -c {inference_config_fpath}"
         )
-        # nxf_params can only be given when used standalone, which is rare
-        if nxf_params is not None:
-            return nxf_cmd, nxf_params  # FIXME: Returns diff number variables
-        # Construct the Nextflow params if not given
+
         parent = self.parent
-        # Get the model config path
         config_path = parent.subwidgets["model"].get_model_config()
-        # Construct the proper mask directory path
         self.mask_dir_path = (
             self.nxf_store_dir
             / f"{parent.executed_model}"
             / f"{sanitise_name(parent.executed_variant)}_masks"
         )
-        # Construct the params to be given to Nextflow
+
         nxf_params = {}
         nxf_params["root_dir"] = str(self.nxf_base_dir)
         nxf_params["img_dir"] = str(self.img_list_fpath)
@@ -610,7 +365,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         nxf_params["model_config"] = str(config_path)
         nxf_params["model_type"] = sanitise_name(parent.executed_variant)
         nxf_params["task"] = parent.executed_task
-        # Extract the model checkpoint location and location type
+
         model_task = parent.subwidgets["model"].model_version_tasks[
             (
                 parent.executed_task,
@@ -618,10 +373,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 parent.executed_variant,
             )
         ]
-        # Location type determined from registry schema
         nxf_params["model_chkpt_type"] = model_task.location_type
         if model_task.location_type == "url":
-            # This parses the URL to get the root filename which we'll use
             res = urlparse(model_task.location)
             nxf_params["model_chkpt_loc"] = model_task.location
             nxf_params["model_chkpt_fname"] = Path(res.path).name
@@ -629,8 +382,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             res = Path(model_task.location)
             nxf_params["model_chkpt_loc"] = str(res.parent)
             nxf_params["model_chkpt_fname"] = res.name
-        # Extract the tiles and overlap
-        # Special text is ignored by default, so need to convert
+
         num_substacks = []
         num_substacks.append(
             "auto"
@@ -647,450 +399,95 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             if self.tile_z.value() == self.tile_z.minimum()
             else self.tile_z.value()
         )
-        # Nextflow needs a comma-separated string for multiple values
         nxf_params["num_substacks"] = ",".join(map(str, num_substacks))
         nxf_params["overlap"] = (
             f"{round(self.overlap_x.value(), 2)},{round(self.overlap_y.value(), 2)},{round(self.overlap_z.value(), 2)}"
         )
         nxf_params["iou_threshold"] = round(self.iou_thresh.value(), 2)
-        # Get the preprocessing options
         nxf_params["preprocess"] = parent.subwidgets[
             "preprocess"
         ].get_all_options()
-        # Now have everything for the run hash
+
         parent.get_run_hash(nxf_params)
-        # If overwriting, delete existing mask layers and files
+
         if self.overwrite_btn.isChecked():
             proceed = True
             load_paths = []
-            img_paths = self.parent.subwidgets["data"].image_path_dict.values()
-            # Extract layer names, considering current preprocessing sets etc.
             parent.get_img_mask_preps()
             all_layer_names = [i["layer_name"] for i in parent.img_mask_info]
-            # Delete data in mask layers if present
             for layer_name in all_layer_names:
                 if layer_name in self.viewer.layers:
                     self.viewer.layers.remove(layer_name)
-            # Delete masks that match determined layer names (this'll remove partial and full masks, if present)
             for mask_path in self.mask_dir_path.glob("*.rle"):
                 for layer_name in all_layer_names:
                     if layer_name in mask_path.stem:
                         mask_path.unlink()
                         break
-        # Check if we already have all the masks
+            img_paths = list(
+                self.parent.subwidgets["data"].image_path_dict.values()
+            )
         else:
             proceed, img_paths, load_paths = self.parent.check_masks()
-        # If some masks need loading, load them
+
         if load_paths:
             self.nxf_run_btn.setEnabled(False)
             self.nxf_run_btn.setText("Loading already-run masks...")
             self.parent.create_mask_layers(img_paths=load_paths)
-        # Reset the run button after loading just in case
         self.nxf_run_btn.setText("Run Pipeline!")
         self.nxf_run_btn.setEnabled(True)
-        # If we already have all the masks, don't run the pipeline
+
         if not proceed:
             msg = f"Masks already exist for all files for segmenting {TASK_NAMES[parent.executed_task]} with {parent.executed_model} ({parent.executed_variant})!"
             if self.parent.run_hash is not None:
                 msg += f" (Hash: {self.parent.run_hash[:8]})"
             show_info(msg)
-            # Otherwise, until importing is fully sorted, the user just gets a notification and that's it
             return nxf_cmd, nxf_params, proceed, img_paths
         else:
-            # Start the watcher for the mask files
             self.parent.watch_mask_files()
             return nxf_cmd, nxf_params, proceed, img_paths
 
-    def check_finetuning(self):
-        """
-        Check if we have all the required data to run finetuning
-        """
-        if self.parent.selected_task is None:
-            raise ValueError("No task/organelle selected!")
-        if self.parent.selected_model is None:
-            raise ValueError("No model selected!")
-        if "finetune_params" not in self.parent.subwidgets:
-            raise ValueError(
-                "Cannot run pipeline without finetune params widget"
-            )
-        if (
-            len(
-                self.parent.subwidgets["finetune_params"].train_dir_text.text()
-            )
-            == ""
-        ):
-            raise ValueError("No Train directory selected!")
-        if (
-            self.parent.subwidgets["finetune_params"].model_save_name.text()
-            == ""
-        ):
-            raise ValueError("No save name given for finetuned model")
-        if not (
-            Path(
-                self.parent.subwidgets["finetune_params"].train_dir_text.text()
-            ).exists()
-        ):
-            raise FileNotFoundError("Training Directory not found")
-        # check patchsize is divisible by patchsize divisor
-        if self.parent.subwidgets["finetune_params"].patch_size.text() == "":
-            raise ValueError("No patch size provided")
-        patch_size_w, patch_size_h = [
-            int(i)
-            for i in self.parent.subwidgets["finetune_params"]
-            .patch_size.text()
-            .split(",")
-        ]
+    def _pre_run_hook(self, nxf_params: dict, img_paths):
+        """Store settings, image paths, and inject the postprocess flag."""
+        self.parent.store_settings()
+        self.store_img_paths(img_paths=img_paths)
+        nxf_params["postprocess"] = self.postprocess_btn.isChecked()
 
-        patch_size_divisor = int(
-            self.parent.subwidgets["finetune_params"].finetuning_meta_data[
-                "patch_size_divisor"
-            ]
-        )
-        if (
-            patch_size_h % patch_size_divisor != 0
-            or patch_size_w % patch_size_divisor != 0
-        ):
-            raise ValueError(
-                "Please ensure that the patchsize is divisble by",
-                patch_size_divisor,
-            )
-        # TODO: Add more comprehensive checks. Are there image and mask directories and files within.
-        # file structure from empanada is folder/folder/images,masks/x.tiff,mask,tiff
-        # first folder not needed
-
-        print("Done running checks for finetuning!")
-
-    def setup_finetuning(self):
-        """
-        Runs the finetuning pipeline in Nextflow.
-        """
-        # Store the image paths
-        self.image_path_dict = self.parent.subwidgets[
-            "finetune_params"
-        ].train_dir_text.text()
-
-        img_paths = ""
-        # self.image_path_dict.values()
-
-        print(f"this is the train dir: {self.image_path_dict}")
-        print("Done setting up for finetuning!")
-        proceed = True
-
-        nxf_cmd = (
-            self.nxf_base_cmd
-        )  # nextflow -log '/Users/ahmedn/.nextflow/aiod/nextflow.log'
-        finetune_config_fpath = self.nxf_repo + "finetune.config"
-        nxf_cmd = (
-            self.nxf_base_cmd
-            + f"run {self.nxf_repo} -latest -entry finetune -c {finetune_config_fpath}"  # finetune workflow
-        )
-
-        # Store the selected task, model, and variant for execution
-        self.parent.executed_task = self.parent.selected_task
-        self.parent.executed_model = self.parent.selected_model
-        self.parent.executed_variant = self.parent.selected_variant
-
-        # construct nextflow params
-        nxf_params = {}
-        parent = self.parent
-        config_path = parent.subwidgets["model"].get_model_config()
-
-        nxf_params["root_dir"] = str(self.nxf_base_dir)
-        nxf_params["model_save_dir"] = (
-            str(self.nxf_base_dir) + "/aiod_cache/finetune_cache"
-        )
-        nxf_params["model"] = parent.selected_model
-        nxf_params["model_config"] = str(config_path)
-        nxf_params["model_type"] = sanitise_name(parent.executed_variant)
-        nxf_params["task"] = parent.executed_task
-
-        # Extract the model checkpoint location and location type
-        model_task = parent.subwidgets["model"].model_version_tasks[
-            (
-                parent.executed_task,
-                parent.executed_model,
-                parent.executed_variant,
-            )
-        ]
-        # Location type determined from registry schema
-        nxf_params["model_chkpt_type"] = model_task.location_type
-        if model_task.location_type == "url":
-            # This parses the URL to get the root filename which we'll use
-            res = urlparse(model_task.location)
-            nxf_params["model_chkpt_loc"] = model_task.location
-            nxf_params["model_chkpt_fname"] = Path(res.path).name
-        elif model_task.location_type == "file":
-            res = Path(model_task.location)
-            nxf_params["model_chkpt_loc"] = str(res.parent)
-            nxf_params["model_chkpt_fname"] = res.name
-
-        # adding the finetuning params to nxf_params
-        nxf_params["train_dir"] = parent.subwidgets[
-            "finetune_params"
-        ].train_dir_text.text()
-        nxf_params["patch_size"] = parent.subwidgets[
-            "finetune_params"
-        ].patch_size.text()
-        nxf_params["epochs"] = parent.subwidgets[
-            "finetune_params"
-        ].epochs.value()
-        self.max_epochs = nxf_params["epochs"]
-        nxf_params["finetune_layers"] = parent.subwidgets[
-            "finetune_params"
-        ].finetune_layers.currentText()
-        nxf_params["model_save_name"] = parent.subwidgets[
-            "finetune_params"
-        ].model_save_name.text()
-
-        # Now have everything for the run hash
-        print("b4 getting run hash", nxf_params)
-        parent.get_run_hash(nxf_params)
-
-        # raise NotImplementedError("STOPP")
-        return nxf_cmd, nxf_params, proceed, img_paths
-
-    def run_pipeline(self):
-        # Ensure the pipeline is valid
-        assert (
-            self.pipeline in self.pipelines.keys()
-        ), f"Pipeline {self.pipeline} not found!"
-        # Do the initial checks
-        if self.pipelines[self.pipeline]["check"] is not None:
-            self.pipelines[self.pipeline]["check"]()
-        else:
-            raise NotImplementedError(
-                f"Pipeline {self.pipeline} check function not implemented!"
-            )
-        # Get the pipeline-specific stuff
-        nxf_cmd, nxf_params, proceed, img_paths = self.pipelines[
-            self.pipeline
-        ]["setup"]()
-
-        # Don't run the pipeline if no green light given
-        if not proceed:
-            return
-
-        if self.variant == "inference":
-            # store plugin settings for future sessions
-            self.parent.store_settings()
-            # store the image paths
-            self.store_img_paths(img_paths=img_paths)
-            # Add postprocessing flag
-            nxf_params["postprocess"] = self.postprocess_btn.isChecked()
-
-        # Add custom work directory
-        if self.nxf_work_dir is not None:
-            nxf_cmd += f" -w {self.nxf_work_dir}"
-        # Add the selected profile to the command
-        nxf_cmd += f" -profile {self.nxf_profile_box.currentText()}"
-        # Add the Nextflow parameter hash to the command
-        nxf_params["param_hash"] = self.parent.run_hash
-        # Save the Nextflow parameters to a YAML file
-        nxf_params_fpath = (
-            self.nxf_store_dir / f"nxf_params_{self.parent.run_hash}.yml"
-        )
-        with open(nxf_params_fpath, "w") as f:
-            yaml.dump(nxf_params, f)
-        # Add params-file to nxf command
-        nxf_cmd += f" -params-file {nxf_params_fpath}"
-
-        @thread_worker(
-            connect={
-                "started": self.pipelines[self.pipeline]["start"],
-                "returned": self.pipelines[self.pipeline]["finish"],
-                "errored": self.pipelines[self.pipeline]["fail"],
-            }
-        )
-        def _run_pipeline(nxf_cmd: str):
-            # Run the command
-            # We use shlex to ensure the command is properly escaped
-            # We use shell=False to avoid shell injection issues
-            # We use -l to ensure the command is run in a login shell, avoiding conda issues
-            self.process = subprocess.Popen(
-                ["/bin/sh", "-l", "-c"] + shlex.split(shlex.quote(nxf_cmd)),
-                shell=False,
-                cwd=Path.home(),
-            )
-            self.process.wait()
-            # Check if the process was successful
-            if self.process.returncode != 0:
-                raise RuntimeError
-
-        if self.variant == "finetune":
-            print(nxf_cmd)
-
-        # Run the pipeline
-        _run_pipeline(nxf_cmd)
-        # emitting config ready to enable the save config button
-        self.config_ready.emit()
-        self.nxf_params = nxf_params
-
-    def _reset_btns(self):
-        """
-        Resets the buttons to their original state.
-        """
-        self.nxf_run_btn.setText("Run Pipeline!")
-        self.nxf_run_btn.setEnabled(True)
-        self._remove_cancel_btn()
-
-    def _inference_start(self):
-        # Add a notification that the pipeline has started
+    def _pipeline_start(self):
         show_info("Pipeline started!")
-        # Modify buttons during run
-        # Disable run button to avoid issues
-        # TODO: Enable multiple job execution, may require -bg flag?
         self.nxf_run_btn.setEnabled(False)
-        # Update the button to signify it's running
         self.nxf_run_btn.setText("Running Pipeline...")
         self.init_progress_bar()
-        # Add a cancel pipeline button
-        idx = self.inner_widget.layout().indexOf(self.nxf_run_btn)
-        row, col, rowspan, colspan = (
-            self.inner_widget.layout().getItemPosition(idx)
-        )
-        self.orig_colspan = colspan
-        self.cancel_btn = QPushButton("Cancel Pipeline")
-        self.cancel_btn.clicked.connect(self.cancel_inference)
-        self.cancel_btn.setToolTip("Cancel the currently running pipeline.")
-        new_colspan = colspan // 2 if colspan > 1 else 1
-        self.inner_widget.layout().addWidget(
-            self.nxf_run_btn, row, col, rowspan, new_colspan
-        )
-        self.inner_widget.layout().addWidget(
-            self.cancel_btn, row, col + new_colspan, rowspan, new_colspan
-        )
+        self._add_cancel_btn(self.cancel_pipeline)
 
-    def _inference_finish(self):
-        # Add a notification that the pipeline has finished
+    def _pipeline_finish(self):
         show_info("Pipeline finished!")
         self._reset_btns()
-        # When finished, insert all '_all' masks to ensure everything is correct
         self.parent.insert_final_masks()
-        # Ensure progress bar is at 100%
         self.pbar.setValue(self.total_substacks)
 
-    def _inference_fail(self, exc):
+    def _pipeline_fail(self, exc):
         show_info("Pipeline failed! See terminal for details")
         print(exc)
         self._reset_btns()
-        # Deactivate file watcher
         if hasattr(self.parent, "watcher_enabled"):
             print("Deactivating watcher...")
             self.parent.watcher_enabled = False
 
-    def _finetune_start(self):
-        # Add a notification that the pipeline has started
-        show_info("Pipeline started!")
-        # Modify buttons during run
-        # Disable run button to avoid issues
-        # TODO: Enable multiple job execution, may require -bg flag?
-        self.nxf_run_btn.setEnabled(False)
-        # Update the button to signify it's running
-        self.nxf_run_btn.setText("Running Pipeline...")
-        self.init_finetune_pbar(self.max_epochs)
-        # Add a cancel pipeline button
-        idx = self.inner_widget.layout().indexOf(self.nxf_run_btn)
-        row, col, rowspan, colspan = (
-            self.inner_widget.layout().getItemPosition(idx)
-        )
-        self.orig_colspan = colspan
-        self.cancel_btn = QPushButton("Cancel Pipeline")
-        self.cancel_btn.clicked.connect(self.cancel_finetuning)
-        self.cancel_btn.setToolTip("Cancel the currently running pipeline.")
-        new_colspan = colspan // 2 if colspan > 1 else 1
-        self.inner_widget.layout().addWidget(
-            self.nxf_run_btn, row, col, rowspan, new_colspan
-        )
-        self.inner_widget.layout().addWidget(
-            self.cancel_btn, row, col + new_colspan, rowspan, new_colspan
-        )
-        # start the metrics file watcher
-        training_metrics_path = (
-            self.nxf_params["model_save_dir"] + "/training_metrics.csv"
-        )
-        self.parent.watch_metrics_file(metric_path=training_metrics_path)
-
-    def _finetune_finish(self):
-        # Add a notification that the pipeline has finished
-        show_info("Pipeline finished!")
-        self._reset_btns()
-        self.finetuned_model_ready.emit(str(self.nxf_base_dir))
-        # stop the metrics file watcher
-        self.parent.watch_enabled = False
-        self.pbar.setValue(self.max_epochs)
-
-    def _finetune_fail(self, exc):
-        show_info("Pipeline failed! See terminal for details")
-        print(exc)
-        self._reset_btns()
-        # stop the metrics file watcher
-        self.parent.watch_enabled = False
-
-    def _remove_cancel_btn(self):
-        # Remove the cancel pipeline button
-        self.inner_widget.layout().removeWidget(self.cancel_btn)
-        self.cancel_btn.setParent(None)
-        idx = self.inner_widget.layout().indexOf(self.nxf_run_btn)
-        row, col, rowspan, _ = self.inner_widget.layout().getItemPosition(idx)
-        self.inner_widget.layout().addWidget(
-            self.nxf_run_btn, row, col, rowspan, self.orig_colspan
-        )
-
-    def on_click_base_dir(self):
-        """
-        Callback for when the base directory button is clicked. Opens a dialog to select a directory to save the masks to.
-        """
-        base_dir = QFileDialog.getExistingDirectory(
-            self, caption="Select directory to store cache", directory=None
-        )
-        # Skip if no directory selected
-        if base_dir == "":
-            return
-        # Replace any spaces, makes everything else easier
-        new_dir_name = Path(base_dir).name.replace(" ", "_")
-        base_dir = Path(base_dir).parent / new_dir_name
-        # Update the text
-        self.nxf_dir_text.setText(str(base_dir))
-        # Update the base directory and Nextflow command
-        self.setup_nxf_dir_cmd(base_dir=base_dir)
-
-    def init_finetune_pbar(self, epochs):
-        self.pbar.setRange(0, epochs)
-        self.pbar.setValue(0)
-        self.tqdm_pbar = tqdm.tqdm(total=epochs)
-        self.pbar_label.setText("Progress: [--:--]")
-
-    def update_finetune_pbar(self, current_epoch):
-        # Update the progress bar to the current number of slices
-        self.pbar.setValue(current_epoch)
-        self.tqdm_pbar.update(current_epoch - self.tqdm_pbar.n)
-        # Update the label
-        elapsed = self.tqdm_pbar.format_dict["elapsed"]
-        rate = (
-            self.tqdm_pbar.format_dict["rate"]
-            if self.tqdm_pbar.format_dict["rate"]
-            else 1
-        )
-        remaining = (self.tqdm_pbar.total - self.tqdm_pbar.n) / rate
-        self.pbar_label.setText(
-            f"Progress: [{self.tqdm_pbar.format_interval(elapsed)}<{self.tqdm_pbar.format_interval(remaining)}]"
-        )
+    def cancel_pipeline(self):
+        self.process.send_signal(subprocess.signal.SIGTERM)
+        self.reset_progress_bar()
+        self.parent.remove_mask_layers()
 
     def init_progress_bar(self):
-        # Set the values of the Qt progress bar
         self.pbar.setRange(0, self.total_substacks)
         self.pbar.setValue(0)
-        # Initialise the tqdm progress bar to monitor time
         self.tqdm_pbar = tqdm.tqdm(total=self.total_substacks)
-        # Reset the label
         self.pbar_label.setText("Progress: [--:--]")
 
     def update_progress_bar(self):
-        # Update the progress bar to the current number of slices
         curr_slices = sum(self.progress_dict.values())
         self.pbar.setValue(curr_slices)
         self.tqdm_pbar.update(curr_slices - self.tqdm_pbar.n)
-        # Update the label
         elapsed = self.tqdm_pbar.format_dict["elapsed"]
         rate = (
             self.tqdm_pbar.format_dict["rate"]
@@ -1102,37 +499,10 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             f"Progress: [{self.tqdm_pbar.format_interval(elapsed)}<{self.tqdm_pbar.format_interval(remaining)}]"
         )
 
-    def reset_progress_bar(self):
-        # Set the values of the Qt progress bar
-        self.pbar.setValue(0)
-        # Close the tqdm progress bar
-        self.tqdm_pbar.close()
-        # Reset the label
-        self.pbar_label.setText("Progress: [--:--]")
-
-    def cancel_inference(self):
-        # Trigger Nextflow to cancel the pipeline
-        self.process.send_signal(subprocess.signal.SIGTERM)
-        # Reset the progress bar
-        self.reset_progress_bar()
-        # Remove mask layers that were added
-        self.parent.remove_mask_layers()
-
-    def cancel_finetuning(self):
-        # Trigger Nextflow to cancel the pipeline
-        self.process.send_signal(subprocess.signal.SIGTERM)
-        # Reset the progress bar
-        self.reset_progress_bar()
-
     def update_tile_size(
-        self, val: Union[int, float], clear_label: bool = False
+        self, val: Union[int, float, None], clear_label: bool = False
     ):
-        """
-        Callback for when the tile size spinboxes are updated.
-        """
-        # Get the stack size
-        # FIXME: Pattern repeated 3 times in this script, abstract?
-        # Extract inputted stack size
+        """Update the tile-size label whenever a tiling spinbox changes."""
         stack_size = (
             (
                 "auto"
@@ -1150,50 +520,42 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 else self.tile_z.value()
             ),
         )
-        # Convert into Stack namedtuple
         stack_size = Stack(
             height=stack_size[0], width=stack_size[1], depth=stack_size[2]
         )
-        # Extract overlap fraction
         overlap_frac = Stack(
             height=round(self.overlap_x.value(), 2),
             width=round(self.overlap_y.value(), 2),
             depth=round(self.overlap_z.value(), 2),
         )
-        # Get the relevant image shape
-        # First check if we have any layers selected
+
         if len(self.viewer.layers.selection) >= 1:
             layers = self.viewer.layers.selection
-        # Otherwise get all layers
         else:
             layers = self.viewer.layers
-        # Filter down to only Image layers
         layers = [
             layer for layer in layers if isinstance(layer, napari.layers.Image)
         ]
-        # Check if we have any image layers
+
         if len(layers) == 0 or clear_label:
             self.tile_size_label.setText("No image layers found!")
             return
-        # Otherwise just take the first one
+
         H, W, num_slices, channels = get_img_dims(layers[0], verbose=False)
         img_shape = Stack(
             height=H, width=W, depth=num_slices, channels=channels
         )
-        # Get the actual stack size
         num_substacks, eff_shape = calc_num_stacks(
             image_shape=img_shape,
             req_stacks=stack_size,
             overlap_fraction=overlap_frac,
         )
-        # Get the number of substacks
         _, num_substacks, stack_size_px = generate_stack_indices(
             image_shape=img_shape,
             num_substacks=num_substacks,
             overlap_fraction=overlap_frac,
             eff_shape=eff_shape,
         )
-
         self.tile_size_label.setText(
             format_tooltip(
                 f"Substack size: {stack_size_px.depth} slice{'s' if stack_size_px.depth > 1 else ''}, {stack_size_px.height}px x {stack_size_px.width}px for each of the {num_substacks} jobs to submit (for the selected image).",
@@ -1201,97 +563,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             )
         )
 
-    def on_click_inspect_cache(self):
-        """
-        Open the cache directory in the file explorer for a user to inspect, if they want.
 
-        Doesn't do anything else, just opens the directory.
-        """
-        dialog = QFileDialog(self)
-        dialog.setFileMode(QFileDialog.AnyFile)
-        dialog.setDirectory(str(self.nxf_base_dir))
-        dialog.exec()
-
-    def on_click_clear_cache(self):
-        """
-        Confirm with the user before clearing the cache.
-
-        Note that the order/location of the buttons depends on OS.
-        """
-        # Prompt the user to confirm deletion
-        prompt_window = QMessageBox()
-        prompt_window.setIcon(QMessageBox.Question)
-        prompt_window.setText("Are you sure you want to clear the cache?")
-        prompt_window.setInformativeText(
-            "This will remove all models and results from the cache."
-        )
-        # Get details about key files
-        mask_dirs = [
-            i
-            for i in (self.nxf_base_dir / "aiod_cache").rglob("*")
-            if i.is_dir() and i.name.endswith("_masks")
-        ]
-        # Count the number of masks
-        num_masks = sum(
-            len(list(mask_dir.glob("*.rle"))) for mask_dir in mask_dirs
-        )
-        # Count number of configs
-        num_configs = len(
-            list((self.nxf_base_dir / "aiod_cache").glob("nxf_params_*.yml"))
-        )
-        # Count number of checkpoints
-        chkpt_dirs = [
-            i
-            for i in (self.nxf_base_dir / "aiod_cache").rglob("*")
-            if i.is_dir() and i.name == "checkpoints"
-        ]
-        num_chkpts = sum(
-            len(list(chkpt_dir.glob("*"))) for chkpt_dir in chkpt_dirs
-        )
-        # Create message for detailed text
-        msg = (
-            f"Your cache ({self.nxf_base_dir}) contains the following files:\n"
-            + "\n".join(
-                [
-                    f"{num_masks} masks",
-                    f"{num_chkpts} model checkpoints (or related files)",
-                    f"{num_configs} Nextflow parameter files",
-                ]
-            )
-        )
-
-        prompt_window.setDetailedText(msg)
-        prompt_window.setWindowTitle("Clear cache")
-        # Create different buttons for different levels of deletion
-        clear_models = prompt_window.addButton(
-            "Clear models only", QMessageBox.ButtonRole.ActionRole
-        )
-        clear_masks = prompt_window.addButton(
-            "Clear masks only", QMessageBox.ButtonRole.ActionRole
-        )
-        clear_all = prompt_window.addButton(
-            "Clear all", QMessageBox.ButtonRole.ActionRole
-        )
-        cancel = prompt_window.addButton(QMessageBox.StandardButton.Cancel)
-        prompt_window.setDefaultButton(cancel)
-        retval = prompt_window.exec()
-        # Check which button was pressed
-        clicked_btn = prompt_window.clickedButton()
-        if (
-            clicked_btn == QMessageBox.StandardButton.Close
-            or clicked_btn == cancel
-        ):
-            return
-        elif clicked_btn == clear_models:
-            # Delete all 'checkpoints' folders
-            for chkpt_dir in chkpt_dirs:
-                shutil.rmtree(chkpt_dir)
-        elif clicked_btn == clear_masks:
-            # Delete all mask subdirectories
-            for mask_dir in mask_dirs:
-                shutil.rmtree(mask_dir)
-        elif clicked_btn == clear_all:
-            # Delete the cache directory and all its contents
-            shutil.rmtree(self.nxf_base_dir)
-            # Reset the base directory
-            self.setup_nxf_dir_cmd(base_dir=self.nxf_base_dir)
+# Backward-compatibility alias so existing import sites need no changes.
+NxfWidget = InferenceNxfWidget

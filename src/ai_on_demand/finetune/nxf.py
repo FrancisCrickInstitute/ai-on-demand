@@ -1,0 +1,221 @@
+import subprocess
+from pathlib import Path
+from typing import Optional
+
+import napari
+import tqdm
+from napari.utils.notifications import show_info
+from qtpy.QtWidgets import (
+    QGridLayout,
+    QLayout,
+    QWidget,
+)
+
+from ai_on_demand.utils import sanitise_name
+from ai_on_demand.widget_classes import BaseNxfWidget
+from urllib.parse import urlparse
+
+
+class FinetuneNxfWidget(BaseNxfWidget):
+    """
+    Nextflow sub-widget for the Finetuning pipeline.
+
+    Extends BaseNxfWidget with finetuning-specific pipeline logic
+    (check, setup, progress bar, cancellation).  No extra UI controls
+    are added beyond the shared profile selector.
+    """
+
+    _name = "nxf"
+
+    def __init__(
+        self,
+        viewer: napari.Viewer,
+        parent: Optional[QWidget] = None,
+        layout: QLayout = QGridLayout,
+        **kwargs,
+    ):
+        self.max_epochs = 0
+        self.current_epoch = 0
+
+        super().__init__(
+            viewer=viewer,
+            parent=parent,
+            layout=layout,
+            **kwargs,
+        )
+
+    def _create_variant_ui(self):
+        pass
+
+    def check_pipeline(self):
+        """Validate all required inputs for finetuning."""
+        if self.parent.selected_task is None:
+            raise ValueError("No task/organelle selected!")
+        if self.parent.selected_model is None:
+            raise ValueError("No model selected!")
+        if "finetune_params" not in self.parent.subwidgets:
+            raise ValueError(
+                "Cannot run pipeline without finetune params widget"
+            )
+        if (
+            len(
+                self.parent.subwidgets["finetune_params"].train_dir_text.text()
+            )
+            == ""
+        ):
+            raise ValueError("No Train directory selected!")
+        if (
+            self.parent.subwidgets["finetune_params"].model_save_name.text()
+            == ""
+        ):
+            raise ValueError("No save name given for finetuned model")
+        if not (
+            Path(
+                self.parent.subwidgets["finetune_params"].train_dir_text.text()
+            ).exists()
+        ):
+            raise FileNotFoundError("Training Directory not found")
+        if self.parent.subwidgets["finetune_params"].patch_size.text() == "":
+            raise ValueError("No patch size provided")
+        patch_size_w, patch_size_h = [
+            int(i)
+            for i in self.parent.subwidgets["finetune_params"]
+            .patch_size.text()
+            .split(",")
+        ]
+        patch_size_divisor = int(
+            self.parent.subwidgets["finetune_params"].finetuning_meta_data[
+                "patch_size_divisor"
+            ]
+        )
+        if (
+            patch_size_h % patch_size_divisor != 0
+            or patch_size_w % patch_size_divisor != 0
+        ):
+            raise ValueError(
+                "Please ensure that the patchsize is divisble by",
+                patch_size_divisor,
+            )
+        print("Done running checks for finetuning!")
+
+    def setup_pipeline(self):
+        """Build the Nextflow command and params dict for finetuning."""
+        self.image_path_dict = self.parent.subwidgets[
+            "finetune_params"
+        ].train_dir_text.text()
+
+        img_paths = ""
+        proceed = True
+
+        print(f"this is the train dir: {self.image_path_dict}")
+        print("Done setting up for finetuning!")
+
+        finetune_config_fpath = self.nxf_repo + "finetune.config"
+        nxf_cmd = (
+            self.nxf_base_cmd
+            + f"run {self.nxf_repo} -latest -entry finetune -c {finetune_config_fpath}"
+        )
+
+        self.parent.executed_task = self.parent.selected_task
+        self.parent.executed_model = self.parent.selected_model
+        self.parent.executed_variant = self.parent.selected_variant
+
+        parent = self.parent
+        config_path = parent.subwidgets["model"].get_model_config()
+
+        nxf_params = {}
+        nxf_params["root_dir"] = str(self.nxf_base_dir)
+        nxf_params["model_save_dir"] = (
+            str(self.nxf_base_dir) + "/aiod_cache/finetune_cache"
+        )
+        nxf_params["model"] = parent.selected_model
+        nxf_params["model_config"] = str(config_path)
+        nxf_params["model_type"] = sanitise_name(parent.executed_variant)
+        nxf_params["task"] = parent.executed_task
+
+        model_task = parent.subwidgets["model"].model_version_tasks[
+            (
+                parent.executed_task,
+                parent.executed_model,
+                parent.executed_variant,
+            )
+        ]
+        nxf_params["model_chkpt_type"] = model_task.location_type
+        if model_task.location_type == "url":
+            res = urlparse(model_task.location)
+            nxf_params["model_chkpt_loc"] = model_task.location
+            nxf_params["model_chkpt_fname"] = Path(res.path).name
+        elif model_task.location_type == "file":
+            res = Path(model_task.location)
+            nxf_params["model_chkpt_loc"] = str(res.parent)
+            nxf_params["model_chkpt_fname"] = res.name
+
+        nxf_params["train_dir"] = parent.subwidgets[
+            "finetune_params"
+        ].train_dir_text.text()
+        nxf_params["patch_size"] = parent.subwidgets[
+            "finetune_params"
+        ].patch_size.text()
+        nxf_params["epochs"] = parent.subwidgets[
+            "finetune_params"
+        ].epochs.value()
+        self.max_epochs = nxf_params["epochs"]
+        nxf_params["finetune_layers"] = parent.subwidgets[
+            "finetune_params"
+        ].finetune_layers.currentText()
+        nxf_params["model_save_name"] = parent.subwidgets[
+            "finetune_params"
+        ].model_save_name.text()
+
+        print("b4 getting run hash", nxf_params)
+        parent.get_run_hash(nxf_params)
+
+        return nxf_cmd, nxf_params, proceed, img_paths
+
+    def _pipeline_start(self):
+        show_info("Pipeline started!")
+        self.nxf_run_btn.setEnabled(False)
+        self.nxf_run_btn.setText("Running Pipeline...")
+        self.init_finetune_pbar(self.max_epochs)
+        self._add_cancel_btn(self.cancel_pipeline)
+        training_metrics_path = (
+            self.nxf_params["model_save_dir"] + "/training_metrics.csv"
+        )
+        self.parent.watch_metrics_file(metric_path=training_metrics_path)
+
+    def _pipeline_finish(self):
+        show_info("Pipeline finished!")
+        self._reset_btns()
+        self.finetuned_model_ready.emit(str(self.nxf_base_dir))
+        self.parent.watch_enabled = False
+        self.pbar.setValue(self.max_epochs)
+
+    def _pipeline_fail(self, exc):
+        show_info("Pipeline failed! See terminal for details")
+        print(exc)
+        self._reset_btns()
+        self.parent.watch_enabled = False
+
+    def cancel_pipeline(self):
+        self.process.send_signal(subprocess.signal.SIGTERM)
+        self.reset_progress_bar()
+
+    def init_finetune_pbar(self, epochs):
+        self.pbar.setRange(0, epochs)
+        self.pbar.setValue(0)
+        self.tqdm_pbar = tqdm.tqdm(total=epochs)
+        self.pbar_label.setText("Progress: [--:--]")
+
+    def update_finetune_pbar(self, current_epoch):
+        self.pbar.setValue(current_epoch)
+        self.tqdm_pbar.update(current_epoch - self.tqdm_pbar.n)
+        elapsed = self.tqdm_pbar.format_dict["elapsed"]
+        rate = (
+            self.tqdm_pbar.format_dict["rate"]
+            if self.tqdm_pbar.format_dict["rate"]
+            else 1
+        )
+        remaining = (self.tqdm_pbar.total - self.tqdm_pbar.n) / rate
+        self.pbar_label.setText(
+            f"Progress: [{self.tqdm_pbar.format_interval(elapsed)}<{self.tqdm_pbar.format_interval(remaining)}]"
+        )
