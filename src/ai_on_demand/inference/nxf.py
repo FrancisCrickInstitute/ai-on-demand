@@ -562,7 +562,3 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 width=40,
             )
         )
-
-
-# Backward-compatibility alias so existing import sites need no changes.
-NxfWidget = InferenceNxfWidget
