@@ -164,6 +164,7 @@ class FinetuneParameters(SubWidget):
         model_save_fpath = (
             f"{self.nxf_base_dir}/aiod_cache/finetune_cache/{model_name}.pth"
         )
+        # TODO: maybe better to save it directly to checkpoints dir that way it won't have to copy the file when the user tries to run the model
         manifest_name = self.parent.selected_model
 
         add_model_local(
