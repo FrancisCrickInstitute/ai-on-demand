@@ -1,7 +1,7 @@
 from napari.utils.notifications import show_info
 import requests
-from skimage.io import imread
 
+from aiod_utils.io import load_image_data
 from ai_on_demand.utils import get_plugin_cache
 
 
@@ -27,7 +27,7 @@ def load_example_data():
             )
             return
     # Load the example data
-    img = imread(example_data_path, plugin="tifffile")
+    img = load_image_data(example_data_path)
     # https://github.com/krentzd/napari-clemreg/blob/main/napari_clemreg/clemreg/sample_data.py#L24
     metadata = {
         "ImageDescription": "\nunit=micron\nspacing=0.02\n",
