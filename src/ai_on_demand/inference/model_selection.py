@@ -281,19 +281,10 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             )
         )
         self.model_config_layout.addWidget(self.model_config_load_btn, 0, 0)
-        # Add a button for resetting the config / UI params to defaults
-        self.model_config_clear_btn = QPushButton("Reset parameters to defaults")
-        self.model_config_clear_btn.clicked.connect(self.reset_model_config)
-        self.model_config_clear_btn.setToolTip(
-            format_tooltip(
-                "Reset all model parameters to their defaults and clear any loaded config file."
-            )
-        )
-        self.model_config_layout.addWidget(self.model_config_clear_btn, 0, 1)
         # Add a label to display the selected config file (if any)
         self.model_config_label = QLabel("No model config file selected.")
         self.model_config_label.setWordWrap(True)
-        self.model_config_layout.addWidget(self.model_config_label, 1, 0, 1, 2)
+        self.model_config_layout.addWidget(self.model_config_label, 0, 0, 1, 2)
         # Set the overall widget layout
         self.model_config_widget.setLayout(self.model_config_layout)
 
@@ -306,6 +297,15 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         """
         self.model_param_widget = QWidget()
         self.model_param_layout = QVBoxLayout()
+        # Add a button for resetting the config / UI params to defaults
+        self.model_config_clear_btn = QPushButton("Reset parameters to defaults")
+        self.model_config_clear_btn.clicked.connect(self.reset_model_config)
+        self.model_config_clear_btn.setToolTip(
+            format_tooltip(
+                "Reset all model parameters to their defaults and clear any loaded config file."
+            )
+        )
+        self.model_param_layout.addWidget(self.model_config_clear_btn)
         # Create a container for the model parameters and containing widget
         # NOTE: Should be light on memory, but this does store for every model!
         self.model_param_dict = {}
