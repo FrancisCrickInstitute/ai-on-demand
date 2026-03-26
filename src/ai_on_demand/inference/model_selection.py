@@ -188,6 +188,10 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.create_model_param_widget()
         self.create_model_config_widget()
 
+    @property
+    def config_dir(self) -> Path:
+        return self.parent.subwidgets["nxf"].nxf_base_dir / "configs"
+
     def on_model_select(self):
         """
         Callback for when a model button is clicked.
@@ -492,9 +496,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         fname, _ = QFileDialog.getOpenFileName(
             self,
             "Select a model config",
-            str(Path.home()),
+            str(self.config_dir),
             "Configs (*.yaml *.yml *.json)",
-        )
+        ) # type: ignore
         # Reset if dialog cancelled
         if fname == "":
             return
@@ -577,14 +581,13 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
 
     def save_model_config(self, model_dict: dict) -> Path:
         # Define save path for the model config
-        config_dir = self.parent.subwidgets["nxf"].nxf_base_dir / "configs"
-        config_dir.mkdir(parents=True, exist_ok=True)
+        self.config_dir.mkdir(parents=True, exist_ok=True)
 
         task_model_variant_name = self.get_task_model_variant_name()
 
         # Name the config using the same task-model-version convention as the masks
         model_config_fpath = (
-            config_dir
+            self.config_dir
             / f"{task_model_variant_name}_config_{self.model_param_hash}.yaml"
         )
         # Save the yaml config
