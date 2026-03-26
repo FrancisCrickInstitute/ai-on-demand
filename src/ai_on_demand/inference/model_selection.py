@@ -535,9 +535,13 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
                 config = load_config_file(Path(model_config_path))
                 self.fill_ui_from_config(config)
             except KeyError as e:
-                show_error(f"Failed to load config '{config_path.name}': {e}")
+                show_error(f"Failed to load config '{config_path.name}': assumed input was a project config but no {e} key found!")
                 self.model_config_label.setText("No model config file loaded.")
                 return
+        except UserWarning as e:
+            show_error(f"Failed to load config '{config_path.name}': {e}")
+            self.model_config_label.setText("No model config file loaded.")
+            return
         self.model_config_label.setText(
             f"Config '{config_path.name}' loaded into UI parameters."
         )
@@ -685,7 +689,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         """
         task_model_version = self.get_task_model_variant(executed=False)
         if not all(task_model_version):
-            raise ValueError("Cannot fill UI: no model/task/version selected.")
+            raise UserWarning("No model/task/version selected.")
 
         param_list = self.model_version_tasks[task_model_version].params
         if param_list is None:
