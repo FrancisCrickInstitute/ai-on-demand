@@ -510,13 +510,13 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         try:
             config = load_config_file(config_path)
             self.fill_ui_from_config(config)
-        except KeyError:
+        except (KeyError, ValueError):
             # Let's assume they loaded a project config and try to extract the model config from the project config
             try:
                 # Need to first load the project config
                 project_config = load_config_file(config_path)
                 # Then get the path to the model config contained therein
-                model_config_path = project_config["model_config"]
+                model_config_path = project_config["model"]["model_config"]
                 # Now try to load *that* config and populate the UI widgets
                 config = load_config_file(Path(model_config_path))
                 self.fill_ui_from_config(config)
