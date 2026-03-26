@@ -280,11 +280,11 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         """
             )
         )
-        self.model_config_layout.addWidget(self.model_config_load_btn, 0, 0)
+        self.model_config_layout.addWidget(self.model_config_load_btn, 0, 0, 1, 2)
         # Add a label to display the selected config file (if any)
         self.model_config_label = QLabel("No model config file selected.")
         self.model_config_label.setWordWrap(True)
-        self.model_config_layout.addWidget(self.model_config_label, 0, 0, 1, 2)
+        self.model_config_layout.addWidget(self.model_config_label, 1, 0, 1, 2)
         # Set the overall widget layout
         self.model_config_widget.setLayout(self.model_config_layout)
 
@@ -331,6 +331,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         )
         no_param_widget.layout().addWidget(no_param_label)
         self.model_param_widgets_dict["no_param"] = no_param_widget
+        # Stores user-loaded config paths for models with no UI params,
+        # keyed by (task, model, version) tuple
+        self.user_config_path: dict[tuple, Path] = {}
         # Disable showing widget until selected to view
         self.model_param_widget.setVisible(False)
         self.inner_layout.addWidget(self.model_param_widget)
@@ -506,6 +509,17 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.load_model_config(Path(fname))
 
     def load_model_config(self, config_path: Path):
+        # If the model has no UI params, store the config path to pass directly
+        # to the pipeline and skip UI population entirely.
+        task_model_version = self.get_task_model_variant(executed=False)
+        if all(task_model_version):
+            param_list = self.model_version_tasks[task_model_version].params
+            if param_list is None:
+                self.user_config_path[task_model_version] = config_path
+                self.model_config_label.setText(
+                    f"Config '{config_path.name}' will be passed directly to the pipeline."
+                )
+                return
         # Parse the config and populate the UI widgets
         try:
             config = load_config_file(config_path)
@@ -538,6 +552,8 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             return
         param_list = self.model_version_tasks[task_model_version].params
         if param_list is None:
+            # Clear any user-loaded config path for no-params models
+            self.user_config_path.pop(task_model_version, None)
             return
         # Guard: widget dict may not exist if model was never fully rendered
         if task_model_version not in self.model_param_dict:
@@ -579,12 +595,21 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
                     base_dict, task_model_version=task_model_version
                 )
             else:
-                model_dict = base_dict
+                # No UI params: prefer user-loaded config, fall back to schema config
+                user_path = self.user_config_path.get(task_model_version)
+                model_dict = (
+                    load_config_file(user_path) if user_path else base_dict
+                )
         else:
-            # No schema config: UI widgets are the sole source of truth
-            model_dict = self.fill_config_from_ui(
-                {}, task_model_version=task_model_version
-            )
+            if model_version.params is None:
+                # No schema and no UI params: must have a user-loaded config
+                user_path = self.user_config_path.get(task_model_version)
+                model_dict = load_config_file(user_path) if user_path else {}
+            else:
+                # No schema config: UI widgets are the sole source of truth
+                model_dict = self.fill_config_from_ui(
+                    {}, task_model_version=task_model_version
+                )
         # Extract hash for model configs for tracking/reproducibility
         self.model_param_hash = calc_param_hash(model_dict)
         return self.save_model_config(model_dict)
