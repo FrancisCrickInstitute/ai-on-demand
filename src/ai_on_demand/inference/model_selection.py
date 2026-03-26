@@ -524,16 +524,22 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         try:
             config = load_config_file(config_path)
             self.fill_ui_from_config(config)
+            self.model_config_label.setText(
+                f"Config '{config_path.name}' loaded into UI parameters."
+            )
         except (KeyError, ValueError):
             # Let's assume they loaded a project config and try to extract the model config from the project config
             try:
                 # Need to first load the project config
                 project_config = load_config_file(config_path)
                 # Then get the path to the model config contained therein
-                model_config_path = project_config["model"]["model_config"]
+                model_config_path = Path(project_config["model"]["model_config"])
                 # Now try to load *that* config and populate the UI widgets
-                config = load_config_file(Path(model_config_path))
+                config = load_config_file(model_config_path)
                 self.fill_ui_from_config(config)
+                self.model_config_label.setText(
+                    f"Config '{model_config_path.name}' loaded into UI parameters."
+                )
             except KeyError as e:
                 show_error(f"Failed to load config '{config_path.name}': assumed input was a project config but no {e} key found!")
                 self.model_config_label.setText("No model config file loaded.")
@@ -542,9 +548,6 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             show_error(f"Failed to load config '{config_path.name}': {e}")
             self.model_config_label.setText("No model config file loaded.")
             return
-        self.model_config_label.setText(
-            f"Config '{config_path.name}' loaded into UI parameters."
-        )
 
     def reset_model_config(self):
         """Reset model parameter widgets to their schema defaults."""
