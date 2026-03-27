@@ -421,6 +421,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             elif isinstance(param_values, list):
                 param_val_widget = QComboBox()
                 param_val_widget.addItems([str(i) for i in param_values])
+                if model_param.default is not None:
+                    default_idx = param_values.index(model_param.default)
+                    param_val_widget.setCurrentIndex(default_idx)
                 param_val_widget.currentIndexChanged.connect(
                     self.on_param_changed
                 )
