@@ -1,25 +1,25 @@
-from pathlib import Path
 import time
+from pathlib import Path
 from typing import Optional, Union
 
+import aiod_utils.preprocess
+import aiod_utils.rle as aiod_rle
 import napari
-from napari.qt.threading import thread_worker
 import numpy as np
+from aiod_utils.io import extract_idxs_from_fname
+from napari.qt.threading import thread_worker
 
 from ai_on_demand.inference import (
-    TaskWidget,
+    ConfigWidget,
     DataWidget,
     ExportWidget,
     ModelWidget,
     NxfWidget,
     PreprocessWidget,
-    ConfigWidget,
+    TaskWidget,
 )
+from ai_on_demand.utils import calc_param_hash, get_img_dims
 from ai_on_demand.widget_classes import MainWidget
-from ai_on_demand.utils import calc_param_hash
-import aiod_utils.preprocess
-from aiod_utils.io import extract_idxs_from_fname
-import aiod_utils.rle as aiod_rle
 
 
 class Inference(MainWidget):
@@ -211,42 +211,15 @@ Run segmentation/inference on selected images using one of the available pre-tra
                     )
             else:
                 # If the associated image is present, use its shape
-                # Get ndim of the layer (this accounts for RGB)
                 img_layer = self.viewer.layers[f"{fpath.stem}"]
-                ndim = img_layer.ndim
                 metadata = img_layer.metadata
-                # Channels (non-RGB) & Z
-                # TODO: Switch to using utils.get_img_dims
-                if ndim == 4:
-                    # Channels should be first, don't care for labels so remove
-                    img_shape = img_layer.data.shape[1:]
-                elif ndim == 3:
-                    # If we have a Z, no problem
-                    if ("bioio_dims" in metadata) and (
-                        metadata["bioio_dims"].Z > 1
-                    ):
-                        img_shape = self.viewer.layers[
-                            f"{fpath.stem}"
-                        ].data.shape
-                    # Otherwise not loaded with bioio, so handle as Napari interprets
-                    else:
-                        # If RGB, then 2D RGB image
-                        # NOTE: This does not handle multi-channel 2D images
-                        if img_layer.rgb:
-                            img_shape = self.viewer.layers[
-                                f"{fpath.stem}"
-                            ].data.shape[1:]
-                        # Otherwise it's 3D single-channel image
-                        else:
-                            img_shape = self.viewer.layers[
-                                f"{fpath.stem}"
-                            ].data.shape
-                # Otherwise take the 2D image shape
-                # NOTE: [:ndim] is to handle RGB images as Napari interprets
+                H, W, num_slices, _ = get_img_dims(
+                    img_layer, fpath, verbose=False
+                )
+                if num_slices > 1:
+                    img_shape = (num_slices, H, W)
                 else:
-                    img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape[
-                        :ndim
-                    ]
+                    img_shape = (H, W)
                 if prep_options is not None:
                     # Check if downsampling
                     metadata = {}
@@ -496,16 +469,23 @@ Run segmentation/inference on selected images using one of the available pre-tra
                     break
             label_layer = self.viewer.layers[mask_layer_name]
             # Insert mask data
-            # Check if dims match
             if label_layer.ndim != mask_arr.ndim:
+                # Try squeezing singleton dimensions (e.g. a single-Z-slice chunk
+                # whose Z axis was dropped by the model)
                 mask_arr = np.squeeze(mask_arr)
-                assert (
-                    label_layer.ndim == mask_arr.ndim
-                ), f"Mask appears to be {mask_arr.ndim}D (after squeezing), but layer is {label_layer.ndim}D"
-                label_layer.data = mask_arr
+                if label_layer.ndim != mask_arr.ndim:
+                    raise ValueError(
+                        f"Mask is {mask_arr.ndim}D after squeezing singleton dims, "
+                        f"but label layer is {label_layer.ndim}D; cannot insert chunk."
+                    )
+                # Squeezed away a singleton Z: insert the 2D slice at the right Z position
+                if label_layer.ndim == 3:
+                    label_layer.data[start_z, start_x:end_x, start_y:end_y] = (
+                        mask_arr
+                    )
+                else:
+                    label_layer.data[start_x:end_x, start_y:end_y] = mask_arr
             else:
-                # TODO: Handle multi-channel images
-                # TODO: Check DHW orientation? Does Napari enforce this?
                 if label_layer.ndim == 3:
                     label_layer.data[
                         start_z:end_z, start_x:end_x, start_y:end_y
@@ -525,8 +505,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
             label_idx = self.viewer.layers.index(label_layer)
             idxs.append(label_idx)
             self.viewer.layers.move_multiple(idxs, -1)
-            # Switch viewer to latest slice
-            self.viewer.dims.set_point(0, end_z - 1)
+            # Switch viewer to latest slice (only meaningful for 3D)
+            if label_layer.ndim == 3:
+                self.viewer.dims.set_point(0, end_z - 1)
             # Insert the slice number into tracker for the progress bar
             self.subwidgets["nxf"].progress_dict[img_name] += 1
         # Now update the total progress bar
