@@ -1,4 +1,5 @@
 import builtins
+from typing import Optional
 from pathlib import Path
 
 import napari
@@ -124,9 +125,13 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         model_box_layout.addWidget(self.model_dropdown, 0, 1, 1, 2)
         # Add label + dropdown for model variants/versions
         model_version_label = QLabel("Select version:")
-        model_version_label.setToolTip(format_tooltip("""
+        model_version_label.setToolTip(
+            format_tooltip(
+                """
         Select the model version to use. Versions can vary either by intended functionality, or are specifically for reproducibility.
-        """))
+        """
+            )
+        )
         self.model_version_dropdown = QComboBox()
         self.model_version_dropdown.addItems(["Select a model first!"])
         self.model_version_dropdown.activated.connect(
@@ -293,18 +298,17 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         # Add the button for loading a config file
         self.model_config_load_btn = QPushButton("Select model config")
         self.model_config_load_btn.clicked.connect(self.select_model_config)
-        self.model_config_load_btn.setToolTip(format_tooltip("""
+        self.model_config_load_btn.setToolTip(
+            format_tooltip(
+                """
             Select a config file to be used for the selected model.
             Note that no checking/validation is done on the config file, it is just given to the model.
-        """))
-        self.model_config_layout.addWidget(self.model_config_load_btn, 0, 0)
-        # Add a button for clearing the config file
-        self.model_config_clear_btn = QPushButton("Clear config selection")
-        self.model_config_clear_btn.clicked.connect(self.clear_model_config)
-        self.model_config_clear_btn.setToolTip(
-            format_tooltip("Clear the selected model config file.")
+        """
+            )
         )
-        self.model_config_layout.addWidget(self.model_config_clear_btn, 0, 1)
+        self.model_config_layout.addWidget(
+            self.model_config_load_btn, 0, 0, 1, 2
+        )
         # Add a label to display the selected config file (if any)
         self.model_config_label = QLabel("No model config file selected.")
         self.model_config_label.setWordWrap(True)

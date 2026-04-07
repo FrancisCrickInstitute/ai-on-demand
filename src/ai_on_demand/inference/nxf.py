@@ -51,6 +51,8 @@ class InferenceNxfWidget(BaseNxfWidget):
     """
 
     _name = "nxf"
+    pipeline_finished = qtpy.QtCore.Signal()
+    pipeline_failed = qtpy.QtCore.Signal()
 
     def __init__(
         self,
@@ -75,11 +77,15 @@ class InferenceNxfWidget(BaseNxfWidget):
         """Inject the overwrite checkbox and Advanced Options into the pipeline group."""
         # Overwrite existing results checkbox
         self.overwrite_btn = QCheckBox("Overwrite existing results")
-        self.overwrite_btn.setToolTip(format_tooltip("""
+        self.overwrite_btn.setToolTip(
+            format_tooltip(
+                """
 Select/enable to overwrite any previous results.
 
 Exactly what is overwritten will depend on the pipeline selected. By default, any previous results matching the current setup will be loaded if possible. This can be disabled by ticking this box.
-        """))
+        """
+            )
+        )
         self.pipeline_layout.addWidget(self.overwrite_btn, 1, 0, 1, 1)
 
         # Advanced options collapsible section
@@ -91,9 +97,13 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             f"QPushButton {{ text-align: left; }} QPushButton:checked {{background-color: {self.parent.subwidgets['model'].colour_selected}}}"
         )
         self.advanced_box.toggled.connect(self.on_toggle_advanced)
-        self.advanced_box.setToolTip(format_tooltip("""
+        self.advanced_box.setToolTip(
+            format_tooltip(
+                """
         Show/hide advanced options for the Nextflow pipeline. These options define how to split an image into separate jobs in Nextflow. The underlying models will likely do their own splitting internally into patches, but this controls the trade-off between the number and size of each job.
-"""))
+"""
+            )
+        )
         self.advanced_widget = QWidget()
         self.advanced_layout = QGridLayout()
 
@@ -132,25 +142,37 @@ View the parameters used for the currently selected output.
 
     def _add_advanced_options(self):
         self.tile_x_label = QLabel("Number X tiles:")
-        self.tile_x_label.setToolTip(format_tooltip("""
+        self.tile_x_label.setToolTip(
+            format_tooltip(
+                """
 Number of tiles to split the image into in the X dimension. 'auto' allows Nextflow to decide an appropriate split.
-"""))
+"""
+            )
+        )
         self.tile_x = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_x.setSpecialValueText("auto")
         self.tile_x.setAlignment(qtpy.QtCore.Qt.AlignCenter)
 
         self.tile_y_label = QLabel("Number Y tiles:")
-        self.tile_y_label.setToolTip(format_tooltip("""
+        self.tile_y_label.setToolTip(
+            format_tooltip(
+                """
 Number of tiles to split the image into in the Y dimension. 'auto' allows Nextflow to decide an appropriate split.
-"""))
+"""
+            )
+        )
         self.tile_y = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_y.setSpecialValueText("auto")
         self.tile_y.setAlignment(qtpy.QtCore.Qt.AlignCenter)
 
         self.tile_z_label = QLabel("Number Z tiles:")
-        self.tile_z_label.setToolTip(format_tooltip("""
+        self.tile_z_label.setToolTip(
+            format_tooltip(
+                """
 Number of tiles to split the image into in the Z dimension. 'auto' allows Nextflow to decide an appropriate split.
-"""))
+"""
+            )
+        )
         self.tile_z = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_z.setSpecialValueText("auto")
         self.tile_z.setAlignment(qtpy.QtCore.Qt.AlignCenter)
@@ -214,15 +236,23 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
 
         self.postprocess_btn = QCheckBox("Re-label output")
         self.postprocess_btn.setChecked(False)
-        self.postprocess_btn.setToolTip(format_tooltip("""
+        self.postprocess_btn.setToolTip(
+            format_tooltip(
+                """
 If checked, the model output will be re-labelled using connected components to create consistency across slices.
-        """))
+        """
+            )
+        )
         self.advanced_layout.addWidget(self.postprocess_btn, 7, 0, 1, 2)
 
         self.iou_thresh_label = QLabel("IoU threshold (SAM only):")
-        self.iou_thresh_label.setToolTip(format_tooltip("""
+        self.iou_thresh_label.setToolTip(
+            format_tooltip(
+                """
 Threshold for the Intersection over Union (IoU) metric used in the SAM post-processing step.
-        """))
+        """
+            )
+        )
         self.iou_thresh = QDoubleSpinBox(minimum=0.0, maximum=1.0, value=0.8)
         self.iou_thresh.setSingleStep(0.01)
         self.iou_thresh.setAlignment(qtpy.QtCore.Qt.AlignCenter)
@@ -276,13 +306,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         """
         Writes the provided image paths to a CSV file to pass into Nextflow.
         """
-<<<<<<< HEAD
-        # Create container for metadata
-        dims = []
-        # Create container for knowing what images to track progress of
-=======
         output = defaultdict(list)
->>>>>>> 9f34bc7 (AIOD-251 NxfWidget refactor)
         self.progress_dict = {}
         total_substacks = 0
 
@@ -315,16 +339,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         for img_path in img_paths:
             layer = self.parent.viewer.layers[img_path.stem]
             H, W, num_slices, channels = get_img_dims(layer, img_path)
-<<<<<<< HEAD
-            dims.append({"Z": num_slices, "Y": H, "X": W, "C": channels})
-            # Initialise the progress dict
-=======
             output["img_path"].append(str(img_path))
             output["num_slices"].append(num_slices)
             output["height"].append(H)
             output["width"].append(W)
             output["channels"].append(channels)
->>>>>>> 9f34bc7 (AIOD-251 NxfWidget refactor)
             self.progress_dict[img_path.stem] = 0
 
             relevant_runs = [
@@ -410,24 +429,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         nxf_params["model_config"] = str(config_path)
         nxf_params["model_type"] = sanitise_name(parent.executed_variant)
         nxf_params["task"] = parent.executed_task
-
-        model_task = parent.subwidgets["model"].model_version_tasks[
-            (
-                parent.executed_task,
-                parent.executed_model,
-                parent.executed_variant,
-            )
-        ]
-        nxf_params["model_chkpt_type"] = model_task.location_type
-        if model_task.location_type == "url":
-            res = urlparse(model_task.location)
-            nxf_params["model_chkpt_loc"] = model_task.location
-            nxf_params["model_chkpt_fname"] = Path(res.path).name
-        elif model_task.location_type == "file":
-            res = Path(model_task.location)
-            nxf_params["model_chkpt_loc"] = str(res.parent)
-            nxf_params["model_chkpt_fname"] = res.name
-
         num_substacks = []
         num_substacks.append(
             "auto"
@@ -610,3 +611,67 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 width=40,
             )
         )
+
+    def get_selected_layer_hash(self):
+        if len(self.viewer.layers.selection) > 1:
+            # raise NotImplementedError("Viewing hash config details for multiple output layers not supported yet")
+            return ""
+        # Get current layer name if it's a labels layer
+        selected = [
+            layer
+            for layer in self.viewer.layers.selection
+            if isinstance(layer, napari.layers.Labels)
+        ]
+        if not selected:
+            return ""
+        else:
+            selected = selected[0]
+            # Look for hash crumb pattern in layer name
+            crumb = re.split(r"[\W_]", selected.name)[-1]
+            file_matches = list(
+                self.nxf_store_dir.glob(f"nxf_params_{crumb}*.yml")
+            )
+            if not file_matches:
+                # No matches, layer is not an aiod output
+                return ""
+            elif len(file_matches) > 1:
+                raise RuntimeError(
+                    f"Could not find unique Nextflow params file for hash {crumb}!"
+                )
+            else:
+                # Fetch the full hash
+                full_hash = file_matches[0].stem.split("nxf_params_")[-1]
+                assert full_hash.startswith(crumb)
+                # Hooray, it's an aiod output
+                return full_hash
+
+    def on_display_params(self):
+        params = None
+        full_hash = self.get_selected_layer_hash()
+        if not full_hash:
+            # This should not happen: layer selection event connection should only enable this button if hash is available
+            raise RuntimeError(
+                "No valid output layer selected to get hash from!"
+            )
+        with open(
+            self.nxf_store_dir / f"nxf_params_{full_hash}.yml", "r"
+        ) as f:
+            params = yaml.safe_load(f)
+
+        if not params:
+            info = f"Hash details for {full_hash[:8]} not found"
+        else:
+            # Replace "model_config" value with the contents of the YAML file
+            model_config_path = params.get("model_config")
+            if model_config_path and Path(model_config_path).exists():
+                with open(model_config_path, "r") as f:
+                    params["model_config"] = yaml.safe_load(f)
+            info = yaml.dump(params)
+
+        params_popup = InfoWindow(
+            self,
+            title="Pipeline parameters"
+            + (f" ({params['param_hash'][:8]})" if params else ""),
+            content=info,
+        )
+        params_popup.show()

@@ -251,11 +251,13 @@ class SubWidget(QCollapsible):
         divider_line = QFrame()
         divider_line.setFrameShape(QFrame.HLine)
         # divider_line.setFrameShadow(QFrame.Sunken)
-        divider_line.setStyleSheet("""
+        divider_line.setStyleSheet(
+            """
             QFrame[frameShape='4'] {
                 border: none;
             }
-        """)
+        """
+        )
         # Ensure minimal space taken
         divider_line.setMaximumHeight(1)
         self.content().layout().addWidget(divider_line)
@@ -362,7 +364,7 @@ class BaseNxfWidget(SubWidget):
         # Must be set before super().__init__ because create_box is called
         # inside SubWidget.__init__ via the constructor chain.
         self.nxf_repo = (
-            "/Users/ahmedn/Work/Segement-Flow/"  # TODO: return to remote repo
+            "/Users/ahmedn/aiod/Segement-Flow/"  # TODO: return to remote repo
         )
         self.setup_nxf_dir_cmd()
 
@@ -507,11 +509,15 @@ The profile determines where the pipeline is run.
 
         self.nxf_dir_inspect_btn = QPushButton("Inspect cache")
         self.nxf_dir_inspect_btn.clicked.connect(self.on_click_inspect_cache)
-        self.nxf_dir_inspect_btn.setToolTip(format_tooltip("""
+        self.nxf_dir_inspect_btn.setToolTip(
+            format_tooltip(
+                """
 Open the base directory in the file explorer to inspect the cache.
 
 Note that 'opening' won't do anything, this is just to see what files are present.
-"""))
+"""
+            )
+        )
 
         self.nxf_dir_clear_btn = QPushButton("Clear cache")
         self.nxf_dir_clear_btn.clicked.connect(self.on_click_clear_cache)

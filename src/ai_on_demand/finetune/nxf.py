@@ -133,23 +133,6 @@ class FinetuneNxfWidget(BaseNxfWidget):
         nxf_params["model_type"] = sanitise_name(parent.executed_variant)
         nxf_params["task"] = parent.executed_task
 
-        model_task = parent.subwidgets["model"].model_version_tasks[
-            (
-                parent.executed_task,
-                parent.executed_model,
-                parent.executed_variant,
-            )
-        ]
-        nxf_params["model_chkpt_type"] = model_task.location_type
-        if model_task.location_type == "url":
-            res = urlparse(model_task.location)
-            nxf_params["model_chkpt_loc"] = model_task.location
-            nxf_params["model_chkpt_fname"] = Path(res.path).name
-        elif model_task.location_type == "file":
-            res = Path(model_task.location)
-            nxf_params["model_chkpt_loc"] = str(res.parent)
-            nxf_params["model_chkpt_fname"] = res.name
-
         nxf_params["train_dir"] = parent.subwidgets[
             "finetune_params"
         ].train_dir_text.text()
