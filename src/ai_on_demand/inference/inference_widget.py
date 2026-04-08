@@ -508,10 +508,10 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 # TODO: Check DHW orientation? Does Napari enforce this?
                 if label_layer.ndim == 3:
                     label_layer.data[
-                        start_z:end_z, start_x:end_x, start_y:end_y
+                        start_z:end_z, start_y:end_y, start_x:end_x
                     ] = mask_arr
                 else:
-                    label_layer.data[start_x:end_x, start_y:end_y] = mask_arr
+                    label_layer.data[start_y:end_y, start_x:end_x] = mask_arr
             label_layer.visible = True
             # Try to rearrange the layers to get them on top
             idxs = []
