@@ -586,7 +586,7 @@ Note that 'opening' won't do anything, this is just to see what files are presen
         )
         pbar_layout.addWidget(self.pbar_label)
         pbar_layout.addWidget(self.pbar)
-        self.inner_layout.addLayout(pbar_layout, 5, 0, 1, 2)
+        self.inner_layout.addLayout(pbar_layout, 5, 0, 1, 1)
         self.tqdm_pbar = None
 
     def run_pipeline(self):
