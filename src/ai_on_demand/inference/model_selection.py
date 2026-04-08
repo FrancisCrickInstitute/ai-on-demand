@@ -89,7 +89,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
                 for task_name, task in version.tasks.items():
                     # filter out the models without finetuning available for the finetune widget
                     if (
-                        getattr(task, "finetuning_meta_data") == None
+                        getattr(task, "finetuning_meta_data", None) == None
                         and self.variant == "finetune"
                     ):
                         continue
