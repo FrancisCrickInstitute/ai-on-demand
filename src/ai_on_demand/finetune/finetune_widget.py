@@ -91,13 +91,15 @@ class Finetune(MainWidget):
                 if Path(metric_path).exists():
                     with open(metric_path, "r") as f:
                         lines = f.read().splitlines()
-                        if len(lines) > 0:
+                        if len(lines) > 1:  # Skip header row
                             last_line = lines[-1]
-                            epoch, loss = last_line.split(",")
-                            epoch = int(epoch)
+                            parts = last_line.split(",")
+                            epoch = int(parts[0])
+                            train_loss = parts[1]
+                            test_loss = parts[2] if len(parts) > 2 else "N/A"
                             if epoch > last_epoch:
                                 print(
-                                    f"epoch: { epoch }, average loss: { loss } \n"
+                                    f"epoch: {epoch}, train_loss: {train_loss}, test_loss: {test_loss}\n"
                                 )
                                 last_epoch = epoch
                                 yield epoch
