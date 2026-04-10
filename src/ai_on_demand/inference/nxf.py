@@ -86,6 +86,8 @@ The profile determines where the pipeline is run.
         self.all_loaded = False
         # Dictionary to monitor progress of each image
         self.progress_dict = {}
+        # Total number of substacks; set properly by setup_inference()
+        self.total_substacks = 0
 
         self.nxf_cmd = None
         self.nxf_params = None
