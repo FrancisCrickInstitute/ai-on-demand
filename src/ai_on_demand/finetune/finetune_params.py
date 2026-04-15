@@ -50,8 +50,6 @@ class FinetuneParameters(SubWidget):
 
         self.finetune_layers = QComboBox()
 
-        self.patch_size = QLineEdit(placeholderText="Height,Width")
-        self.patch_size.setText("64,64")
         self.epochs = QSpinBox()
         self.epochs.setRange(0, 1000)
         # TODO: would we ever do finetuning for more than 1000 epochs?! maybe someone like Jon wants to retrain the model should we prevent that
@@ -86,9 +84,6 @@ class FinetuneParameters(SubWidget):
         self.finetune_layout.addWidget(self.train_dir_text, 0, 1, 1, 2)
         self.finetune_layout.addWidget(self.train_dir_btn, 1, 0, 1, 2)
         self.finetune_layout.addWidget(self.train_dir_info, 1, 2)
-
-        self.finetune_layout.addWidget(QLabel("Patch size"), 2, 0)
-        self.finetune_layout.addWidget(self.patch_size, 2, 1, 1, 2)
 
         self.finetune_layout.addWidget(QLabel("Finetune layers: "), 3, 0)
         self.finetune_layout.addWidget(self.finetune_layers, 3, 1, 1, 2)
@@ -136,10 +131,11 @@ class FinetuneParameters(SubWidget):
         QMessageBox.information(
             self,
             "Training Data Information",
+            # TODO: make this dynamic for different models or  enforce the structure in the segment flow side
             (
-                "Training data should be oranised in to 1 single directory containing:\n"
-                "images/ and masks/:\n"
-                "images and masks are paired by\n"  # TODO: make a clear folder structure and instructions
+                "Training data should be organised in to a single directory containing images and masks.\n"
+                "Each image mask pair should have the same name but the mask should have the suffix \"_seg\".\n"
+                "Example image mask pair: image1.tiff, image1_seg.tiff\n"  
             ),
         )
 

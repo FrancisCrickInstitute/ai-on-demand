@@ -75,28 +75,6 @@ class FinetuneNxfWidget(BaseNxfWidget):
             ).exists()
         ):
             raise FileNotFoundError("Training Directory not found")
-        if self.parent.subwidgets["finetune_params"].patch_size.text() == "":
-            raise ValueError("No patch size provided")
-        patch_size_w, patch_size_h = [
-            int(i)
-            for i in self.parent.subwidgets["finetune_params"]
-            .patch_size.text()
-            .split(",")
-        ]
-        patch_size_divisor = int(
-            self.parent.subwidgets["finetune_params"].finetuning_meta_data[
-                "patch_size_divisor"
-            ]
-        )
-        if (
-            patch_size_h % patch_size_divisor != 0
-            or patch_size_w % patch_size_divisor != 0
-        ):
-            raise ValueError(
-                "Please ensure that the patchsize is divisble by",
-                patch_size_divisor,
-            )
-        print("Done running checks for finetuning!")
 
     def setup_pipeline(self):
         """Build the Nextflow command and params dict for finetuning."""
@@ -106,9 +84,6 @@ class FinetuneNxfWidget(BaseNxfWidget):
 
         img_paths = ""
         proceed = True
-
-        print(f"this is the train dir: {self.image_path_dict}")
-        print("Done setting up for finetuning!")
 
         finetune_config_fpath = self.nxf_repo + "finetune.config"
         nxf_cmd = (
@@ -136,9 +111,6 @@ class FinetuneNxfWidget(BaseNxfWidget):
         nxf_params["train_dir"] = parent.subwidgets[
             "finetune_params"
         ].train_dir_text.text()
-        nxf_params["patch_size"] = parent.subwidgets[
-            "finetune_params"
-        ].patch_size.text()
         nxf_params["epochs"] = parent.subwidgets[
             "finetune_params"
         ].epochs.value()
@@ -150,7 +122,6 @@ class FinetuneNxfWidget(BaseNxfWidget):
             "finetune_params"
         ].model_save_name.text()
 
-        print("b4 getting run hash", nxf_params)
         parent.get_run_hash(nxf_params)
 
         return nxf_cmd, nxf_params, proceed, img_paths
