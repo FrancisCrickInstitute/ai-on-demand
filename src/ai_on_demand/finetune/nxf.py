@@ -121,6 +121,18 @@ class FinetuneNxfWidget(BaseNxfWidget):
         nxf_params["model_save_name"] = parent.subwidgets[
             "finetune_params"
         ].model_save_name.text()
+        nxf_params["learning_rate"] = float(
+            parent.subwidgets["finetune_params"].learning_rate.text()
+        )
+        nxf_params["weight_decay"] = float(
+            parent.subwidgets["finetune_params"].weight_decay.text()
+        )
+        nxf_params["sdg"] = bool(
+            parent.subwidgets["finetune_params"].use_sgd.isChecked()
+        )
+        nxf_params["momentum"] = float(
+            parent.subwidgets["finetune_params"].momentum.text()
+        )
 
         parent.get_run_hash(nxf_params)
 

@@ -16,6 +16,7 @@ from qtpy.QtWidgets import (
     QComboBox,
     QFileDialog,
     QMessageBox,
+    QCheckBox,
 )
 from ai_on_demand.widget_classes import SubWidget, QGroupBox
 from ai_on_demand.utils import format_tooltip
@@ -55,7 +56,7 @@ class FinetuneParameters(SubWidget):
         # TODO: would we ever do finetuning for more than 1000 epochs?! maybe someone like Jon wants to retrain the model should we prevent that
         self.epochs.setValue(5)
         self.model_save_name = QLineEdit(
-            placeholderText="Name you finetuned model"
+            placeholderText="Name your fine-tuned model"
         )
         # TODO: maybe not a good idea to let users pick names can be automatic like {model_name}_{finetuned}_{#}?
 
@@ -91,8 +92,47 @@ class FinetuneParameters(SubWidget):
         self.finetune_layout.addWidget(QLabel("Epochs: "), 4, 0)
         self.finetune_layout.addWidget(self.epochs, 4, 1, 1, 2)
 
-        self.finetune_layout.addWidget(QLabel("Finetuned model name: "), 5, 0)
-        self.finetune_layout.addWidget(self.model_save_name, 5, 1, 1, 2)
+        # Training hyperparameters
+        self.learning_rate_label = QLabel("Learning rate:")
+        self.learning_rate_label.setToolTip(
+            format_tooltip("Learning rate for finetuning optimizer")
+        )
+        self.learning_rate = QLineEdit(placeholderText="e.g., 0.001")
+        self.learning_rate.setText("0.001")
+        self.finetune_layout.addWidget(self.learning_rate_label, 6, 0)
+        self.finetune_layout.addWidget(self.learning_rate, 6, 1, 1, 2)
+
+        self.weight_decay_label = QLabel("Weight decay:")
+        self.weight_decay_label.setToolTip(
+            format_tooltip("Weight decay for regularization")
+        )
+        self.weight_decay = QLineEdit(placeholderText="e.g., 0.0001")
+        self.weight_decay.setText("0.0001")
+        self.finetune_layout.addWidget(self.weight_decay_label, 7, 0)
+        self.finetune_layout.addWidget(self.weight_decay, 7, 1, 1, 2)
+
+        self.use_sgd_label = QLabel("Use SGD optimizer:")
+        self.use_sgd_label.setToolTip(
+            format_tooltip(
+                "Use SGD optimizer instead of default Adam optimizer"
+            )
+        )
+        self.use_sgd = QCheckBox()
+        self.use_sgd.setChecked(False)
+        self.finetune_layout.addWidget(self.use_sgd_label, 8, 0)
+        self.finetune_layout.addWidget(self.use_sgd, 8, 1)
+
+        self.momentum_label = QLabel("Momentum (SGD only):")
+        self.momentum_label.setToolTip(
+            format_tooltip("Momentum parameter for SGD optimizer")
+        )
+        self.momentum = QLineEdit(placeholderText="e.g., 0.9")
+        self.momentum.setText("0.9")
+        self.finetune_layout.addWidget(self.momentum_label, 9, 0)
+        self.finetune_layout.addWidget(self.momentum, 9, 1, 1, 2)
+
+        self.finetune_layout.addWidget(QLabel("Finetuned model name: "), 10, 0)
+        self.finetune_layout.addWidget(self.model_save_name, 10, 1, 1, 2)
 
         self.manifest_name = QLineEdit(placeholderText="e.g. empanada")
         self.add_model_btn = QPushButton("Add Model To Registry")
@@ -105,7 +145,7 @@ class FinetuneParameters(SubWidget):
         # name task location, manifestname
         self.add_model_btn.clicked.connect(self.add_model_to_registry)
 
-        self.finetune_layout.addWidget(self.add_model_btn, 6, 0, 1, 3)
+        self.finetune_layout.addWidget(self.add_model_btn, 11, 0, 1, 3)
 
         self.inner_layout.addWidget(self.finetune_box)
 
@@ -134,8 +174,8 @@ class FinetuneParameters(SubWidget):
             # TODO: make this dynamic for different models or  enforce the structure in the segment flow side
             (
                 "Training data should be organised in to a single directory containing images and masks.\n"
-                "Each image mask pair should have the same name but the mask should have the suffix \"_seg\".\n"
-                "Example image mask pair: image1.tiff, image1_seg.tiff\n"  
+                'Each image mask pair should have the same name but the mask should have the suffix "_seg".\n'
+                "Example image mask pair: image1.tiff, image1_seg.tiff\n"
             ),
         )
 
