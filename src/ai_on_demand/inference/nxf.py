@@ -1,10 +1,8 @@
 from os import environ
 import shlex
 import subprocess
-from collections import defaultdict
 from pathlib import Path
 from typing import Optional, Union
-from urllib.parse import urlparse
 import re
 
 import aiod_utils.preprocess
@@ -306,7 +304,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         """
         Writes the provided image paths to a CSV file to pass into Nextflow.
         """
-        output = defaultdict(list)
+        dims = []
         self.progress_dict = {}
         total_substacks = 0
 
@@ -339,11 +337,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         for img_path in img_paths:
             layer = self.parent.viewer.layers[img_path.stem]
             H, W, num_slices, channels = get_img_dims(layer, img_path)
-            output["img_path"].append(str(img_path))
-            output["num_slices"].append(num_slices)
-            output["height"].append(H)
-            output["width"].append(W)
-            output["channels"].append(channels)
+            dims.append({"Z": num_slices, "Y": H, "X": W, "C": channels})
             self.progress_dict[img_path.stem] = 0
 
             relevant_runs = [
@@ -379,8 +373,13 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 )
                 total_substacks += num_substacks
 
-        df = pd.DataFrame(output)
-        df.to_csv(self.img_list_fpath, index=False)
+        image_paths_to_csv(
+            image_paths=img_paths,
+            output_csv_path=self.img_list_fpath,
+            dimensions=dims,
+            overwrite=True,
+            index=False
+        )
         self.total_substacks = total_substacks
 
     def check_pipeline(self):

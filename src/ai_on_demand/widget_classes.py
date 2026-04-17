@@ -386,7 +386,7 @@ The profile determines where the pipeline is run.
     @abstractmethod
     def check_pipeline(self):
         """Validate that all required inputs are present before running."""
-        ...
+        pass
 
     @abstractmethod
     def setup_pipeline(self) -> tuple:
@@ -395,27 +395,27 @@ The profile determines where the pipeline is run.
 
         Must return ``(nxf_cmd, nxf_params, proceed, img_paths)``.
         """
-        ...
+        pass
 
     @abstractmethod
     def _pipeline_start(self):
         """Called when the pipeline thread starts."""
-        ...
+        pass
 
     @abstractmethod
     def _pipeline_finish(self):
         """Called when the pipeline thread finishes successfully."""
-        ...
+        pass
 
     @abstractmethod
     def _pipeline_fail(self, exc):
         """Called when the pipeline thread raises an exception."""
-        ...
+        pass
 
     @abstractmethod
     def cancel_pipeline(self):
         """Cancel the currently running pipeline process."""
-        ...
+        pass
 
     def _create_variant_ui(self):
         """
