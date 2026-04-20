@@ -1,3 +1,4 @@
+from os import environ
 import shlex
 import shutil
 import string
@@ -364,7 +365,9 @@ class BaseNxfWidget(SubWidget):
         # Must be set before super().__init__ because create_box is called
         # inside SubWidget.__init__ via the constructor chain.
         self.nxf_repo = (
-            "/Users/ahmedn/aiod/Segement-Flow/"  # TODO: return to remote repo
+            Path(environ["AIOD_NXF_REPO"])
+            if "AIOD_NXF_REPO" in environ
+            else "FrancisCrickInstitute/Segment-Flow"
         )
         self.setup_nxf_dir_cmd()
 
