@@ -48,6 +48,7 @@ class FinetuneParameters(SubWidget):
         self.finetune_box.setLayout(self.finetune_layout)
 
         self.train_dir = QLineEdit(placeholderText="Train directory")
+        self.test_dir = QLineEdit(placeholderText="Test directory (optional)")
 
         self.finetune_layers = QComboBox()
 
@@ -86,11 +87,38 @@ class FinetuneParameters(SubWidget):
         self.finetune_layout.addWidget(self.train_dir_btn, 1, 0, 1, 2)
         self.finetune_layout.addWidget(self.train_dir_info, 1, 2)
 
-        self.finetune_layout.addWidget(QLabel("Finetune layers: "), 3, 0)
-        self.finetune_layout.addWidget(self.finetune_layers, 3, 1, 1, 2)
+        self.test_dir_label = QLabel("test directory (optional):")
+        test_dir_tooltip = "Select the directory where you have saved the testing data with /images, /labels"
+        self.test_dir_label.setToolTip(format_tooltip(test_dir_tooltip))
+        self.test_dir_text = QLabel("")
+        self.test_dir_text.setWordWrap(True)
+        self.test_dir_text.setToolTip(
+            format_tooltip(
+                "The selected test directory. If empty, training data will be used as test data."
+            )
+        )
+        self.test_dir_text.setMaximumWidth(400)
+        self.test_dir_btn = QPushButton("Locate Testing Data")
+        self.test_dir_btn.clicked.connect(self.on_click_test_dir)
+        self.test_dir_btn.setToolTip(format_tooltip(test_dir_tooltip))
+        self.test_dir_info = QPushButton("")
+        self.test_dir_info.setIcon(
+            QColoredSVGIcon.from_resources("help").colored(theme="dark")
+        )
+        self.test_dir_info.setFixedWidth(30)
+        self.test_dir_info.setToolTip("Help I don't how to structure my data")
+        self.test_dir_info.clicked.connect(self._show_test_dir_info)
 
-        self.finetune_layout.addWidget(QLabel("Epochs: "), 4, 0)
-        self.finetune_layout.addWidget(self.epochs, 4, 1, 1, 2)
+        self.finetune_layout.addWidget(self.test_dir_label, 2, 0)
+        self.finetune_layout.addWidget(self.test_dir_text, 2, 1, 1, 2)
+        self.finetune_layout.addWidget(self.test_dir_btn, 3, 0, 1, 2)
+        self.finetune_layout.addWidget(self.test_dir_info, 3, 2)
+
+        self.finetune_layout.addWidget(QLabel("Finetune layers: "), 5, 0)
+        self.finetune_layout.addWidget(self.finetune_layers, 5, 1, 1, 2)
+
+        self.finetune_layout.addWidget(QLabel("Epochs: "), 6, 0)
+        self.finetune_layout.addWidget(self.epochs, 6, 1, 1, 2)
 
         # Training hyperparameters
         self.learning_rate_label = QLabel("Learning rate:")
@@ -99,8 +127,8 @@ class FinetuneParameters(SubWidget):
         )
         self.learning_rate = QLineEdit(placeholderText="e.g., 0.001")
         self.learning_rate.setText("0.001")
-        self.finetune_layout.addWidget(self.learning_rate_label, 6, 0)
-        self.finetune_layout.addWidget(self.learning_rate, 6, 1, 1, 2)
+        self.finetune_layout.addWidget(self.learning_rate_label, 8, 0)
+        self.finetune_layout.addWidget(self.learning_rate, 8, 1, 1, 2)
 
         self.weight_decay_label = QLabel("Weight decay:")
         self.weight_decay_label.setToolTip(
@@ -108,8 +136,8 @@ class FinetuneParameters(SubWidget):
         )
         self.weight_decay = QLineEdit(placeholderText="e.g., 0.0001")
         self.weight_decay.setText("0.0001")
-        self.finetune_layout.addWidget(self.weight_decay_label, 7, 0)
-        self.finetune_layout.addWidget(self.weight_decay, 7, 1, 1, 2)
+        self.finetune_layout.addWidget(self.weight_decay_label, 9, 0)
+        self.finetune_layout.addWidget(self.weight_decay, 9, 1, 1, 2)
 
         self.use_sgd_label = QLabel("Use SGD optimizer:")
         self.use_sgd_label.setToolTip(
@@ -119,8 +147,8 @@ class FinetuneParameters(SubWidget):
         )
         self.use_sgd = QCheckBox()
         self.use_sgd.setChecked(False)
-        self.finetune_layout.addWidget(self.use_sgd_label, 8, 0)
-        self.finetune_layout.addWidget(self.use_sgd, 8, 1)
+        self.finetune_layout.addWidget(self.use_sgd_label, 10, 0)
+        self.finetune_layout.addWidget(self.use_sgd, 10, 1)
 
         self.momentum_label = QLabel("Momentum (SGD only):")
         self.momentum_label.setToolTip(
@@ -128,11 +156,11 @@ class FinetuneParameters(SubWidget):
         )
         self.momentum = QLineEdit(placeholderText="e.g., 0.9")
         self.momentum.setText("0.9")
-        self.finetune_layout.addWidget(self.momentum_label, 9, 0)
-        self.finetune_layout.addWidget(self.momentum, 9, 1, 1, 2)
+        self.finetune_layout.addWidget(self.momentum_label, 11, 0)
+        self.finetune_layout.addWidget(self.momentum, 11, 1, 1, 2)
 
-        self.finetune_layout.addWidget(QLabel("Finetuned model name: "), 10, 0)
-        self.finetune_layout.addWidget(self.model_save_name, 10, 1, 1, 2)
+        self.finetune_layout.addWidget(QLabel("Finetuned model name: "), 12, 0)
+        self.finetune_layout.addWidget(self.model_save_name, 12, 1, 1, 2)
 
         self.manifest_name = QLineEdit(placeholderText="e.g. empanada")
         self.add_model_btn = QPushButton("Add Model To Registry")
@@ -145,7 +173,7 @@ class FinetuneParameters(SubWidget):
         # name task location, manifestname
         self.add_model_btn.clicked.connect(self.add_model_to_registry)
 
-        self.finetune_layout.addWidget(self.add_model_btn, 11, 0, 1, 3)
+        self.finetune_layout.addWidget(self.add_model_btn, 13, 0, 1, 3)
 
         self.inner_layout.addWidget(self.finetune_box)
 
@@ -176,6 +204,34 @@ class FinetuneParameters(SubWidget):
                 "Training data should be organised in to a single directory containing images and masks.\n"
                 'Each image mask pair should have the same name but the mask should have the suffix "_seg".\n'
                 "Example image mask pair: image1.tiff, image1_seg.tiff\n"
+            ),
+        )
+
+    def on_click_test_dir(self):
+        """
+        Callback for when the test directory button is clicked. Opens a dialog to select a directory to get the testing data from.
+        """
+        test_dir = QFileDialog.getExistingDirectory(
+            self,
+            caption="Select directory where the testing data is",
+            directory=None,
+        )
+        # Skip if no directory selected
+        if test_dir == "":
+            return
+        # Replace any spaces, makes everything else easier
+        new_dir_name = Path(test_dir).name.replace(" ", "_")
+        test_dir = Path(test_dir).parent / new_dir_name
+        # Update the text
+        self.test_dir_text.setText(str(test_dir))
+
+    def _show_test_dir_info(self):
+        QMessageBox.information(
+            self,
+            "Testing Data Information",
+            (
+                "Testing data should be organised the same as Training data.\n"
+                "This can be used to evaluate over fitting and under fitting"
             ),
         )
 

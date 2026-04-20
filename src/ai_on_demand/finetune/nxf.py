@@ -61,7 +61,7 @@ class FinetuneNxfWidget(BaseNxfWidget):
             len(
                 self.parent.subwidgets["finetune_params"].train_dir_text.text()
             )
-            == ""
+            == 0
         ):
             raise ValueError("No Train directory selected!")
         if (
@@ -75,6 +75,11 @@ class FinetuneNxfWidget(BaseNxfWidget):
             ).exists()
         ):
             raise FileNotFoundError("Training Directory not found")
+        test_dir = self.parent.subwidgets[
+            "finetune_params"
+        ].test_dir_text.text()
+        if test_dir != "" and not Path(test_dir).exists():
+            raise FileNotFoundError("Testing Directory not found")
 
     def setup_pipeline(self):
         """Build the Nextflow command and params dict for finetuning."""
@@ -111,6 +116,8 @@ class FinetuneNxfWidget(BaseNxfWidget):
         nxf_params["train_dir"] = parent.subwidgets[
             "finetune_params"
         ].train_dir_text.text()
+        test_dir = parent.subwidgets["finetune_params"].test_dir_text.text()
+        nxf_params["test_dir"] = test_dir
         nxf_params["epochs"] = parent.subwidgets[
             "finetune_params"
         ].epochs.value()
@@ -150,7 +157,7 @@ class FinetuneNxfWidget(BaseNxfWidget):
         self.parent.watch_metrics_file(metric_path=training_metrics_path)
 
     def _pipeline_finish(self):
-        show_info("Pipeline finished!")
+        show_info("Pipeline finished! - Save model to local model registry")
         self._reset_btns()
         self.finetuned_model_ready.emit(str(self.nxf_base_dir))
         self.parent.watch_enabled = False
