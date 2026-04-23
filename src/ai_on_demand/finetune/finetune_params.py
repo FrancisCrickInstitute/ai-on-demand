@@ -40,6 +40,7 @@ class FinetuneParameters(SubWidget):
         )
 
         self.finetuning_meta_data = None
+        self.base_model = None
 
     def create_box(self):
         self.finetune_box = QGroupBox("Finetune Model")
@@ -244,6 +245,8 @@ class FinetuneParameters(SubWidget):
         self.finetuning_meta_data = dict(version_data.finetuning_meta_data)
         avail_layers = self.finetuning_meta_data["avail_layers"]
         self.finetune_layers.addItems(avail_layers)
+        # Store the base model version for registry
+        self.base_model = task_model_verson[2]
 
     def enable_add_model(self, nxf_base_dir: str):
         self.nxf_base_dir = nxf_base_dir
@@ -265,6 +268,7 @@ class FinetuneParameters(SubWidget):
             model_save_fpath,
             manifest_name,
             self.finetuning_meta_data,
+            self.base_model,
         )
 
         self.parent.refresh_instances(
