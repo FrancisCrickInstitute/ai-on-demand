@@ -90,7 +90,7 @@ class FinetuneNxfWidget(BaseNxfWidget):
         img_paths = ""
         proceed = True
 
-        finetune_config_fpath = self.nxf_repo + "finetune.config"
+        finetune_config_fpath = str(Path(self.nxf_repo) / "finetune.config")
         nxf_cmd = (
             self.nxf_base_cmd
             + f"run {self.nxf_repo} -latest -entry finetune -c {finetune_config_fpath}"

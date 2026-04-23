@@ -378,7 +378,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             output_csv_path=self.img_list_fpath,
             dimensions=dims,
             overwrite=True,
-            index=False
+            index=False,
         )
         self.total_substacks = total_substacks
 
@@ -407,7 +407,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.parent.executed_model = self.parent.selected_model
         self.parent.executed_variant = self.parent.selected_variant
 
-        inference_config_fpath = self.nxf_repo + "inference.config"
+        inference_config_fpath = str(Path(self.nxf_repo) / "inference.config")
         nxf_cmd = (
             self.nxf_base_cmd
             + f"run {self.nxf_repo} -latest -entry inference -c {inference_config_fpath}"
