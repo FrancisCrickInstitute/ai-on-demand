@@ -513,6 +513,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         """
         # Create container for metadata
         dims = []
+        dtypes = []
         # Create container for knowing what images to track progress of
         self.progress_dict = {}
         # Counter for number of substacks (equivalent to number of submitted jobs!)
@@ -552,6 +553,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             # Get the number of slices, channels, height, and width
             H, W, num_slices, channels = get_img_dims(layer, img_path)
             dims.append({"Z": num_slices, "Y": H, "X": W, "C": channels})
+            dtypes.append(str(layer.metadata.get("dtype") or layer.data.dtype))
             # Initialise the progress dict
             self.progress_dict[img_path.stem] = 0
             # Need to take account for multiple runs due to preprocessing
@@ -592,9 +594,10 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 total_substacks += num_substacks
         # Convert to a DataFrame and save
         image_paths_to_csv(
-            img_paths, self.img_list_fpath, dims, overwrite=True, index=False
+            img_paths, self.img_list_fpath, dims, dtypes, overwrite=True, index=False
         )
         # Store the total number of jobs
+        # NOTE: Used as an estimate to info the user of how many jobs will be submitted
         self.total_substacks = total_substacks
 
     def check_inference(self):
@@ -731,9 +734,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         # Store the image paths
         self.image_path_dict = self.parent.subwidgets["data"].image_path_dict
         # Ensure the pipeline is valid
-        assert (
-            self.pipeline in self.pipelines.keys()
-        ), f"Pipeline {self.pipeline} not found!"
+        assert self.pipeline in self.pipelines.keys(), (
+            f"Pipeline {self.pipeline} not found!"
+        )
         # Do the initial checks
         if self.pipelines[self.pipeline]["check"] is not None:
             self.pipelines[self.pipeline]["check"]()
