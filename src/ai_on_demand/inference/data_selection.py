@@ -189,8 +189,6 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         """
         Loads the selected images into napari for viewing (in separate threads).
         """
-        # Ensure Nextflow subwidget knows not all images are loaded until this func returns
-        self.parent.subwidgets["nxf"].all_loaded = False
         # Return if there's nothing to show
         if len(self.image_path_dict) == 0:
             return
@@ -218,6 +216,8 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             return
         if len(imgs_to_load) == 0:
             return
+        # Ensure Nextflow subwidget knows not all images are loaded until loading completes
+        self.parent.subwidgets["nxf"].all_loaded = False
         # Reset counter
         self.load_img_counter = 0
 
