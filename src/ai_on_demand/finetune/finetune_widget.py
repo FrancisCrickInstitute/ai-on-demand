@@ -1,7 +1,7 @@
 import time
 import os
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
 import napari
 from napari.qt.threading import thread_worker
