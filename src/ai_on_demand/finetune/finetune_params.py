@@ -3,7 +3,7 @@ from typing import Optional
 from pathlib import Path
 
 from napari.utils.notifications import show_info
-from aiod_registry import add_model_local, load_manifests
+from aiod_registry import add_model_local
 from napari._qt.qt_resources import QColoredSVGIcon
 from qtpy.QtWidgets import (
     QWidget,
