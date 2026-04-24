@@ -9,7 +9,6 @@ from typing import Optional
 
 import napari
 import qtpy.QtCore
-import tqdm
 import yaml
 from aiod_registry import load_manifests
 from napari.qt.threading import thread_worker
