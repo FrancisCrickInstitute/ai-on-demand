@@ -577,22 +577,8 @@ Run segmentation/inference on selected images using one of the available pre-tra
             mask_arr = aiod_rle.load_encoding(fpath)
             # NOTE: Mask metadata should be no different, so ignore
             mask_arr, _ = aiod_rle.decode(mask_arr)
-            # Insert mask data - recreate layer if shape doesn't match actual model output
+            # Insert mask data
             label_layer = self.viewer.layers[mask_layer_name]
-            if label_layer.data.shape != mask_arr.shape:
-                layer_idx = self.viewer.layers.index(label_layer)
-                layer_meta = label_layer.metadata
-                self.viewer.layers.remove(label_layer)
-                label_layer = self.viewer.add_labels(
-                    np.zeros(mask_arr.shape, dtype=np.uint16),
-                    name=mask_layer_name,
-                    visible=False,
-                    opacity=0.5,
-                    metadata=layer_meta,
-                )
-                self.viewer.layers.move(
-                    self.viewer.layers.index(mask_layer_name), layer_idx
-                )
             label_layer.data = mask_arr
             label_layer.visible = True
         # Now we'll sort all the layers, grouping together the image and mask layers for each image
