@@ -595,7 +595,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             img_paths, self.img_list_fpath, dims, dtypes, overwrite=True, index=False
         )
         # Store the total number of jobs
-        self.total_substacks = total_substacks  # NOTE 139 What is this for? substacks calculated here without even starting the pipeline yet
+        # NOTE: Used as an estimate to info the user of how many jobs will be submitted
+        self.total_substacks = total_substacks
 
     def check_inference(self):
         """
