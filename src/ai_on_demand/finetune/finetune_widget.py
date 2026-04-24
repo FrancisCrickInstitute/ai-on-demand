@@ -79,8 +79,8 @@ class Finetune(MainWidget):
         print("watcher has been called")
         # Clear previous metrics
         if os.path.exists(metric_path):
-            f = open(metric_path, "w+")
-            f.close
+            with open(metric_path, "w+"):
+                pass
 
         @thread_worker(connect={"yielded": self.update_epoch})
         def _watch_metrics_file():
