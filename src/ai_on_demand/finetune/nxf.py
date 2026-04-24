@@ -13,7 +13,6 @@ from qtpy.QtWidgets import (
 
 from ai_on_demand.utils import sanitise_name
 from ai_on_demand.widget_classes import BaseNxfWidget
-from urllib.parse import urlparse
 
 
 class FinetuneNxfWidget(BaseNxfWidget):
