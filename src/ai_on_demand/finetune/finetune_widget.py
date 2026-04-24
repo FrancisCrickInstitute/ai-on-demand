@@ -107,15 +107,16 @@ class Finetune(MainWidget):
 
         _watch_metrics_file()
 
-    def get_run_hash(self, nxf_params: dict):
+    def get_run_hash(self, nxf_params: Optional[dict] = None):
         """
         Gather all the parameters from the subwidgets to be used in obtaining a unique hash for a run.
         """
+        nxf_params = nxf_params or {}
         hashed_params = {}
         # Add model details
-        hashed_params["task"] = nxf_params["task"]
-        hashed_params["model"] = nxf_params["model"]
-        hashed_params["variant"] = nxf_params["model_type"]
+        hashed_params["task"] = nxf_params.get("task", self.selected_task)
+        hashed_params["model"] = nxf_params.get("model", self.selected_model)
+        hashed_params["variant"] = nxf_params.get("model_type", self.selected_variant)
         # Add the model dictionary (hashed)
         hashed_params["model_hash"] = self.subwidgets["model"].model_param_hash
         # and Nextflow parameters that affect the output
