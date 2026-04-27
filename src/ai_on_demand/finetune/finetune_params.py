@@ -279,3 +279,6 @@ class FinetuneParameters(SubWidget):
         show_info(
             "Fine-tuned model has been saved to registry and is ready to use"
         )
+        self.parent.subwidgets["finetune_params"].model_save_name.setDisabled(
+            False
+        )
