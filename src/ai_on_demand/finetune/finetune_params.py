@@ -269,7 +269,7 @@ class FinetuneParameters(SubWidget):
             manifest_name,
             self.finetuning_meta_data,
             self.base_model,
-            cache_dir=self.nxf_base_dir,
+            cache_dir=f"{self.nxf_base_dir}/aiod_cache",
         )
 
         self.parent.refresh_instances(
