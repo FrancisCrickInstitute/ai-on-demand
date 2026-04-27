@@ -151,21 +151,11 @@ class MainWidget(QWidget):
         # Re-retrieve manifests, including cache directory if available
         cache_dir = None
         nxf_widget = self.subwidgets.get("nxf")
-        print(f"\n[UI] get_manifests() called")
-        print(f"[UI] nxf widget present: {nxf_widget is not None}")
         if nxf_widget:
             cache_dir = getattr(nxf_widget, "nxf_store_dir", None)
-            print(f"[UI] nxf_store_dir attribute: {cache_dir}")
-        print(f"[UI] Refreshing manifests with cache_dir={cache_dir}")
         self.all_manifests = load_manifests(
             filter_access=True, cache_dir=cache_dir
         )
-        print(
-            f"[UI] Loaded {len(self.all_manifests)} manifest(s): {list(self.all_manifests.keys())}"
-        )
-        for short_name, manifest in self.all_manifests.items():
-            versions = list(manifest.versions.keys())
-            print(f"[UI]   - {short_name}: {versions}")
         self.subwidgets[
             "model"
         ].refresh_ui()  # can add further configuration of which subwidget to refresh
