@@ -201,7 +201,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                     methods=None, filename=mask_fpath.stem
                 )
                 if downsample_factor is not None:
-                    metadata["downsample_factor"] = downsample_factor
+                    metadata["downsample_factor"] = downsample_factor[-len(img_layer.scale):]
                 # Expand the mask to match the image's full ndim by inserting
                 # singleton dims at non-spatial positions (e.g. ZYX → ZCYX
                 # gives (Z,Y,X) → (Z,1,Y,X)) so napari aligns axes correctly.
