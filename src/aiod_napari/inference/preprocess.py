@@ -291,6 +291,7 @@ NOTE: The result is just for visualization! Only the original image will be used
                 "preprocess": True,
                 "downsample_blocksize": blocksize,
             },
+            scale=layer.scale[-image.ndim:]
         )
         # Switch focus back to the original layer
         self.viewer.layers.selection.active = layer
