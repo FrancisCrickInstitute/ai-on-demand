@@ -732,9 +732,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             # Delete expected masks to avoid reload
             # TODO: Switch fully to Nextflow for this, allowing resume to handle reload
             for img_dict in parent.img_mask_info:
-                mask_root = parent._get_mask_layer_name(
+                # Real files on disk use the opaque mask_stem, not the
+                # display-only layer_name - glob against that or this never
+                # matches anything.
+                mask_root = parent._get_mask_stem(
                     img_path=img_dict["img_path"],
-                    executed=True,
                     truncate=False,
                     preprocess_str=img_dict["preprocess_str"],
                 )

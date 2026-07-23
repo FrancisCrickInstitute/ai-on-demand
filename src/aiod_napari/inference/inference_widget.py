@@ -7,7 +7,7 @@ import aiod_utils.rle as aiod_rle
 import napari
 import numpy as np
 import tifffile
-from aiod_utils.io import extract_idxs_from_fname
+from aiod_utils.io import extract_idxs_from_fname, get_image_id, get_mask_name
 from aiod_utils.stacks import stack_to_shape
 from napari.qt.threading import thread_worker
 
@@ -144,7 +144,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 / self._get_mask_name(
                     img_dict["img_path"],
                     extension=self._get_output_format(),
-                    executed=True,
                     truncate=False,
                     preprocess_str=preprocess_str,
                 )
@@ -180,7 +179,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
             mask_fpath = self.subwidgets["nxf"].mask_dir_path / self._get_mask_name(
                 img_dict["img_path"],
                 extension=self._get_output_format(),
-                executed=True,
                 truncate=False,
                 preprocess_str=preprocess_str,
             )
@@ -343,15 +341,16 @@ Run segmentation/inference on selected images using one of the available pre-tra
             preprocess_strs = [None] * len(img_paths)
             all_img_paths = img_paths
             all_layer_names = [
-                self._get_mask_layer_name(i, executed=True)
-                for i in img_paths
+                self._get_mask_layer_name(i, executed=True) for i in img_paths
             ]
+            all_mask_stems = [self._get_mask_stem(i) for i in img_paths]
         else:
             # Containers for all the paths, layer names, and preprocessing options
             prep_options = []
             preprocess_strs = []
             all_img_paths = []
             all_layer_names = []
+            all_mask_stems = []
             # Now modify the layer names to include the preprocessing options
             for i, img_path in enumerate(img_paths):
                 for prep_set in options:
@@ -370,13 +369,18 @@ Run segmentation/inference on selected images using one of the available pre-tra
                         preprocess_str=suffix,
                     )
                     all_layer_names.append(layer_name)
+                    all_mask_stems.append(
+                        self._get_mask_stem(img_paths[i], preprocess_str=suffix)
+                    )
                     prep_options.append(prep_set if prep_set else None)
                     preprocess_strs.append(suffix)
-        self.mask_prefixes = {i.split("_masks_")[0] for i in all_layer_names}
+        # Get mask prefixes from our mask filename stems to use in watcher to filter files
+        self.mask_prefixes = {i.split("_masks_")[0] for i in all_mask_stems}
         # Insert all info into structure for later use
-        for fpath, layer_name, prep_set, preprocess_str in zip(
+        for fpath, layer_name, mask_stem, prep_set, preprocess_str in zip(
             all_img_paths,
             all_layer_names,
+            all_mask_stems,
             prep_options,
             preprocess_strs,
             strict=True,
@@ -385,6 +389,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 {
                     "img_path": fpath,
                     "layer_name": layer_name,
+                    "mask_stem": mask_stem,
                     "prep_set": prep_set,
                     "preprocess_str": preprocess_str,
                 }
@@ -466,26 +471,45 @@ Run segmentation/inference on selected images using one of the available pre-tra
         img_path,
         extension: str | None = None,
         executed: bool = False,
-        include_hash: bool = True,
         truncate: bool = True,
         preprocess_str: str | None = None,
     ):
-        # Construct mask stem from the full image filename, matching the
-        # pipeline's getMaskName convention (uses file.name, not simpleName).
-        stem = Path(img_path).name
-        if preprocess_str:
-            stem = f"{stem}_{preprocess_str}.ome.zarr"
-        # If executed, use the executed attributes in case the user has changed the selection since running the pipeline
+        # Human-readable display name for the napari layer
+        # The preprocessing params are still hashed rather than raw
+        # Could change that in the future if less helpful than before
+        image_id = get_image_id(img_path)
+        prep_hash = (
+            aiod_utils.preprocess.hash_params_str(preprocess_str)
+            if preprocess_str
+            else None
+        )
+        prep_suffix = f"_{prep_hash}" if prep_hash else ""
         task_model_variant_name = self.subwidgets["model"].get_task_model_variant_name(
             executed
         )
-        fname = f"{stem}_masks_{task_model_variant_name}"
-        # Add the hash if requested
-        if include_hash:
-            if truncate:
-                fname += f"-{self.run_hash[:8]}"
-            else:
-                fname += f"-{self.run_hash}"
+        fname = f"{image_id}{prep_suffix}_masks_{task_model_variant_name}"
+        run_hash = self.run_hash[:8] if truncate else self.run_hash
+        fname += f"-{run_hash}"
+        if extension is not None:
+            fname += f".{extension}"
+        return fname
+
+    def _get_mask_stem(
+        self,
+        img_path,
+        extension: str | None = None,
+        truncate: bool = True,
+        preprocess_str: str | None = None,
+    ):
+        # Mask filename matching what Segment-Flow writes also via aiod_utils.io.get_mask_name
+        image_id = get_image_id(img_path)
+        prep_hash = (
+            aiod_utils.preprocess.hash_params_str(preprocess_str)
+            if preprocess_str
+            else None
+        )
+        run_hash = self.run_hash[:8] if truncate else self.run_hash
+        fname = get_mask_name(run_hash=run_hash, image_id=image_id, prep_hash=prep_hash)
         if extension is not None:
             fname += f".{extension}"
         return fname
@@ -526,13 +550,11 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self,
         img_path,
         extension: str = "rle",
-        executed=False,
         truncate=False,
         preprocess_str: str | None = None,
     ):
-        mask_root = self._get_mask_layer_name(
+        mask_root = self._get_mask_stem(
             img_path=img_path,
-            executed=executed,
             truncate=truncate,
             preprocess_str=preprocess_str,
         )
@@ -610,11 +632,13 @@ Run segmentation/inference on selected images using one of the available pre-tra
             start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
                 fname=f
             )
-            # Need to get the prefix and then compare with expected layer names
+            # Need to get the prefix and then compare against the opaque
+            # mask_stem (matching the real file), not the display-only
+            # layer_name, which no longer shares the same prefix format.
             prefix, _ = f.stem.split("_masks_")
             # Extract the relevant Labels layer
             for d in self.img_mask_info:
-                if prefix == d["layer_name"].split("_masks_")[0]:
+                if prefix == d["mask_stem"].split("_masks_")[0]:
                     mask_layer_name = d["layer_name"]
                     img_name = d["img_path"].stem
                     break
@@ -735,7 +759,6 @@ Run segmentation/inference on selected images using one of the available pre-tra
             fpath = self.subwidgets["nxf"].mask_dir_path / self._get_mask_name(
                 img_dict["img_path"],
                 extension=self._get_output_format(),
-                executed=True,
                 truncate=False,
                 preprocess_str=preprocess_str,
             )
