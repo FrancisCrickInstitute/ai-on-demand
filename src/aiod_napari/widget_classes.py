@@ -147,6 +147,12 @@ class MainWidget(QWidget):
         """
         Load a config file for the widget.
         """
+        # Backward compat: configs saved before the standalone TaskWidget was
+        # merged into ModelWidget store the task as a top-level "task" key.
+        # Fold it into the model config so ModelWidget.load_config can read it.
+        if "task" in config and isinstance(config.get("model"), dict):
+            config["model"].setdefault("task", config["task"])
+        # Loop through all subwidgets and load the config for each subwidget if it exists in config
         for subwidget in self.subwidgets.values():
             if subwidget._name in config:
                 subwidget.load_config(config=config[subwidget._name])

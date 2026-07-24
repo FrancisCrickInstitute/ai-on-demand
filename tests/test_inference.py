@@ -136,6 +136,105 @@ def inference_widget(make_napari_viewer_proxy, base_dir, monkeypatch):
     return InferenceFixture(viewer=viewer, widget=plugin_widget)
 
 
+class TestTaskModelWidget:
+    """TaskWidget was merged into ModelWidget; these guard the merged behaviour."""
+
+    def test_task_dropdown_updates_model_options(self, inference_widget):
+        model_widget = inference_widget.widget.subwidgets["model"]
+
+        from aiod_registry import TASK_NAMES
+
+        # Nothing selected yet: placeholders in both dropdowns.
+        assert model_widget.task_dropdown.itemText(0) == model_widget.task_name_init
+        assert model_widget.model_dropdown.itemText(0) == model_widget.model_name_init
+
+        task_name = next(iter(TASK_NAMES))
+        task_index = model_widget.task_dropdown.findText(TASK_NAMES[task_name])
+        assert task_index != -1
+
+        model_widget.task_dropdown.setCurrentIndex(task_index)
+        model_widget.on_task_select()
+
+        assert inference_widget.widget.selected_task == task_name
+        # Model dropdown should now list real models for this task, not the placeholder.
+        assert model_widget.model_dropdown.itemText(0) != model_widget.model_name_init
+
+    def test_get_config_params_includes_task(self, inference_widget):
+        model_widget = inference_widget.widget.subwidgets["model"]
+        nxf_params = {
+            "task": "mito",
+            "model": "empanada_mito",
+            "model_type": "v1",
+            "model_config": "/fake/path.yaml",
+        }
+
+        assert model_widget.get_config_params(nxf_params) == {
+            "task": "mito",
+            "name": "empanada_mito",
+            "model_type": "v1",
+            "model_config": "/fake/path.yaml",
+        }
+
+    def test_load_config_file_migrates_legacy_top_level_task(
+        self, inference_widget, monkeypatch
+    ):
+        """Configs saved before the TaskWidget merge stored task as a top-level key.
+
+        load_config_file must fold it into the model config so ModelWidget (which
+        now owns task selection) can still pick it up.
+        """
+        plugin_widget = inference_widget.widget
+        model_widget = plugin_widget.subwidgets["model"]
+
+        received_configs = []
+        monkeypatch.setattr(
+            model_widget, "load_config", lambda config: received_configs.append(config)
+        )
+
+        legacy_config = {
+            "task": "mito",
+            "model": {
+                "name": "empanada_mito",
+                "model_type": "v1",
+                "model_config": "/fake/path.yaml",
+            },
+        }
+        plugin_widget.load_config_file(legacy_config)
+
+        assert received_configs == [
+            {
+                "name": "empanada_mito",
+                "model_type": "v1",
+                "model_config": "/fake/path.yaml",
+                "task": "mito",
+            }
+        ]
+
+    def test_load_config_file_new_format_task_untouched(
+        self, inference_widget, monkeypatch
+    ):
+        """New-format configs already nest task under model; migration must be a no-op."""
+        plugin_widget = inference_widget.widget
+        model_widget = plugin_widget.subwidgets["model"]
+
+        received_configs = []
+        monkeypatch.setattr(
+            model_widget, "load_config", lambda config: received_configs.append(config)
+        )
+
+        new_config = {
+            "model": {
+                "task": "nucleus",
+                "name": "empanada_mito",
+                "model_type": "v1",
+                "model_config": "/fake/path.yaml",
+            },
+        }
+        plugin_widget.load_config_file(new_config)
+
+        assert received_configs == [new_config["model"]]
+
+
 @pytest.mark.slow
 class TestInferenceWorkflow:
     def test_full_inference_pass(
@@ -155,7 +254,18 @@ class TestInferenceWorkflow:
 
         plugin_widget.subwidgets["data"].update_file_count(paths=dummy_images)
         plugin_widget.subwidgets["data"].view_images()
-        plugin_widget.subwidgets["task"].task_buttons[task].click()
+
+        # Select task
+        from aiod_registry import TASK_NAMES
+
+        task_dropdown = plugin_widget.subwidgets["model"].task_dropdown
+        task_index = task_dropdown.findText(TASK_NAMES[task])
+        assert task_index != -1, (
+            f"Task '{task}' not found in dropdown options: "
+            f"{[task_dropdown.itemText(i) for i in range(task_dropdown.count())]}"
+        )
+        task_dropdown.setCurrentIndex(task_index)
+        plugin_widget.subwidgets["model"].on_task_select()
 
         # Select model
         model_dropdown = plugin_widget.subwidgets["model"].model_dropdown

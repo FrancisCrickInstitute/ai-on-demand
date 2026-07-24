@@ -155,11 +155,13 @@ Any preprocessing applied here is for visualization purposes only, only the orig
         self.prep_run_btn.clicked.connect(
             partial(self.on_click_run, run_on_slice=False)
         )
-        self.prep_run_btn.setToolTip(format_tooltip("""
+        self.prep_run_btn.setToolTip(
+            format_tooltip("""
 Apply the selected preprocessing options to the entire stack of the currently selected image (or first image layer if none selected).
 NOTE: This will run the computation locally and return an array in-memory, so be careful with larger images and/or expensive preprocessing.
 NOTE: The result is just for visualization! Only the original image will be used in the Nextflow pipeline.
-                """))
+                """)
+        )
         self.btn_layout.addWidget(self.prep_run_btn, 0, 1, 1, 1)
         # Add some draft buttons for preprocessing sets
         self.save_set_btn = QPushButton("Save preprocessing set")
@@ -287,7 +289,7 @@ NOTE: The result is just for visualization! Only the original image will be used
                 "preprocess": True,
                 "downsample_blocksize": blocksize,
             },
-            scale=layer.scale[-image.ndim:]
+            scale=layer.scale[-image.ndim :],
         )
         # Switch focus back to the original layer
         self.viewer.layers.selection.active = layer
