@@ -192,6 +192,24 @@ class InfoWindow(QDialog):
         self.setLayout(self.layout)
 
 
+class AboutWindow(QDialog):
+    """Small pop-out with a blurb about the plugin and a clickable docs link."""
+
+    def __init__(self, parent=None, title: str = "", content: str = ""):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+
+        layout = QVBoxLayout()
+        info_label = QLabel(content)
+        info_label.setWordWrap(True)
+        info_label.setTextFormat(Qt.RichText)
+        info_label.setOpenExternalLinks(True)
+        info_label.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+        layout.addWidget(info_label)
+        self.setLayout(layout)
+        self.setMinimumWidth(350)
+
+
 class ConfirmDialog(QDialog):
     def __init__(
         self,

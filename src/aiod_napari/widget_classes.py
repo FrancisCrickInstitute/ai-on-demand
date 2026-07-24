@@ -5,15 +5,19 @@ from pathlib import Path
 import napari
 import qtpy.QtCore
 import yaml
+from napari._qt.qt_resources import QColoredSVGIcon
 from napari.utils.notifications import show_info
 from npe2 import PluginManager
+from qtpy.QtCore import QSize
 from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import (
     QFrame,
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLayout,
+    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -21,9 +25,12 @@ from qtpy.QtWidgets import (
 
 from aiod_napari.qcollapsible import QCollapsible
 from aiod_napari.utils import (
+    AboutWindow,
     format_tooltip,
     get_plugin_cache,
 )
+
+DOCS_URL = "https://franciscrickinstitute.github.io/aiod_docs/"
 
 
 class MainWidget(QWidget):
@@ -63,7 +70,21 @@ class MainWidget(QWidget):
         ).scaledToHeight(100, mode=qtpy.QtCore.Qt.SmoothTransformation)
         self.logo_label.setPixmap(logo)
         self.logo_label.setAlignment(qtpy.QtCore.Qt.AlignCenter)
-        self.layout().addWidget(self.logo_label)
+        self.layout().addWidget(self.logo_label, alignment=qtpy.QtCore.Qt.AlignHCenter)
+
+        # Small info button, giving users a pop-out with plugin info and a
+        # link to the docs
+        self.about_btn = QPushButton()
+        about_btn_size = 23
+        self.about_btn.setFixedSize(about_btn_size, about_btn_size)
+        self.about_btn.setIcon(
+            QColoredSVGIcon.from_resources("info").colored(theme="dark")
+        )
+        self.about_btn.setIconSize(QSize(about_btn_size - 6, about_btn_size - 6))
+        self.about_btn.setFlat(True)
+        self.about_btn.setCursor(qtpy.QtCore.Qt.PointingHandCursor)
+        self.about_btn.setToolTip("About AI OnDemand")
+        self.about_btn.clicked.connect(self.on_about_click)
 
         # Widget title to display
         self.title = QLabel(f"AI OnDemand: {title}")
@@ -75,7 +96,20 @@ class MainWidget(QWidget):
         if tooltip is not None:
             self.tooltip = tooltip
             self.title.setToolTip(format_tooltip(tooltip))
-        self.layout().addWidget(self.title)
+
+        # Three-column row: an empty left column, the title taking up most of
+        # the space (so it stays effectively centred), and the button in a
+        # narrow right column, vertically centred alongside the title
+        title_row = QWidget()
+        title_row_layout = QHBoxLayout()
+        title_row_layout.setContentsMargins(0, 0, 0, 0)
+        title_row_layout.addStretch(5)
+        title_row_layout.addWidget(self.title, 90, qtpy.QtCore.Qt.AlignCenter)
+        title_row_layout.addWidget(
+            self.about_btn, 5, qtpy.QtCore.Qt.AlignRight | qtpy.QtCore.Qt.AlignVCenter
+        )
+        title_row.setLayout(title_row_layout)
+        self.layout().addWidget(title_row)
 
         # Create the widget that will be used to add subwidgets to
         # This is then the widget for the scroll area, to the logo/title is excluded from scrolling
@@ -90,6 +124,23 @@ class MainWidget(QWidget):
         self.content_widget.layout().setAlignment(qtpy.QtCore.Qt.AlignTop)
         self.scroll.setWidget(self.content_widget)
         self.layout().addWidget(self.scroll)
+
+    def on_about_click(self):
+        """
+        Callback for the info button on the logo.
+
+        Opens a pop-out with some background on the plugin and a link to the docs.
+        """
+        about_text = (
+            "<p><b>AI OnDemand</b> is developed by the Software Engineering & AI STP at "
+            "the <a href='https://www.crick.ac.uk/'>Francis Crick Institute</a>.</p>"
+            "<p>For guides and documentation, see the "
+            f"<a href='{DOCS_URL}'>AI OnDemand documentation</a>.</p>"
+        )
+        self.about_window = AboutWindow(
+            self, title="About AI OnDemand", content=about_text
+        )
+        self.about_window.show()
 
     def register_widget(self, widget: "SubWidget"):
         self.subwidgets[widget._name] = widget
