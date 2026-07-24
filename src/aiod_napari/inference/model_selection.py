@@ -121,7 +121,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.task_dropdown = QComboBox()
         self.task_name_init = "Select a task"
         self.task_dropdown.addItem(self.task_name_init)
-        self.task_dropdown.addItems([self.task_to_display[name] for name in TASK_NAMES])
+        self.task_dropdown.addItems(
+            sorted([self.task_to_display[name] for name in TASK_NAMES])
+        )
         self.task_dropdown.activated.connect(self.on_task_select)
         model_box_layout.addWidget(task_label, 0, 0)
         model_box_layout.addWidget(self.task_dropdown, 0, 1, 1, 2)
@@ -237,6 +239,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             self.set_model_param_widget("init")
             return
         elif model_name == self.model_name_unavail:
+            # No model available for the current task, so clear previous
+            self.parent.selected_model = None
+            self.parent.selected_variant = None
             self.clear_model_param_widget()
             self.set_model_param_widget("init")
             self.model_version_dropdown.clear()
