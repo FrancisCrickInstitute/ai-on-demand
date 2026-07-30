@@ -225,6 +225,11 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             return
         self.parent.selected_task = self.display_to_task[task_label]
         self.update_model_box(self.parent.selected_task)
+        # Once a real task is chosen, there's no going back to the placeholder,
+        # so drop it to avoid model/version boxes going stale if reselected.
+        init_idx = self.task_dropdown.findText(self.task_name_init)
+        if init_idx != -1:
+            self.task_dropdown.removeItem(init_idx)
 
     def on_model_select(self):
         """

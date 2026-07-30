@@ -159,6 +159,23 @@ class TestTaskModelWidget:
         # Model dropdown should now list real models for this task, not the placeholder.
         assert model_widget.model_dropdown.itemText(0) != model_widget.model_name_init
 
+    def test_task_placeholder_removed_after_selection(self, inference_widget):
+        """Once a real task is chosen, the placeholder must not be reselectable.
+
+        Regression test: previously the model family/version dropdowns retained
+        stale entries if a user could get back to the "Select a task" placeholder.
+        """
+        model_widget = inference_widget.widget.subwidgets["model"]
+
+        from aiod_registry import TASK_NAMES
+
+        task_name = next(iter(TASK_NAMES))
+        task_index = model_widget.task_dropdown.findText(TASK_NAMES[task_name])
+        model_widget.task_dropdown.setCurrentIndex(task_index)
+        model_widget.on_task_select()
+
+        assert model_widget.task_dropdown.findText(model_widget.task_name_init) == -1
+
     def test_get_config_params_includes_task(self, inference_widget):
         model_widget = inference_widget.widget.subwidgets["model"]
         nxf_params = {
