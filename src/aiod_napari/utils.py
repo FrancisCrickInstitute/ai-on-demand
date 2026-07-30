@@ -204,7 +204,7 @@ class AboutWindow(QDialog):
         info_label.setWordWrap(True)
         info_label.setTextFormat(Qt.RichText)
         info_label.setOpenExternalLinks(True)
-        info_label.setTextInteractionFlags(Qt.LinksAccessibleByMouse)
+        info_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
         layout.addWidget(info_label)
         self.setLayout(layout)
         self.setMinimumWidth(350)
