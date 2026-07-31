@@ -194,9 +194,11 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 mask_data, metadata = self._load_mask_file(mask_fpath)
                 metadata = metadata["metadata"]
                 metadata["img_scale"] = img_layer.scale
-                # Check the filename if there's downsampling to ensure correct scaling
-                downsample_factor = aiod_utils.preprocess.get_downsample_factor(
-                    methods=None, filename=mask_fpath.stem
+                # Read downsampling structured preprocessing options
+                downsample_factor = (
+                    aiod_utils.preprocess.get_downsample_factor(methods=prep_options)
+                    if prep_options
+                    else None
                 )
                 if downsample_factor is not None:
                     metadata["downsample_factor"] = downsample_factor
