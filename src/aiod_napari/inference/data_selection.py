@@ -438,6 +438,12 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             self.viewer.layers.remove(layer)
 
     def get_config_params(self, params):
+        # Retrieves the image path with the mounted prefix when running via ssh
+        executed_img_paths = getattr(
+            self.parent.subwidgets.get("nxf"), "executed_img_paths", None
+        )
+        if executed_img_paths:
+            return {"img_paths": [str(p) for p in executed_img_paths]}
         img_dir = params.get("img_dir")
         if img_dir is None:
             return {"img_paths": []}

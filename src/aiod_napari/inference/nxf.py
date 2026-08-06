@@ -91,6 +91,8 @@ The profile determines where the pipeline is run.
 
         self.nxf_cmd = None
         self.nxf_params = None
+        # Mounted paths of the images submitted in the last run
+        self.executed_img_paths = None
 
         self.pipeline = pipeline
         # Available pipelines and their funcs
@@ -120,7 +122,16 @@ The profile determines where the pipeline is run.
                     self.nxf_profile_box.setCurrentIndex(idx)
             # Set the base directory
             if "base_dir" in settings:
-                nxf_base_dir = Path(settings["base_dir"])
+                base_dir = Path(settings["base_dir"])
+                if base_dir.exists():
+                    nxf_base_dir = base_dir
+                # in the case where user has unmounted a drive (e.g. remote server drive for ssh pipeline)
+                else:
+                    print(
+                        f"Warning: Could not access {settings['base_dir']}, falling back to default cache directory."
+                    )
+                    nxf_base_dir = Path.home() / ".nextflow" / "aiod"
+                    nxf_base_dir.mkdir(parents=True, exist_ok=True)
                 self.nxf_dir_text.setText(str(nxf_base_dir))
                 # Update the base directory and Nextflow command
                 self.setup_nxf_dir_cmd(base_dir=Path(nxf_base_dir))
@@ -132,6 +143,16 @@ The profile determines where the pipeline is run.
         settings = {
             "base_dir": str(self.nxf_base_dir),
             "profile": self.nxf_profile_box.currentText(),
+            "ssh_settings": {
+                "active": self.ssh_box.isChecked(),
+                "hostname": self.hostname.text(),
+                "target_node": self.target_node.text(),
+                "username": self.username.text(),
+                "remote_path_prefix": self.remote_path_prefix.text(),
+                "mounted_path_prefix": self.mounted_path_prefix.text(),
+                "command_prepend": self.command_prepend.text(),
+                "ssh_key_path": self.ssh_key_path,
+            },
         }
         return settings
 
@@ -146,6 +167,7 @@ The profile determines where the pipeline is run.
                 "output_format": params.get("output_format"),
                 "output_mask_type": params.get("output_mask_type"),
             },
+            "ssh_settings": self.get_settings()["ssh_settings"],
         }
         return widget_config
 
@@ -188,6 +210,25 @@ The profile determines where the pipeline is run.
             idx = self.output_mask_type_box.findText(output_mask_type)
             if idx != -1:
                 self.output_mask_type_box.setCurrentIndex(idx)
+
+        # loading ssh section
+        ssh_settings = config.get("ssh_settings") or {}
+        self.ssh_box.setChecked(bool(ssh_settings.get("active", False)))
+        self.hostname.setText(ssh_settings.get("hostname", ""))
+        self.target_node.setText(ssh_settings.get("target_node", ""))
+        self.username.setText(ssh_settings.get("username", ""))
+        self.remote_path_prefix.setText(ssh_settings.get("remote_path_prefix", ""))
+        self.mounted_path_prefix.setText(ssh_settings.get("mounted_path_prefix", ""))
+        self.command_prepend.setText(ssh_settings.get("command_prepend", ""))
+        self.ssh_key_path = ssh_settings.get("ssh_key_path", "")
+        self.ssh_key_label.setText(
+            f"SSH Key: {self.ssh_key_path}"
+            if self.ssh_key_path
+            else "SSH Key: Not selected"
+        )
+        # Show the SSH panel if it's in use, so the loaded values are visible
+        if self.ssh_box.isChecked():
+            self.ssh_options.setChecked(True)
 
     def setup_nxf_dir_cmd(self, base_dir: Path | None = None):
         # Set the basepath to store masks/checkpoints etc. in
@@ -864,6 +905,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.parent.store_settings()
         # Store the image paths
         self.store_img_paths(img_paths=img_paths)
+        # Record the images actually submitted, in their mounted form
+        self.executed_img_paths = [Path(p) for p in img_paths]
         # Add custom work directory
         if self.nxf_work_dir is not None:
             nxf_cmd += f" -w {self.nxf_work_dir}"
