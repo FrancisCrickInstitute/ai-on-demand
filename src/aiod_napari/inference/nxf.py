@@ -742,6 +742,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         - A task has been selected
         - A model has been selected
         - Data has been selected
+        - Required SSH options are set, if SSH is enabled
         """
         if self.parent.selected_task is None:
             raise ValueError("No task/organelle selected!")
@@ -749,6 +750,22 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             raise ValueError("No model selected!")
         if len(self.parent.subwidgets["data"].image_path_dict) == 0:
             raise ValueError("No data selected!")
+        if self.ssh_box.isChecked():
+            self.check_ssh_options()
+
+    def check_ssh_options(self):
+        required_fields = {
+            "Hostname": self.hostname.text(),
+            "Username": self.username.text(),
+            "Remote path prefix": self.remote_path_prefix.text(),
+            "Mounted path prefix": self.mounted_path_prefix.text(),
+            "Command prepend": self.command_prepend.text(),
+        }
+        missing = [name for name, value in required_fields.items() if not value]
+        if not self.ssh_key_path:
+            missing.append("SSH Key")
+        if missing:
+            raise ValueError(f"missing: {', '.join(missing)}. for SSH pipeine run")
 
     def setup_inference(self, nxf_params: dict | None = None):
         """
