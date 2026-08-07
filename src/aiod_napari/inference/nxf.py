@@ -93,6 +93,10 @@ The profile determines where the pipeline is run.
         self.nxf_params = None
         # Mounted paths of the images submitted in the last run
         self.executed_img_paths = None
+        # Local process running the pipeline (None when run over SSH)
+        self.process = None
+        # Hash identifying the remote Nextflow process (None when run locally)
+        self._ssh_cancel_hash = None
 
         self.pipeline = pipeline
         # Available pipelines and their funcs
@@ -1018,8 +1022,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
             self._run_command(nxf_cmd)
 
+        self.process = None
+        self._ssh_cancel_hash = None
         # Run the pipeline
         if self.ssh_box.isChecked():
+            # Run hash is used to identify the Nextflow process so that we can cancel the pipeline cleanly
+            self._ssh_cancel_hash = self.parent.run_hash
             _run_pipeline_ssh(nxf_cmd, img_paths)
         else:
             _run_pipeline(nxf_cmd)
@@ -1145,12 +1153,52 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.pbar_label.setText("Progress: [--:--]")
 
     def cancel_pipeline(self):
-        # Trigger Nextflow to cancel the pipeline
-        self.process.send_signal(subprocess.signal.SIGTERM)
+        if self._ssh_cancel_hash is not None:
+            self._cancel_pipeline_ssh()
+        else:
+            self.process.send_signal(subprocess.signal.SIGTERM)
+        # Cancelling isn't instant, indicate process
+        self.cancel_btn.setEnabled(False)
+        self.cancel_btn.setText("Cancelling...")
         # Reset the progress bar
         self.reset_progress_bar()
         # Remove mask layers that were added
         self.parent.remove_mask_layers()
+
+    def _build_ssh_cancel_cmd(self) -> str:
+        """
+        Compose the remote command that finds this run's Nextflow process and SIGTERMs it.
+
+        Notes on the ps invocation:
+          -ww          don't truncate; the java command line is long and the
+                       -params-file argument carrying the hash is at the very end
+          $2 ~ /java/  unanchored, as comm is the basename on Linux but a (truncated)
+                       full path on macOS; the hash is what actually identifies the
+                       run, so comm only has to rule out this session's bash and awk
+        """
+        username = shlex.quote(self.username.text())
+        run_hash = shlex.quote(self._ssh_cancel_hash)
+        return (
+            f"pids=$(ps -u {username} -ww -o pid=,comm=,args= "
+            f"| awk -v h={run_hash} '$2 ~ /java/ && index($0, h) {{print $1}}'); "
+            f'if [ -n "$pids" ]; then '
+            f'echo "Cancelling Nextflow process(es): $pids"; '
+            f"kill -TERM $pids; "
+            f'else echo "No running Nextflow process found for this run"; fi'
+        )
+
+    def _cancel_pipeline_ssh(self):
+        cmd = self._build_ssh_cancel_cmd()
+
+        @thread_worker(
+            connect={
+                "errored": lambda exc: show_info(f"Failed to cancel pipeline: {exc}"),
+            }
+        )
+        def _cancel():
+            self._run_command(cmd)
+
+        _cancel()
 
     def update_tile_size(self, val: int | float, clear_label: bool = False):
         """
@@ -1450,6 +1498,17 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                     print(stdout_line, end="")
                 if stderr_line:
                     print(stderr_line, end="")
+            # Check if the command was successful
+            exit_status = stdout.channel.recv_exit_status()
+            if exit_status != 0:
+                node = target_node or hostname
+                if exit_status == -1:
+                    raise RuntimeError(
+                        f"Command on {node} ended without reporting an exit status (killed or connection lost)"
+                    )
+                raise RuntimeError(
+                    f"Command exited with status {exit_status} on {node}"
+                )
 
         except Exception as e:
             raise Exception(f"Error executing command via ssh: {str(e)}")
