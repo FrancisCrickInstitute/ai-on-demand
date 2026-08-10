@@ -52,6 +52,10 @@ class NxfWidget(SubWidget):
     pipeline_finished = qtpy.QtCore.Signal()
     pipeline_failed = qtpy.QtCore.Signal()
 
+    # How long the remote cancel keeps looking for the Nextflow process to kill
+    _SSH_CANCEL_TIMEOUT_S = 300
+    _SSH_CANCEL_INTERVAL_S = 5
+
     def __init__(
         self,
         viewer: napari.Viewer,
@@ -97,6 +101,9 @@ The profile determines where the pipeline is run.
         self.process = None
         # Hash identifying the remote Nextflow process (None when run locally)
         self._ssh_cancel_hash = None
+        # Set when the user cancels, so that a local run cancelled before Popen
+        # returned still gets terminated once there is a process to signal
+        self.run_cancelled = False
 
         self.pipeline = pipeline
         # Available pipelines and their funcs
@@ -262,7 +269,7 @@ The profile determines where the pipeline is run.
         self.ssh_options = QPushButton(" ▶ SSH Options")
         self.ssh_options.setCheckable(True)
         self.ssh_options.setStyleSheet(
-            f"QPushButton {{ text-align: left; }} QPushButton:checked {{background-color: {self.parent.subwidgets['model'].colour_selected}}}"
+            f"QPushButton {{ text-align: left; }} QPushButton:checked {{background-color: {self.parent.subwidgets['model'].colour_selected}}}"  # maybe a better place to put colour_selected constant
         )
         self.ssh_options.toggled.connect(self.on_toggle_ssh_options)
         self.ssh_options.setToolTip(
@@ -961,10 +968,15 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 shell=False,
                 cwd=Path.home(),
             )
+            # if cancel pipeline was pressed before popen returned
+            if self.run_cancelled:
+                self.process.send_signal(subprocess.signal.SIGTERM)
             self.process.wait()
             # Check if the process was successful
             if self.process.returncode != 0:
-                raise RuntimeError
+                raise RuntimeError(
+                    f"Pipeline exited with status {self.process.returncode}"
+                )
 
         @thread_worker(
             connect={
@@ -1041,6 +1053,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
         self.process = None
         self._ssh_cancel_hash = None
+        self.run_cancelled = False
         # Run the pipeline
         if self.ssh_box.isChecked():
             # Run hash is used to identify the Nextflow process so that we can cancel the pipeline cleanly
@@ -1170,10 +1183,15 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.pbar_label.setText("Progress: [--:--]")
 
     def cancel_pipeline(self):
+        self.run_cancelled = True
         if self._ssh_cancel_hash is not None:
             self._cancel_pipeline_ssh()
         else:
-            self.process.send_signal(subprocess.signal.SIGTERM)
+            # Read once, as the worker assigns it. If it's still None then Popen
+            # hasn't returned; _run_pipeline sees run_cancelled and kills it then
+            proc = self.process
+            if proc is not None:
+                proc.send_signal(subprocess.signal.SIGTERM)
         # Cancelling isn't instant, indicate process
         self.cancel_btn.setEnabled(False)
         self.cancel_btn.setText("Cancelling...")
@@ -1186,6 +1204,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         """
         Compose the remote command that finds this run's Nextflow process and SIGTERMs it.
 
+        Retries because process may take a while to start
+
         Notes on the ps invocation:
           -ww          don't truncate; the java command line is long and the
                        -params-file argument carrying the hash is at the very end
@@ -1195,13 +1215,19 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         """
         username = shlex.quote(self.username.text())
         run_hash = shlex.quote(self._ssh_cancel_hash)
+        attempts = max(1, self._SSH_CANCEL_TIMEOUT_S // self._SSH_CANCEL_INTERVAL_S)
         return (
+            f"for i in $(seq 1 {attempts}); do "
             f"pids=$(ps -u {username} -ww -o pid=,comm=,args= "
             f"| awk -v h={run_hash} '$2 ~ /java/ && index($0, h) {{print $1}}'); "
             f'if [ -n "$pids" ]; then '
             f'echo "Cancelling Nextflow process(es): $pids"; '
-            f"kill -TERM $pids; "
-            f'else echo "No running Nextflow process found for this run"; fi'
+            # SIGTERM only: Nextflow's shutdown hook is what cancels the jobs it
+            # submitted to the scheduler, so SIGKILL would strand them
+            f"kill -TERM $pids; exit 0; fi; "
+            f'echo "Nextflow not started yet, retrying..."; '
+            f"sleep {self._SSH_CANCEL_INTERVAL_S}; done; "
+            f'echo "No running Nextflow process found for this run"; exit 1'
         )
 
     def _cancel_pipeline_ssh(self):
@@ -1209,6 +1235,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
         @thread_worker(
             connect={
+                "returned": lambda *_: show_info("Pipeline cancelled"),
                 "errored": lambda exc: show_info(f"Failed to cancel pipeline: {exc}"),
             }
         )
