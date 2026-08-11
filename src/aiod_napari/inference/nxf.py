@@ -52,9 +52,9 @@ class NxfWidget(SubWidget):
     pipeline_finished = qtpy.QtCore.Signal()
     pipeline_failed = qtpy.QtCore.Signal()
 
-    # How long the remote cancel keeps looking for the Nextflow process to kill
     _SSH_CANCEL_TIMEOUT_S = 300
     _SSH_CANCEL_INTERVAL_S = 5
+    _SSH_CONNECT_TIMEOUT_S = 15
 
     def __init__(
         self,
@@ -773,6 +773,15 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             missing.append("SSH Key")
         if missing:
             raise ValueError(f"missing: {', '.join(missing)}. for SSH pipeine run")
+
+        mounted_prefix = Path(self.mounted_path_prefix.text())
+        if not Path(self.nxf_base_dir).is_relative_to(mounted_prefix):
+            raise ValueError(
+                f"The Nextflow base directory '{self.nxf_base_dir}' does not start with "
+                f"the configured Mounted path prefix '{mounted_prefix}'. This usually means "
+                "the remote drive is not currently mounted, or the mounted path prefix"
+                "is set incorrectly."
+            )
 
     def setup_inference(self, nxf_params: dict | None = None):
         """
@@ -1507,6 +1516,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 username=username,
                 key_filename=ssh_key_path,
                 passphrase=passphrase,
+                timeout=self._SSH_CONNECT_TIMEOUT_S,
             )
             if target_node:
                 # Get a direct-tcpip channel to the target node through the jump host
@@ -1527,6 +1537,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                     key_filename=ssh_key_path,
                     sock=channel,
                     passphrase=passphrase,
+                    timeout=self._SSH_CONNECT_TIMEOUT_S,
                 )
             else:
                 target = jump
