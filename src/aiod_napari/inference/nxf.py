@@ -1541,20 +1541,17 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 )
             else:
                 target = jump
+            # Combine stderr into stdout so there's a single stream to read;
+            channel = target.get_transport().open_session()
+            channel.set_combine_stderr(True)
             # Execute command on the target node
-            _, stdout, stderr = target.exec_command(command)
+            channel.exec_command(command)
+            stdout = channel.makefile("r")
 
-            while True:
-                stdout_line = stdout.readline()
-                stderr_line = stderr.readline()
-                if not stdout_line and not stderr_line:
-                    break
-                if stdout_line:
-                    print(stdout_line, end="")
-                if stderr_line:
-                    print(stderr_line, end="")
+            for line in stdout:
+                print(line, end="")
             # Check if the command was successful
-            exit_status = stdout.channel.recv_exit_status()
+            exit_status = channel.recv_exit_status()
             if exit_status != 0:
                 node = target_node or hostname
                 if exit_status == -1:
