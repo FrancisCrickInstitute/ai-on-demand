@@ -52,7 +52,7 @@ class NxfWidget(SubWidget):
     pipeline_finished = qtpy.QtCore.Signal()
     pipeline_failed = qtpy.QtCore.Signal()
 
-    _SSH_CANCEL_TIMEOUT_S = 300
+    _SSH_CANCEL_TIMEOUT_S = 150
     _SSH_CANCEL_INTERVAL_S = 5
     _SSH_CONNECT_TIMEOUT_S = 15
 
@@ -1242,10 +1242,15 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
     def _cancel_pipeline_ssh(self):
         cmd = self._build_ssh_cancel_cmd()
 
+        def _on_cancel_failed(exc):
+            show_info(f"Failed to cancel pipeline: {exc}")
+            self.cancel_btn.setEnabled(True)
+            self.cancel_btn.setText("Cancel Pipeline")
+
         @thread_worker(
             connect={
                 "returned": lambda *_: show_info("Pipeline cancelled"),
-                "errored": lambda exc: show_info(f"Failed to cancel pipeline: {exc}"),
+                "errored": _on_cancel_failed,
             }
         )
         def _cancel():
