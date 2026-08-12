@@ -1184,7 +1184,22 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             if model_config_path and Path(model_config_path).exists():
                 with open(model_config_path) as f:
                     params["model_config"] = yaml.safe_load(f)
-            info = yaml.dump(params)
+            preprocess_sets = params.get("preprocess")
+            # Insert the hash with the preprocess params for users
+            if preprocess_sets:
+                recipes = {}
+                for pp_set in preprocess_sets:
+                    if not pp_set:
+                        recipes["no preprocessing"] = None
+                        continue
+                    prep_hash = aiod_utils.preprocess.hash_params_str(
+                        aiod_utils.preprocess.get_params_str(pp_set, to_save=True)
+                    )
+                    recipes[prep_hash] = aiod_utils.preprocess.get_params_str(
+                        pp_set, to_save=False
+                    )
+                params["preprocess"] = recipes
+            info = yaml.dump(params, sort_keys=False)
 
         params_popup = InfoWindow(
             self,
