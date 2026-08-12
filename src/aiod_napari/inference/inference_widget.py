@@ -194,6 +194,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 mask_data, metadata = self._load_mask_file(mask_fpath)
                 metadata = metadata["metadata"]
                 metadata["img_scale"] = img_layer.scale
+                metadata["preprocess_str"] = preprocess_str
                 # Read downsampling structured preprocessing options
                 downsample_factor = (
                     aiod_utils.preprocess.get_downsample_factor(methods=prep_options)
@@ -312,6 +313,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                             expanded.insert(pos, 1)
                     mask_shape = tuple(expanded)
                 img_metadata["img_scale"] = img_layer.scale
+                img_metadata["preprocess_str"] = preprocess_str
                 # After expansion mask_shape has the same ndim as img_layer.scale.
                 mask_scale = img_layer.scale
                 # Add a Labels layer for this file
