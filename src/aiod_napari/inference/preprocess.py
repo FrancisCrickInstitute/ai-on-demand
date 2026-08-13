@@ -130,6 +130,7 @@ Any preprocessing applied here is for visualization purposes only, only the orig
                     param_row.addWidget(widget)
                 # Get cleaner representation of list/tuple (avoid () & [])
                 elif isinstance(defaults := param_dict["default"], (list, tuple)):
+                    subwidgets = []
                     for val in defaults:
                         if isinstance(val, (int, float)):
                             subwidget = (
@@ -147,6 +148,8 @@ Any preprocessing applied here is for visualization purposes only, only the orig
                                 f"Parameter {param_name} of preprocess method {name} has an invalid type ({type(val)}) in the default list/tuple."
                             )
                         param_row.addWidget(subwidget)
+                        subwidgets.append(subwidget)
+                    widget = subwidgets
                 else:
                     raise ValueError(
                         f"Parameter {param_name} of preprocess method {name} has an invalid type ({type(param_dict['default'])})."
@@ -160,7 +163,7 @@ Any preprocessing applied here is for visualization purposes only, only the orig
                 param_row.addStretch()
                 group_layout.addLayout(param_row)
                 # Store the widget to extract the value of later
-                self.preprocess_boxes[name]["params"][param_name] = param_row.itemAt(1).widget()
+                self.preprocess_boxes[name]["params"][param_name] = widget
 
             # Add the group box to the inner layout
             self.inner_layout.addWidget(group_box)
@@ -344,26 +347,23 @@ NOTE: The result is just for visualization! Only the original image will be used
                 # Get the default dtype to cast the value back
                 dtype = type(method_dict["params"][param_name]["default"])
                 # Extract the value based on the widget type
-                if isinstance(widget, QCheckBox):
-                    value = widget.isChecked()
-                elif isinstance(widget, QLineEdit):
-                    value = widget.text()
-                elif isinstance(widget, QComboBox):
-                    value = widget.currentText()
-                # Some elements converts all to str, so cast back just in case
-                if dtype in (list, tuple):
-                    # Get internal dtype to cast individual elements
-                    internal_dtype = type(
-                        method_dict["params"][param_name]["default"][0]
-                    )
+                if isinstance(widget, list):
+                    # Multiple spinboxes/lineedits for a list/tuple param
+                    internal_dtype = type(method_dict["params"][param_name]["default"][0])
                     # NOTE: We always cast to list to avoid '!!python/tuple' pyyaml tag
                     # As this cannot be loaded by the yaml.safe_load function
-                    # And I do not want to use another loader for configs that users can write
-                    option_dict["params"][param_name] = list(
-                        map(internal_dtype, value.replace(" ", "").split(","))
-                    )
-                else:
-                    option_dict["params"][param_name] = dtype(value)
+                    option_dict["params"][param_name] = [
+                        internal_dtype(w.value() if isinstance(w, (QSpinBox, QDoubleSpinBox)) else w.text())
+                        for w in widget
+                    ]
+                elif isinstance(widget, QCheckBox):
+                    option_dict["params"][param_name] = widget.isChecked()
+                elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+                    option_dict["params"][param_name] = dtype(widget.value())
+                elif isinstance(widget, QLineEdit):
+                    option_dict["params"][param_name] = dtype(widget.text())
+                elif isinstance(widget, QComboBox):
+                    option_dict["params"][param_name] = dtype(widget.currentText())
             # Add the method dict to the options list
             options.append(option_dict)
         return options
@@ -433,18 +433,21 @@ NOTE: The result is just for visualization! Only the original image will be used
             widget_dict["box"].setChecked(False)
             for param_name, widget in widget_dict["params"].items():
                 param_dict = self.preprocess_methods[name]["params"][param_name]
-                if isinstance(widget, QCheckBox):
+                default = param_dict["default"]
+                if isinstance(widget, list):
+                    for w, val in zip(widget, default):
+                        if isinstance(w, (QSpinBox, QDoubleSpinBox)):
+                            w.setValue(val)
+                        elif isinstance(w, QLineEdit):
+                            w.setText(str(val))
+                elif isinstance(widget, QCheckBox):
                     widget.setChecked(False)
+                elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+                    widget.setValue(default)
                 elif isinstance(widget, QLineEdit):
-                    default_value = param_dict["default"]
-                    if isinstance(default_value, (int, float, str)):
-                        widget.setText(str(default_value))
-                    elif isinstance(default_value, (list, tuple)):
-                        widget.setText(", ".join(map(str, default_value)))
+                    widget.setText(str(default))
                 elif isinstance(widget, QComboBox):
-                    widget.setCurrentIndex(
-                        param_dict["values"].index(param_dict["default"])
-                    )
+                    widget.setCurrentIndex(param_dict["values"].index(default))
 
     def _update_viewsets_btn(self):
         count = len(self.preprocess_sets)
@@ -504,17 +507,22 @@ NOTE: The result is just for visualization! Only the original image will be used
             self.preprocess_boxes[name]["box"].setChecked(True)
             for param_name, value in params.items():
                 widget = self.preprocess_boxes[name]["params"][param_name]
-                if isinstance(widget, QCheckBox):
+                if isinstance(widget, list):
+                    for w, val in zip(widget, value):
+                        if isinstance(w, (QSpinBox, QDoubleSpinBox)):
+                            w.setValue(val)
+                        elif isinstance(w, QLineEdit):
+                            w.setText(str(val))
+                elif isinstance(widget, QCheckBox):
                     widget.setChecked(bool(value))
+                elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+                    widget.setValue(value)
                 elif isinstance(widget, QComboBox):
                     idx = widget.findText(str(value))
                     if idx != -1:
                         widget.setCurrentIndex(idx)
                 elif isinstance(widget, QLineEdit):
-                    if isinstance(value, (list, tuple)):
-                        widget.setText(", ".join(map(str, value)))
-                    else:
-                        widget.setText(str(value))
+                    widget.setText(str(value))
             self.order_list.append(name)
         if self.order_list:
             self.preprocess_order.setText("->".join(self.order_list))
