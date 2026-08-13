@@ -14,13 +14,16 @@ from qtpy.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QDoubleSpinBox,
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLayout,
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -70,6 +73,8 @@ Any preprocessing applied here is for visualization purposes only, only the orig
         self.preprocess_order = QLineEdit()
         self.preprocess_order.setReadOnly(True)
         self.preprocess_order.setText(self.init_order)
+
+        _min_spin_width = "35px"
         # Go through each method, creating a box and populating the UI elements for each parameter
         for name, d in self.preprocess_methods.items():
             group_box = QGroupBox(name)
@@ -82,14 +87,15 @@ Any preprocessing applied here is for visualization purposes only, only the orig
             group_box.setCheckable(True)
             group_box.setChecked(False)
             group_box.clicked.connect(self.on_click_preprocess(name))
-            group_layout = QGridLayout()
+            group_layout = QVBoxLayout()
             group_box.setLayout(group_layout)
 
             # Loop through params
             for i, (param_name, param_dict) in enumerate(d["params"].items()):
                 # Create the label
                 label = QLabel(param_dict["name"])
-                group_layout.addWidget(label, i, 0, 1, 1)
+                param_row = QHBoxLayout()
+                param_row.addWidget(label)
 
                 # Create the input based on type
                 # If values key exist, multiple options to select
@@ -101,31 +107,60 @@ Any preprocessing applied here is for visualization purposes only, only the orig
                     widget.setCurrentIndex(
                         param_dict["values"].index(param_dict["default"])
                     )
+                    param_row.addWidget(widget)
                 elif isinstance(param_dict["default"], bool):
                     widget = QCheckBox()
                     if param_dict["default"]:
                         widget.setChecked(True)
                     else:
                         widget.setChecked(False)
-                elif isinstance(param_dict["default"], (int, float, str)):
+                    param_row.addWidget(widget)
+                elif isinstance(param_dict["default"], (str)):
                     widget = QLineEdit()
                     widget.setText(str(param_dict["default"]))
+                    param_row.addWidget(widget)
+                elif isinstance(param_dict["default"], (int, float)):
+                    widget = (
+                        QSpinBox()
+                        if isinstance(param_dict["default"], int)
+                        else QDoubleSpinBox()
+                    )
+                    widget.setValue(param_dict["default"])
+                    widget.setStyleSheet(f"min-width: {_min_spin_width}")
+                    param_row.addWidget(widget)
                 # Get cleaner representation of list/tuple (avoid () & [])
-                elif isinstance(param_dict["default"], (list, tuple)):
-                    widget = QLineEdit()
-                    widget.setText(", ".join(map(str, param_dict["default"])))
+                elif isinstance(defaults := param_dict["default"], (list, tuple)):
+                    for val in defaults:
+                        if isinstance(val, (int, float)):
+                            subwidget = (
+                                QSpinBox()
+                                if isinstance(val, int)
+                                else QDoubleSpinBox()
+                            )
+                            subwidget.setValue(val)
+                            subwidget.setStyleSheet(f"min-width: {_min_spin_width}")
+                        elif isinstance(val, str):
+                            subwidget = QLineEdit()
+                            subwidget.setText(val)
+                        else:
+                            raise ValueError(
+                                f"Parameter {param_name} of preprocess method {name} has an invalid type ({type(val)}) in the default list/tuple."
+                            )
+                        param_row.addWidget(subwidget)
                 else:
                     raise ValueError(
                         f"Parameter {param_name} of preprocess method {name} has an invalid type ({type(param_dict['default'])})."
                     )
                 # Add tooltip if available
                 if "tooltip" in param_dict:
-                    label.setToolTip(format_tooltip(param_dict["tooltip"]))
-                    widget.setToolTip(format_tooltip(param_dict["tooltip"]))
-                # Add the widget to the layout
-                group_layout.addWidget(widget, i, 1, 1, 1)
+                    tooltip = format_tooltip(param_dict["tooltip"])
+                    for i in range(param_row.count()):
+                        param_row.itemAt(i).widget().setToolTip(tooltip)
+                # Build the row and add to group
+                param_row.addStretch()
+                group_layout.addLayout(param_row)
                 # Store the widget to extract the value of later
-                self.preprocess_boxes[name]["params"][param_name] = widget
+                self.preprocess_boxes[name]["params"][param_name] = param_row.itemAt(1).widget()
 
             # Add the group box to the inner layout
             self.inner_layout.addWidget(group_box)
