@@ -3,7 +3,6 @@ from pathlib import Path
 
 import aiod_utils.io as aiod_io
 import napari
-import pandas as pd
 import qtpy.QtCore
 from bioio_base.dimensions import Dimensions
 from napari.layers import Image, Layer
@@ -438,23 +437,8 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             self.viewer.layers.remove(layer)
 
     def get_config_params(self, params):
-        # Retrieves the image path with the mounted prefix when running via ssh
-        executed_img_paths = getattr(
-            self.parent.subwidgets.get("nxf"), "executed_img_paths", None
-        )
-        if executed_img_paths:
-            return {"img_paths": [str(p) for p in executed_img_paths]}
-        img_dir = params.get("img_dir")
-        if img_dir is None:
-            return {"img_paths": []}
-        try:
-            df = pd.read_csv(img_dir)
-            img_paths = df["img_path"].drop_duplicates().tolist()
-        except Exception as e:
-            raise RuntimeError(
-                f"Failed to read image list from config (img_dir={img_dir})"
-            ) from e
-        return {"img_paths": img_paths}
+        executed_img_paths = self.parent.subwidgets["nxf"].executed_img_paths
+        return {"img_paths": [str(p) for p in executed_img_paths]}
 
     def load_config(self, config):
         img_paths = config["img_paths"]

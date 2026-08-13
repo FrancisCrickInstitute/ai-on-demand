@@ -95,7 +95,7 @@ The profile determines where the pipeline is run.
 
         self.nxf_cmd = None
         self.nxf_params = None
-        # Mounted paths of the images submitted in the last run
+        # Used by data selection widget when using project configs
         self.executed_img_paths = None
         # Local process running the pipeline (None when run over SSH)
         self.process = None
@@ -796,8 +796,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         if not Path(self.nxf_base_dir).is_relative_to(mounted_prefix):
             raise ValueError(
                 f"The Nextflow base directory '{self.nxf_base_dir}' does not start with "
-                f"the configured Mounted path prefix '{mounted_prefix}'. This usually means "
-                "the remote drive is not currently mounted, or the mounted path prefix"
+                f"the configured mounted path prefix '{mounted_prefix}'. This usually means "
+                "the remote drive is not currently mounted, or the mounted path prefix "
                 "is set incorrectly."
             )
 
@@ -1035,7 +1035,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
             self.store_img_paths(img_paths=remote_img_paths)
 
-            with open(nxf_params_fpath, "r") as f:
+            with open(nxf_params_fpath) as f:
                 nxf_params = yaml.safe_load(f)
 
             for k, v in nxf_params.items():
