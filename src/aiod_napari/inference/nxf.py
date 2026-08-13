@@ -2,12 +2,13 @@ import re
 import shlex
 import shutil
 import subprocess
-import paramiko
+from importlib.resources import files
 from os import environ
 from pathlib import Path
 
 import aiod_utils.preprocess
 import napari
+import paramiko
 import qtpy.QtCore
 import tqdm
 import yaml
@@ -27,13 +28,13 @@ from qtpy.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLayout,
+    QLineEdit,
     QMessageBox,
     QProgressBar,
     QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
-    QLineEdit,
 )
 
 from aiod_napari.utils import (
@@ -65,13 +66,12 @@ class NxfWidget(SubWidget):
         **kwargs,
     ):
         # Define attributes that may be useful outside of this class or throughout it
-        _bundled = Path(__file__).parent.parent / "Segment-Flow"
         if "AIOD_NXF_REPO" in environ:
             self.nxf_repo = Path(environ["AIOD_NXF_REPO"])
             self.nxf_profiles_dir = self.nxf_repo / "profiles"
         else:
             self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
-            self.nxf_profiles_dir = _bundled / "profiles"
+            self.nxf_profiles_dir = Path(files("aiod_napari").joinpath("nxf_profiles"))
         # Set the base Nextflow command
         self.setup_nxf_dir_cmd()
         super().__init__(
@@ -368,11 +368,13 @@ The profile determines where the pipeline is run.
         # Button to inspect the base directory/cache
         self.nxf_dir_inspect_btn = QPushButton("Inspect cache")
         self.nxf_dir_inspect_btn.clicked.connect(self.on_click_inspect_cache)
-        self.nxf_dir_inspect_btn.setToolTip(format_tooltip("""
+        self.nxf_dir_inspect_btn.setToolTip(
+            format_tooltip("""
 Open the base directory in the file explorer to inspect the cache.
 
 Note that 'opening' won't do anything, this is just to see what files are present.
-"""))
+""")
+        )
         # Button to clear the cache
         self.nxf_dir_clear_btn = QPushButton("Clear cache")
         self.nxf_dir_clear_btn.clicked.connect(self.on_click_clear_cache)
@@ -419,11 +421,13 @@ Note that 'opening' won't do anything, this is just to see what files are presen
 
         # Add a checkbox for overwriting existing results
         self.overwrite_btn = QCheckBox("Overwrite existing results")
-        self.overwrite_btn.setToolTip(format_tooltip("""
+        self.overwrite_btn.setToolTip(
+            format_tooltip("""
 Select/enable to overwrite any previous results.
 
 Exactly what is overwritten will depend on the pipeline selected. By default, any previous results matching the current setup will be loaded if possible. This can be disabled by ticking this box.
-        """))
+        """)
+        )
         self.pipeline_layout.addWidget(self.overwrite_btn, 1, 0, 1, 1)
 
         # Add widget for advanced options
@@ -435,9 +439,11 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
             f"QPushButton {{ text-align: left; }} QPushButton:checked {{background-color: {self.parent.subwidgets['model'].colour_selected}}}"
         )
         self.advanced_box.toggled.connect(self.on_toggle_advanced)
-        self.advanced_box.setToolTip(format_tooltip("""
+        self.advanced_box.setToolTip(
+            format_tooltip("""
 Show/hide advanced options for the Nextflow pipeline. These options define how to split an image into separate jobs in Nextflow. The underlying models will likely do their own splitting internally into patches, but this controls the trade-off between the number and size of each job.
-"""))
+""")
+        )
         self.advanced_widget = QWidget()
         self.advanced_layout = QGridLayout()
 
@@ -485,9 +491,11 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
 
         # Dialog button to view pipeline parameters for selected hash
         self.display_params_button = QPushButton("Pipeline Parameters")
-        self.display_params_button.setToolTip(format_tooltip("""
+        self.display_params_button.setToolTip(
+            format_tooltip("""
 View the parameters used for the currently selected output.
-"""))
+""")
+        )
         self.display_params_button.setEnabled(False)
         # Check if run hash available whenever selection changes
         self.viewer.layers.selection.events.changed.connect(
@@ -509,25 +517,31 @@ View the parameters used for the currently selected output.
 
     def _add_advanced_options(self):
         self.tile_x_label = QLabel("Number X tiles:")
-        self.tile_x_label.setToolTip(format_tooltip("""
+        self.tile_x_label.setToolTip(
+            format_tooltip("""
 Number of tiles to split the image into in the X dimension. 'auto' allows Nextflow to decide an appropriate split.
-"""))
+""")
+        )
         self.tile_x = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_x.setSpecialValueText("auto")
         self.tile_x.setAlignment(qtpy.QtCore.Qt.AlignCenter)
 
         self.tile_y_label = QLabel("Number Y tiles:")
-        self.tile_y_label.setToolTip(format_tooltip("""
+        self.tile_y_label.setToolTip(
+            format_tooltip("""
 Number of tiles to split the image into in the Y dimension. 'auto' allows Nextflow to decide an appropriate split.
-"""))
+""")
+        )
         self.tile_y = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_y.setSpecialValueText("auto")
         self.tile_y.setAlignment(qtpy.QtCore.Qt.AlignCenter)
 
         self.tile_z_label = QLabel("Number Z tiles:")
-        self.tile_z_label.setToolTip(format_tooltip("""
+        self.tile_z_label.setToolTip(
+            format_tooltip("""
 Number of tiles to split the image into in the Z dimension. 'auto' allows Nextflow to decide an appropriate split.
-"""))
+""")
+        )
         self.tile_z = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_z.setSpecialValueText("auto")
         self.tile_z.setAlignment(qtpy.QtCore.Qt.AlignCenter)
@@ -587,15 +601,19 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         # Add post-processing options
         self.postprocess_btn = QCheckBox("Re-label output")
         self.postprocess_btn.setChecked(False)
-        self.postprocess_btn.setToolTip(format_tooltip("""
+        self.postprocess_btn.setToolTip(
+            format_tooltip("""
 If checked, the model output will be re-labelled using connected components to create consistency across slices.
-            """))
+            """)
+        )
         self.advanced_layout.addWidget(self.postprocess_btn, 7, 0, 1, 2)
         # Add threshold for IoU SAM post-processing
         self.iou_thresh_label = QLabel("IoU threshold (SAM only):")
-        self.iou_thresh_label.setToolTip(format_tooltip("""
+        self.iou_thresh_label.setToolTip(
+            format_tooltip("""
 Threshold for the Intersection over Union (IoU) metric used in the SAM post-processing step.
-            """))
+            """)
+        )
         self.iou_thresh = QDoubleSpinBox(minimum=0.0, maximum=1.0, value=0.8)
         self.iou_thresh.setSingleStep(0.01)
         self.iou_thresh.setAlignment(qtpy.QtCore.Qt.AlignCenter)
