@@ -8,12 +8,14 @@ from pathlib import Path
 
 import aiod_utils.preprocess
 import napari
+import paramiko
 import qtpy.QtCore
 import tqdm
 import yaml
 from aiod_registry import TASK_NAMES
 from aiod_utils.io import image_paths_to_csv
 from aiod_utils.stacks import Stack, calc_num_stacks, generate_stack_indices
+from napari._qt.qt_resources import QColoredSVGIcon
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
 from qtpy.QtWidgets import (
@@ -26,6 +28,7 @@ from qtpy.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLayout,
+    QLineEdit,
     QMessageBox,
     QProgressBar,
     QPushButton,
@@ -49,6 +52,10 @@ class NxfWidget(SubWidget):
     config_ready = qtpy.QtCore.Signal()
     pipeline_finished = qtpy.QtCore.Signal()
     pipeline_failed = qtpy.QtCore.Signal()
+
+    _SSH_CANCEL_TIMEOUT_S = 150
+    _SSH_CANCEL_INTERVAL_S = 5
+    _SSH_CONNECT_TIMEOUT_S = 15
 
     def __init__(
         self,
@@ -88,6 +95,15 @@ The profile determines where the pipeline is run.
 
         self.nxf_cmd = None
         self.nxf_params = None
+        # Used by data selection widget when using project configs
+        self.executed_img_paths = None
+        # Local process running the pipeline (None when run over SSH)
+        self.process = None
+        # Hash identifying the remote Nextflow process (None when run locally)
+        self._ssh_cancel_hash = None
+        # Set when the user cancels, so that a local run cancelled before Popen
+        # returned still gets terminated once there is a process to signal
+        self.run_cancelled = False
 
         self.pipeline = pipeline
         # Available pipelines and their funcs
@@ -117,7 +133,16 @@ The profile determines where the pipeline is run.
                     self.nxf_profile_box.setCurrentIndex(idx)
             # Set the base directory
             if "base_dir" in settings:
-                nxf_base_dir = Path(settings["base_dir"])
+                base_dir = Path(settings["base_dir"])
+                if base_dir.exists():
+                    nxf_base_dir = base_dir
+                # in the case where user has unmounted a drive (e.g. remote server drive for ssh pipeline)
+                else:
+                    print(
+                        f"Warning: Could not access {settings['base_dir']}, falling back to default cache directory."
+                    )
+                    nxf_base_dir = Path.home() / ".nextflow" / "aiod"
+                    nxf_base_dir.mkdir(parents=True, exist_ok=True)
                 self.nxf_dir_text.setText(str(nxf_base_dir))
                 # Update the base directory and Nextflow command
                 self.setup_nxf_dir_cmd(base_dir=Path(nxf_base_dir))
@@ -129,6 +154,16 @@ The profile determines where the pipeline is run.
         settings = {
             "base_dir": str(self.nxf_base_dir),
             "profile": self.nxf_profile_box.currentText(),
+            "ssh_settings": {
+                "active": self.ssh_box.isChecked(),
+                "hostname": self.hostname.text(),
+                "target_node": self.target_node.text(),
+                "username": self.username.text(),
+                "remote_path_prefix": self.remote_path_prefix.text(),
+                "mounted_path_prefix": self.mounted_path_prefix.text(),
+                "command_prepend": self.command_prepend.text(),
+                "ssh_key_path": self.ssh_key_path,
+            },
         }
         return settings
 
@@ -143,6 +178,7 @@ The profile determines where the pipeline is run.
                 "output_format": params.get("output_format"),
                 "output_mask_type": params.get("output_mask_type"),
             },
+            "ssh_settings": self.get_settings()["ssh_settings"],
         }
         return widget_config
 
@@ -186,6 +222,25 @@ The profile determines where the pipeline is run.
             if idx != -1:
                 self.output_mask_type_box.setCurrentIndex(idx)
 
+        # loading ssh section
+        ssh_settings = config.get("ssh_settings") or {}
+        self.ssh_box.setChecked(bool(ssh_settings.get("active", False)))
+        self.hostname.setText(ssh_settings.get("hostname", ""))
+        self.target_node.setText(ssh_settings.get("target_node", ""))
+        self.username.setText(ssh_settings.get("username", ""))
+        self.remote_path_prefix.setText(ssh_settings.get("remote_path_prefix", ""))
+        self.mounted_path_prefix.setText(ssh_settings.get("mounted_path_prefix", ""))
+        self.command_prepend.setText(ssh_settings.get("command_prepend", ""))
+        self.ssh_key_path = ssh_settings.get("ssh_key_path", "")
+        self.ssh_key_label.setText(
+            f"SSH Key: {self.ssh_key_path}"
+            if self.ssh_key_path
+            else "SSH Key: Not selected"
+        )
+        # Show the SSH panel if it's in use, so the loaded values are visible
+        if self.ssh_box.isChecked():
+            self.ssh_options.setChecked(True)
+
     def setup_nxf_dir_cmd(self, base_dir: Path | None = None):
         # Set the basepath to store masks/checkpoints etc. in
         if base_dir is not None:
@@ -205,6 +260,88 @@ The profile determines where the pipeline is run.
         # Working directory for Nextflow
         self.nxf_work_dir = self.nxf_base_dir / "work"
         self.nxf_work_dir.mkdir(parents=True, exist_ok=True)
+
+    def _create_ssh_box(self):
+        """
+        Builds the SSH settings UI and attaches it to self.inner_layout.
+        Extracted from create_box to keep the main layout method concise.
+        """
+        self.ssh_options = QPushButton(" ▶ SSH Options")
+        self.ssh_options.setCheckable(True)
+        self.ssh_options.setStyleSheet(
+            f"QPushButton {{ text-align: left; }} QPushButton:checked {{background-color: {self.parent.subwidgets['model'].colour_selected}}}"  # maybe a better place to put colour_selected constant
+        )
+        self.ssh_options.toggled.connect(self.on_toggle_ssh_options)
+        self.ssh_options.setToolTip(
+            format_tooltip(
+                "Show/hide SSH options for running Nextflow pipeline via SSH"
+            )
+        )
+
+        self.ssh_box = QGroupBox("SSH Settings")
+        # TODO: Add URL to docs when created
+        self.ssh_box.setToolTip("Settings for running Nextflow pipeline via SSH")
+        self.ssh_box.setCheckable(True)
+        self.ssh_box.setChecked(False)
+
+        self.ssh_layout = QGridLayout()
+        self.ssh_box.setLayout(self.ssh_layout)
+
+        self.hostname = QLineEdit(placeholderText="Enter hostname here...")
+        self.target_node = QLineEdit(placeholderText="Enter target_node here...")
+        self.username = QLineEdit(placeholderText="Enter username here...")
+        self.passphrase_input = QLineEdit(placeholderText="Enter passphrase here...")
+        self.passphrase_input.setEchoMode(QLineEdit.Password)
+        self.remote_path_prefix = QLineEdit(placeholderText="e.g. /nemo/stp/")
+        self.mounted_path_prefix = QLineEdit(placeholderText="e.g. /Volumes/")
+        self.command_prepend = QLineEdit(
+            placeholderText="Enter command prepend here..."
+        )
+
+        # SSH key section
+        self.info_btn = QPushButton("")
+        self.info_btn.setIcon(
+            QColoredSVGIcon.from_resources("help").colored(theme="dark")
+        )
+        self.info_btn.setFixedWidth(30)
+        self.info_btn.setToolTip("Help I don't know which ssh key to pick!")
+        self.info_btn.clicked.connect(self._show_ssh_info)
+
+        self.ssh_key_path = ""
+        self.ssh_key_label = QLabel("SSH Key: Not selected")
+        self.locate_key_btn = QPushButton("Locate SSH Key")
+        self.locate_key_btn.clicked.connect(self._locate_ssh_key)
+
+        # SSH Layout
+        self.ssh_layout.addWidget(QLabel("Hostname:"), 0, 0)
+        self.ssh_layout.addWidget(self.hostname, 0, 1, 1, 2)
+
+        self.ssh_layout.addWidget(QLabel("Target node:"), 1, 0)
+        self.ssh_layout.addWidget(self.target_node, 1, 1, 1, 2)
+
+        self.ssh_layout.addWidget(QLabel("Username:"), 2, 0)
+        self.ssh_layout.addWidget(self.username, 2, 1, 1, 2)
+
+        self.ssh_layout.addWidget(QLabel("Passphrase:"), 3, 0)
+        self.ssh_layout.addWidget(self.passphrase_input, 3, 1, 1, 2)
+
+        self.ssh_layout.addWidget(QLabel("Remote path prefix:"), 4, 0)
+        self.ssh_layout.addWidget(self.remote_path_prefix, 4, 1, 1, 2)
+
+        self.ssh_layout.addWidget(QLabel("Mounted path prefix:"), 5, 0)
+        self.ssh_layout.addWidget(self.mounted_path_prefix, 5, 1, 1, 2)
+
+        self.ssh_layout.addWidget(QLabel("Command prepend:"), 6, 0)
+        self.ssh_layout.addWidget(self.command_prepend, 6, 1, 1, 2)
+
+        self.ssh_layout.addWidget(self.ssh_key_label, 7, 0, 1, 3)
+        self.ssh_layout.addWidget(self.locate_key_btn, 8, 0, 1, 2)
+        self.ssh_layout.addWidget(self.info_btn, 8, 2)
+
+        self.ssh_box.setVisible(False)
+
+        self.inner_layout.addWidget(self.ssh_options, 2, 0, 1, 2)
+        self.inner_layout.addWidget(self.ssh_box, 3, 0, 1, 2)
 
     def create_box(self, variant: str | None = None):
         # Create box for the cache settings
@@ -232,13 +369,11 @@ The profile determines where the pipeline is run.
         self.nxf_dir_inspect_btn = QPushButton("Inspect cache")
         self.nxf_dir_inspect_btn.clicked.connect(self.on_click_inspect_cache)
         self.nxf_dir_inspect_btn.setToolTip(
-            format_tooltip(
-                """
+            format_tooltip("""
 Open the base directory in the file explorer to inspect the cache.
 
 Note that 'opening' won't do anything, this is just to see what files are present.
-"""
-            )
+""")
         )
         # Button to clear the cache
         self.nxf_dir_clear_btn = QPushButton("Clear cache")
@@ -287,13 +422,11 @@ Note that 'opening' won't do anything, this is just to see what files are presen
         # Add a checkbox for overwriting existing results
         self.overwrite_btn = QCheckBox("Overwrite existing results")
         self.overwrite_btn.setToolTip(
-            format_tooltip(
-                """
+            format_tooltip("""
 Select/enable to overwrite any previous results.
 
 Exactly what is overwritten will depend on the pipeline selected. By default, any previous results matching the current setup will be loaded if possible. This can be disabled by ticking this box.
-        """
-            )
+        """)
         )
         self.pipeline_layout.addWidget(self.overwrite_btn, 1, 0, 1, 1)
 
@@ -307,11 +440,9 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         )
         self.advanced_box.toggled.connect(self.on_toggle_advanced)
         self.advanced_box.setToolTip(
-            format_tooltip(
-                """
+            format_tooltip("""
 Show/hide advanced options for the Nextflow pipeline. These options define how to split an image into separate jobs in Nextflow. The underlying models will likely do their own splitting internally into patches, but this controls the trade-off between the number and size of each job.
-"""
-            )
+""")
         )
         self.advanced_widget = QWidget()
         self.advanced_layout = QGridLayout()
@@ -331,6 +462,8 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
 
         self.inner_layout.addWidget(self.pipeline_box, 1, 0, 1, 2)
 
+        self._create_ssh_box()
+
         # Create a button to navigate to a directory to take images from
         self.nxf_run_btn = QPushButton("Run Pipeline!")
         self.nxf_run_btn.clicked.connect(self.run_pipeline)
@@ -339,7 +472,7 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
                 "Run the pipeline with the chosen organelle(s), model, and images."
             )
         )
-        self.inner_layout.addWidget(self.nxf_run_btn, 2, 0, 1, 2)
+        self.inner_layout.addWidget(self.nxf_run_btn, 4, 0, 1, 2)
 
         pbar_layout = QHBoxLayout()
         # Add progress bar
@@ -352,18 +485,16 @@ Show/hide advanced options for the Nextflow pipeline. These options define how t
         # Add the label and progress bar to the layout
         pbar_layout.addWidget(self.pbar_label)
         pbar_layout.addWidget(self.pbar)
-        self.inner_layout.addLayout(pbar_layout, 5, 0, 1, 1)
+        self.inner_layout.addLayout(pbar_layout, 6, 0, 1, 1)
         # TQDM progress bar to monitor completion time
         self.tqdm_pbar = None
 
         # Dialog button to view pipeline parameters for selected hash
         self.display_params_button = QPushButton("Pipeline Parameters")
         self.display_params_button.setToolTip(
-            format_tooltip(
-                """
+            format_tooltip("""
 View the parameters used for the currently selected output.
-"""
-            )
+""")
         )
         self.display_params_button.setEnabled(False)
         # Check if run hash available whenever selection changes
@@ -376,14 +507,20 @@ View the parameters used for the currently selected output.
         self.config_ready.connect(lambda: self.display_params_button.setEnabled(True))
         self.inner_layout.addWidget(self.display_params_button, 5, 1, 1, 1)
 
+    def on_toggle_ssh_options(self):
+        if self.ssh_options.isChecked():
+            self.ssh_box.setVisible(True)
+            self.ssh_options.setText(" ▼ SSH Options")
+        else:
+            self.ssh_box.setVisible(False)
+            self.ssh_options.setText(" ▶ SSH Options")
+
     def _add_advanced_options(self):
         self.tile_x_label = QLabel("Number X tiles:")
         self.tile_x_label.setToolTip(
-            format_tooltip(
-                """
+            format_tooltip("""
 Number of tiles to split the image into in the X dimension. 'auto' allows Nextflow to decide an appropriate split.
-"""
-            )
+""")
         )
         self.tile_x = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_x.setSpecialValueText("auto")
@@ -391,11 +528,9 @@ Number of tiles to split the image into in the X dimension. 'auto' allows Nextfl
 
         self.tile_y_label = QLabel("Number Y tiles:")
         self.tile_y_label.setToolTip(
-            format_tooltip(
-                """
+            format_tooltip("""
 Number of tiles to split the image into in the Y dimension. 'auto' allows Nextflow to decide an appropriate split.
-"""
-            )
+""")
         )
         self.tile_y = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_y.setSpecialValueText("auto")
@@ -403,11 +538,9 @@ Number of tiles to split the image into in the Y dimension. 'auto' allows Nextfl
 
         self.tile_z_label = QLabel("Number Z tiles:")
         self.tile_z_label.setToolTip(
-            format_tooltip(
-                """
+            format_tooltip("""
 Number of tiles to split the image into in the Z dimension. 'auto' allows Nextflow to decide an appropriate split.
-"""
-            )
+""")
         )
         self.tile_z = QSpinBox(minimum=0, maximum=100, value=0)
         self.tile_z.setSpecialValueText("auto")
@@ -469,21 +602,17 @@ Number of tiles to split the image into in the Z dimension. 'auto' allows Nextfl
         self.postprocess_btn = QCheckBox("Re-label output")
         self.postprocess_btn.setChecked(False)
         self.postprocess_btn.setToolTip(
-            format_tooltip(
-                """
+            format_tooltip("""
 If checked, the model output will be re-labelled using connected components to create consistency across slices.
-            """
-            )
+            """)
         )
         self.advanced_layout.addWidget(self.postprocess_btn, 7, 0, 1, 2)
         # Add threshold for IoU SAM post-processing
         self.iou_thresh_label = QLabel("IoU threshold (SAM only):")
         self.iou_thresh_label.setToolTip(
-            format_tooltip(
-                """
+            format_tooltip("""
 Threshold for the Intersection over Union (IoU) metric used in the SAM post-processing step.
-            """
-            )
+            """)
         )
         self.iou_thresh = QDoubleSpinBox(minimum=0.0, maximum=1.0, value=0.8)
         self.iou_thresh.setSingleStep(0.01)
@@ -638,6 +767,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         - A task has been selected
         - A model has been selected
         - Data has been selected
+        - Required SSH options are set, if SSH is enabled
         """
         if self.parent.selected_task is None:
             raise ValueError("No task/organelle selected!")
@@ -645,6 +775,31 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             raise ValueError("No model selected!")
         if len(self.parent.subwidgets["data"].image_path_dict) == 0:
             raise ValueError("No data selected!")
+        if self.ssh_box.isChecked():
+            self.check_ssh_options()
+
+    def check_ssh_options(self):
+        required_fields = {
+            "Hostname": self.hostname.text(),
+            "Username": self.username.text(),
+            "Remote path prefix": self.remote_path_prefix.text(),
+            "Mounted path prefix": self.mounted_path_prefix.text(),
+            "Command prepend": self.command_prepend.text(),
+        }
+        missing = [name for name, value in required_fields.items() if not value]
+        if not self.ssh_key_path:
+            missing.append("SSH Key")
+        if missing:
+            raise ValueError(f"missing: {', '.join(missing)}. for SSH pipeine run")
+
+        mounted_prefix = Path(self.mounted_path_prefix.text())
+        if not Path(self.nxf_base_dir).is_relative_to(mounted_prefix):
+            raise ValueError(
+                f"The Nextflow base directory '{self.nxf_base_dir}' does not start with "
+                f"the configured mounted path prefix '{mounted_prefix}'. This usually means "
+                "the remote drive is not currently mounted, or the mounted path prefix "
+                "is set incorrectly."
+            )
 
     def setup_inference(self, nxf_params: dict | None = None):
         """
@@ -805,6 +960,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.parent.store_settings()
         # Store the image paths
         self.store_img_paths(img_paths=img_paths)
+        # Record the images actually submitted, in their mounted form
+        self.executed_img_paths = [Path(p) for p in img_paths]
         # Add custom work directory
         if self.nxf_work_dir is not None:
             nxf_cmd += f" -w {self.nxf_work_dir}"
@@ -838,13 +995,100 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 shell=False,
                 cwd=Path.home(),
             )
+            # if cancel pipeline was pressed before popen returned
+            if self.run_cancelled:
+                self.process.send_signal(subprocess.signal.SIGTERM)
             self.process.wait()
             # Check if the process was successful
             if self.process.returncode != 0:
-                raise RuntimeError
+                raise RuntimeError(
+                    f"Pipeline exited with status {self.process.returncode}"
+                )
 
+        @thread_worker(
+            connect={
+                "started": self._pipeline_start,
+                "returned": self._pipeline_finish,
+                "errored": self._pipeline_fail,
+            }
+        )
+        def _run_pipeline_ssh(nxf_cmd: str, img_paths: list[Path]):
+            self.remote_base_dir = str(self.nxf_base_dir).replace(
+                self.mounted_path_prefix.text(),
+                self.remote_path_prefix.text(),
+                1,
+            )
+            self.mounted_remote_base_dir = str(self.nxf_base_dir)
+
+            remote_img_paths = [
+                (
+                    Path(
+                        str(p).replace(
+                            self.mounted_path_prefix.text(),
+                            self.remote_path_prefix.text(),
+                            1,
+                        )
+                    )
+                )
+                for p in img_paths
+            ]
+
+            self.store_img_paths(img_paths=remote_img_paths)
+
+            with open(nxf_params_fpath) as f:
+                nxf_params = yaml.safe_load(f)
+
+            for k, v in nxf_params.items():
+                if isinstance(v, str) and v.startswith(self.mounted_remote_base_dir):
+                    nxf_params[k] = v.replace(
+                        self.mounted_remote_base_dir,
+                        self.remote_base_dir,
+                        1,
+                    )
+
+            with open(nxf_params_fpath, "w") as f:
+                yaml.dump(nxf_params, f)
+
+            # Update Nextflow command to use remote paths for params-file and log
+            remote_params_fpath = Path(
+                str(nxf_params_fpath).replace(
+                    self.mounted_remote_base_dir, self.remote_base_dir, 1
+                )
+            )
+
+            remote_log_fpath = Path(self.remote_base_dir) / "nextflow.log"
+            # Replace local params-file and log with remote ones in the command
+            nxf_cmd = nxf_cmd.replace(
+                f"-params-file {nxf_params_fpath}",
+                f"-params-file {remote_params_fpath}",
+                1,
+            )
+            # Replace local work directory with remote work directory in the command
+            remote_work_dir = Path(self.remote_base_dir) / "work"
+            nxf_cmd = nxf_cmd.replace(
+                f"-w {self.nxf_work_dir}", f"-w {remote_work_dir}", 1
+            )
+            nxf_cmd = nxf_cmd.replace(
+                f"-log '{str(self.nxf_base_dir / 'nextflow.log')}'",
+                f"-log '{remote_log_fpath}'",
+                1,
+            )
+            nxf_cmd = self.command_prepend.text() + " && " + nxf_cmd
+            show_info(f"Commmand sent via SSH: {nxf_cmd}")
+
+            self._run_command(nxf_cmd)
+
+        self.process = None
+        self._ssh_cancel_hash = None
+        self.run_cancelled = False
         # Run the pipeline
-        _run_pipeline(nxf_cmd)
+        if self.ssh_box.isChecked():
+            # Run hash is used to identify the Nextflow process so that we can cancel the pipeline cleanly
+            self._ssh_cancel_hash = self.parent.run_hash
+            _run_pipeline_ssh(nxf_cmd, img_paths)
+        else:
+            _run_pipeline(nxf_cmd)
+
         # emitting config ready to enable the save config button
         self.config_ready.emit()
         self.nxf_params = nxf_params
@@ -966,12 +1210,71 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.pbar_label.setText("Progress: [--:--]")
 
     def cancel_pipeline(self):
-        # Trigger Nextflow to cancel the pipeline
-        self.process.send_signal(subprocess.signal.SIGTERM)
+        self.run_cancelled = True
+        if self._ssh_cancel_hash is not None:
+            self._cancel_pipeline_ssh()
+        else:
+            # Read once, as the worker assigns it. If it's still None then Popen
+            # hasn't returned; _run_pipeline sees run_cancelled and kills it then
+            proc = self.process
+            if proc is not None:
+                proc.send_signal(subprocess.signal.SIGTERM)
+        # Cancelling isn't instant, indicate process
+        self.cancel_btn.setEnabled(False)
+        self.cancel_btn.setText("Cancelling...")
         # Reset the progress bar
         self.reset_progress_bar()
         # Remove mask layers that were added
         self.parent.remove_mask_layers()
+
+    def _build_ssh_cancel_cmd(self) -> str:
+        """
+        Compose the remote command that finds this run's Nextflow process and SIGTERMs it.
+
+        Retries because process may take a while to start
+
+        Notes on the ps invocation:
+          -ww          don't truncate; the java command line is long and the
+                       -params-file argument carrying the hash is at the very end
+          $2 ~ /java/  unanchored, as comm is the basename on Linux but a (truncated)
+                       full path on macOS; the hash is what actually identifies the
+                       run, so comm only has to rule out this session's bash and awk
+        """
+        username = shlex.quote(self.username.text())
+        run_hash = shlex.quote(self._ssh_cancel_hash)
+        attempts = max(1, self._SSH_CANCEL_TIMEOUT_S // self._SSH_CANCEL_INTERVAL_S)
+        return (
+            f"for i in $(seq 1 {attempts}); do "
+            f"pids=$(ps -u {username} -ww -o pid=,comm=,args= "
+            f"| awk -v h={run_hash} '$2 ~ /java/ && index($0, h) {{print $1}}'); "
+            f'if [ -n "$pids" ]; then '
+            f'echo "Cancelling Nextflow process(es): $pids"; '
+            # SIGTERM only: Nextflow's shutdown hook is what cancels the jobs it
+            # submitted to the scheduler, so SIGKILL would strand them
+            f"kill -TERM $pids; exit 0; fi; "
+            f'echo "Nextflow not started yet, retrying..."; '
+            f"sleep {self._SSH_CANCEL_INTERVAL_S}; done; "
+            f'echo "No running Nextflow process found for this run"; exit 1'
+        )
+
+    def _cancel_pipeline_ssh(self):
+        cmd = self._build_ssh_cancel_cmd()
+
+        def _on_cancel_failed(exc):
+            show_info(f"Failed to cancel pipeline: {exc}")
+            self.cancel_btn.setEnabled(True)
+            self.cancel_btn.setText("Cancel Pipeline")
+
+        @thread_worker(
+            connect={
+                "returned": lambda *_: show_info("Pipeline cancelled"),
+                "errored": _on_cancel_failed,
+            }
+        )
+        def _cancel():
+            self._run_command(cmd)
+
+        _cancel()
 
     def update_tile_size(self, val: int | float, clear_label: bool = False):
         """
@@ -1191,3 +1494,115 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             content=info,
         )
         params_popup.show()
+
+    def _show_ssh_info(self):
+        QMessageBox.information(
+            self,
+            "SSH Key Help",
+            (
+                "You need to select your SSH key (e.g. id_<encryption_algorithm>) in ~/.ssh \n\n"
+                "If you can't see hidden folders you may need to toggle visibility:\n"
+                "macOS: Command + Shift + .\n"
+                "Linux: Ctrl + H (may differ by distro)\n"
+                "Windows: Enable 'Hidden items' in the View menu."
+            ),
+        )
+
+    def _locate_ssh_key(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Select SSH Key", str(Path.home() / ".ssh")
+        )
+        if file_path:
+            self.ssh_key_path = file_path
+            self.ssh_key_label.setText(f"SSH Key: {file_path}")
+
+    def _run_ssh(
+        self,
+        command: str,
+        hostname: str,
+        username: str,
+        passphrase: str,
+        ssh_key_path: str = None,
+        target_node: str = None,
+    ):
+        if not passphrase:
+            passphrase = None
+        jump = None
+        target = None
+        try:
+            # Connect to the jump host
+            jump = paramiko.SSHClient()
+            jump.load_system_host_keys()
+            jump.set_missing_host_key_policy(paramiko.RejectPolicy())
+            jump.connect(
+                hostname=hostname,
+                username=username,
+                key_filename=ssh_key_path,
+                passphrase=passphrase,
+                timeout=self._SSH_CONNECT_TIMEOUT_S,
+            )
+            if target_node:
+                # Get a direct-tcpip channel to the target node through the jump host
+                jump_transport = jump.get_transport()
+                dest_addr = (target_node, 22)
+                local_addr = ("127.0.0.1", 0)
+                channel = jump_transport.open_channel(
+                    "direct-tcpip", dest_addr, local_addr
+                )
+
+                # Connect to the target node using the channel as a proxy
+                target = paramiko.SSHClient()
+                target.load_system_host_keys()
+                target.set_missing_host_key_policy(paramiko.RejectPolicy())
+                target.connect(
+                    target_node,
+                    username=username,
+                    key_filename=ssh_key_path,
+                    sock=channel,
+                    passphrase=passphrase,
+                    timeout=self._SSH_CONNECT_TIMEOUT_S,
+                )
+            else:
+                target = jump
+            # Combine stderr into stdout so there's a single stream to read;
+            channel = target.get_transport().open_session()
+            channel.set_combine_stderr(True)
+            # Execute command on the target node
+            channel.exec_command(command)
+            stdout = channel.makefile("r")
+
+            for line in stdout:
+                print(line, end="")
+            # Check if the command was successful
+            exit_status = channel.recv_exit_status()
+            if exit_status != 0:
+                node = target_node or hostname
+                if exit_status == -1:
+                    raise RuntimeError(
+                        f"Command on {node} ended without reporting an exit status (killed or connection lost)"
+                    )
+                raise RuntimeError(
+                    f"Command exited with status {exit_status} on {node}"
+                )
+
+        except Exception as e:
+            raise Exception(f"Error executing command via ssh: {str(e)}")
+        finally:
+            if target:
+                target.close()
+            if jump:
+                jump.close()
+
+    def _run_command(self, command):
+        hostname = self.hostname.text()
+        target_node = self.target_node.text()
+        username = self.username.text()
+        passphrase = self.passphrase_input.text()
+        self._run_ssh(
+            command,
+            hostname,
+            username,
+            passphrase,
+            self.ssh_key_path,
+            target_node,
+        )
