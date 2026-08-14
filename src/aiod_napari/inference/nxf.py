@@ -42,6 +42,11 @@ from aiod_napari.inference.remote_paths import (
     check_prefixes,
     to_remote_path,
 )
+from aiod_napari.inference.ssh_hostkeys import (
+    HostKeyError,
+    KnownHostsPolicy,
+    assert_host_known,
+)
 from aiod_napari.utils import (
     InfoWindow,
     format_tooltip,
@@ -848,6 +853,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         if missing:
             raise ValueError(f"missing: {', '.join(missing)}. for SSH pipeine run")
 
+        # Catch unverifiable hosts and unusable prefixes here rather than
+        # mid-run, where the failure would only reach the terminal
+        assert_host_known(self.hostname.text())
+        if self.target_node.text():
+            assert_host_known(self.target_node.text())
         check_prefixes(self.mounted_path_prefix.text(), self.remote_path_prefix.text())
 
         mounted_prefix = Path(self.mounted_path_prefix.text())
@@ -1192,9 +1202,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.pipeline_finished.emit()
 
     def _pipeline_fail(self, exc):
-        if isinstance(exc, RemotePathError):
-            # Names the path and the prefix that don't line up - worth showing
-            # rather than hiding behind "see terminal"
+        if isinstance(exc, HostKeyError | RemotePathError):
+            # Both name what went wrong and what to run about it - worth
+            # showing rather than hiding behind "see terminal"
             show_info(f"Pipeline failed! {exc}")
         else:
             show_info("Pipeline failed! See terminal for details")
@@ -1564,7 +1574,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 "If you can't see hidden folders you may need to toggle visibility:\n"
                 "macOS: Command + Shift + .\n"
                 "Linux: Ctrl + H (may differ by distro)\n"
-                "Windows: Enable 'Hidden items' in the View menu."
+                "Windows: Enable 'Hidden items' in the View menu.\n\n"
+                "The host must also be in your known_hosts file, otherwise its identity "
+                "cannot be verified. Add it with:\n"
+                "    ssh-keyscan <hostname> >> ~/.ssh/known_hosts\n\n"
+                "A load-balanced hostname may serve a different host key per node; all "
+                "of their keys can be recorded against the one name."
             ),
         )
 
@@ -1590,16 +1605,20 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         jump = None
         target = None
         try:
-            # Connect to the jump host
+            # Connect to the jump host.
+            # No host keys are loaded into the client, so KnownHostsPolicy does
+            # all the verifying - see ssh_hostkeys for why paramiko's own check
+            # is not used.
             jump = paramiko.SSHClient()
-            jump.load_system_host_keys()
-            jump.set_missing_host_key_policy(paramiko.RejectPolicy())
+            jump_policy = KnownHostsPolicy(hostname)
+            jump.set_missing_host_key_policy(jump_policy)
             jump.connect(
                 hostname=hostname,
                 username=username,
                 key_filename=ssh_key_path,
                 passphrase=passphrase,
                 timeout=self._SSH_CONNECT_TIMEOUT_S,
+                transport_factory=jump_policy.transport_factory,
             )
             if target_node:
                 # Get a direct-tcpip channel to the target node through the jump host
@@ -1612,8 +1631,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
                 # Connect to the target node using the channel as a proxy
                 target = paramiko.SSHClient()
-                target.load_system_host_keys()
-                target.set_missing_host_key_policy(paramiko.RejectPolicy())
+                target_policy = KnownHostsPolicy(target_node)
+                target.set_missing_host_key_policy(target_policy)
                 target.connect(
                     target_node,
                     username=username,
@@ -1621,6 +1640,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                     sock=channel,
                     passphrase=passphrase,
                     timeout=self._SSH_CONNECT_TIMEOUT_S,
+                    transport_factory=target_policy.transport_factory,
                 )
             else:
                 target = jump
@@ -1645,6 +1665,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                     f"Command exited with status {exit_status} on {node}"
                 )
 
+        except HostKeyError:
+            # Already explains itself, and says how to fix it - don't bury it.
+            raise
         except Exception as e:
             raise Exception(f"Error executing command via ssh: {str(e)}")
         finally:
