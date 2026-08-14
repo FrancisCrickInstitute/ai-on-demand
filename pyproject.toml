@@ -39,6 +39,7 @@ dependencies = [
     "tabulate",
     "glasbey",
     "dask-image",
+    "paramiko",
     "aiod_utils==0.1",
     "aiod_registry==0.1",
 ]
