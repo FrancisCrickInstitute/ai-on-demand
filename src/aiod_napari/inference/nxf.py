@@ -51,6 +51,21 @@ from aiod_napari.utils import (
 from aiod_napari.widget_classes import SubWidget
 
 
+def path_available(path: Path) -> bool:
+    """
+    Whether `path` can be reached at all.
+
+    `Path.exists()` only answers False for paths that aren't there; a network
+    drive that has gone away leaves a mount point behind that raises OSError
+    (EIO on macOS) on every access instead, which would otherwise propagate
+    out of widget construction and stop the plugin opening.
+    """
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
 class NxfWidget(SubWidget):
     _name = "nxf"
 
@@ -61,6 +76,9 @@ class NxfWidget(SubWidget):
     _SSH_CANCEL_TIMEOUT_S = 150
     _SSH_CANCEL_INTERVAL_S = 5
     _SSH_CONNECT_TIMEOUT_S = 15
+
+    # Used whenever the configured base directory cannot be reached
+    DEFAULT_BASE_DIR = Path.home() / ".nextflow" / "aiod"
 
     def __init__(
         self,
@@ -139,14 +157,14 @@ The profile determines where the pipeline is run.
             # Set the base directory
             if "base_dir" in settings:
                 base_dir = Path(settings["base_dir"])
-                if base_dir.exists():
+                if path_available(base_dir):
                     nxf_base_dir = base_dir
                 # in the case where user has unmounted a drive (e.g. remote server drive for ssh pipeline)
                 else:
                     print(
                         f"Warning: Could not access {settings['base_dir']}, falling back to default cache directory."
                     )
-                    nxf_base_dir = Path.home() / ".nextflow" / "aiod"
+                    nxf_base_dir = self.DEFAULT_BASE_DIR
                     nxf_base_dir.mkdir(parents=True, exist_ok=True)
                 self.nxf_dir_text.setText(str(nxf_base_dir))
                 # Update the base directory and Nextflow command
@@ -248,10 +266,31 @@ The profile determines where the pipeline is run.
 
     def setup_nxf_dir_cmd(self, base_dir: Path | None = None):
         # Set the basepath to store masks/checkpoints etc. in
-        if base_dir is not None:
-            self.nxf_base_dir = base_dir
-        else:
-            self.nxf_base_dir = Path.home() / ".nextflow" / "aiod"
+        if base_dir is None:
+            base_dir = self.DEFAULT_BASE_DIR
+        try:
+            self._set_nxf_dirs(base_dir)
+        except OSError as e:
+            # An unmounted or disconnected drive must not stop the plugin being
+            # used for everything else, so fall back to the local cache
+            msg = (
+                f"Could not use '{base_dir}' ({e.strerror}), falling back to "
+                f"{self.DEFAULT_BASE_DIR}"
+            )
+            print(f"Warning: {msg}")
+            show_info(msg)
+            self._set_nxf_dirs(self.DEFAULT_BASE_DIR)
+            # The label doesn't exist yet when called during construction
+            if hasattr(self, "nxf_dir_text"):
+                self.nxf_dir_text.setText(str(self.nxf_base_dir))
+
+    def _set_nxf_dirs(self, base_dir: Path):
+        """
+        Point the widget at `base_dir`, creating the directories it needs.
+
+        Raises OSError if they cannot be created.
+        """
+        self.nxf_base_dir = base_dir
         self.nxf_base_dir.mkdir(parents=True, exist_ok=True)
         self.nxf_store_dir = self.nxf_base_dir / "aiod_cache"
         self.nxf_store_dir.mkdir(parents=True, exist_ok=True)
