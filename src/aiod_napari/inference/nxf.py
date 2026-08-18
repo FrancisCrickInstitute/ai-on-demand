@@ -37,6 +37,11 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
+from aiod_napari.inference.remote_paths import (
+    RemotePathError,
+    check_prefixes,
+    to_remote_path,
+)
 from aiod_napari.utils import (
     InfoWindow,
     format_tooltip,
@@ -293,7 +298,19 @@ The profile determines where the pipeline is run.
         self.passphrase_input = QLineEdit(placeholderText="Enter passphrase here...")
         self.passphrase_input.setEchoMode(QLineEdit.Password)
         self.remote_path_prefix = QLineEdit(placeholderText="e.g. /nemo/stp/")
+        self.remote_path_prefix.setToolTip(
+            format_tooltip(
+                "The full, absolute path the remote machine uses to reach your "
+                "data. '~' and environment variables are not expanded."
+            )
+        )
         self.mounted_path_prefix = QLineEdit(placeholderText="e.g. /Volumes/")
+        self.mounted_path_prefix.setToolTip(
+            format_tooltip(
+                "The full, absolute path where that same remote drive is mounted "
+                "on this machine. '~' and environment variables are not expanded."
+            )
+        )
         self.command_prepend = QLineEdit(
             placeholderText="Enter command prepend here..."
         )
@@ -792,6 +809,8 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         if missing:
             raise ValueError(f"missing: {', '.join(missing)}. for SSH pipeine run")
 
+        check_prefixes(self.mounted_path_prefix.text(), self.remote_path_prefix.text())
+
         mounted_prefix = Path(self.mounted_path_prefix.text())
         if not Path(self.nxf_base_dir).is_relative_to(mounted_prefix):
             raise ValueError(
@@ -800,6 +819,18 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 "the remote drive is not currently mounted, or the mounted path prefix "
                 "is set incorrectly."
             )
+        print(
+            "INFO: Remote Nextflow base directory: "
+            f"{self._to_remote(self.nxf_base_dir)}"
+        )
+
+    def _to_remote(self, path) -> str:
+        """
+        Where a locally-mounted path lives on the remote machine.
+        """
+        return to_remote_path(
+            path, self.mounted_path_prefix.text(), self.remote_path_prefix.text()
+        )
 
     def setup_inference(self, nxf_params: dict | None = None):
         """
@@ -1013,25 +1044,10 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             }
         )
         def _run_pipeline_ssh(nxf_cmd: str, img_paths: list[Path]):
-            self.remote_base_dir = str(self.nxf_base_dir).replace(
-                self.mounted_path_prefix.text(),
-                self.remote_path_prefix.text(),
-                1,
-            )
+            self.remote_base_dir = self._to_remote(self.nxf_base_dir)
             self.mounted_remote_base_dir = str(self.nxf_base_dir)
 
-            remote_img_paths = [
-                (
-                    Path(
-                        str(p).replace(
-                            self.mounted_path_prefix.text(),
-                            self.remote_path_prefix.text(),
-                            1,
-                        )
-                    )
-                )
-                for p in img_paths
-            ]
+            remote_img_paths = [Path(self._to_remote(p)) for p in img_paths]
 
             self.store_img_paths(img_paths=remote_img_paths)
 
@@ -1137,7 +1153,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.pipeline_finished.emit()
 
     def _pipeline_fail(self, exc):
-        show_info("Pipeline failed! See terminal for details")
+        if isinstance(exc, RemotePathError):
+            # Names the path and the prefix that don't line up - worth showing
+            # rather than hiding behind "see terminal"
+            show_info(f"Pipeline failed! {exc}")
+        else:
+            show_info("Pipeline failed! See terminal for details")
         print(exc)
         self._reset_btns()
         # Deactivate file watcher
