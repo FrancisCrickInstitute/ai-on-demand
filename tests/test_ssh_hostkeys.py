@@ -17,6 +17,7 @@ from aiod_napari.inference.ssh_hostkeys import (
     keyscan_type,
     known_hosts_paths,
     lookup,
+    record_command,
 )
 
 HOST = "login.nemo.thecrick.org"
@@ -203,3 +204,141 @@ def test_no_ssh_config_falls_back_to_defaults(tmp_path):
 )
 def test_keyscan_type(key_name, expected):
     assert keyscan_type(key_name) == expected
+
+
+# A target node behind a jump host cannot be reached by ssh-keyscan at all, so
+# the advice given has to account for the route.
+
+JUMP = "yuq@login.example.org"
+
+
+def test_jump_host_advice_routes_through_the_jump_host(ssh_dir):
+    known_hosts, config = ssh_dir
+
+    with pytest.raises(ValueError) as excinfo:
+        assert_host_known("cn093", ssh_config_path=config, via=JUMP)
+
+    message = str(excinfo.value)
+    assert f"ssh {JUMP} ssh-keyscan cn093 >> {known_hosts}" in message
+    # the bare form would fail: ssh-keyscan does not read ssh_config
+    assert "\n    ssh-keyscan cn093" not in message
+    assert "cannot see 'cn093' directly" in message
+
+
+def test_jump_host_advice_strips_the_user_prefix_when_comparing(ssh_dir):
+    """
+    Production always passes 'user@host' as `via`, so the self-jump guard has to
+    compare host parts - otherwise a host reached through itself claims a route.
+    """
+    _, config = ssh_dir
+
+    with pytest.raises(ValueError) as excinfo:
+        assert_host_known("login.example.org", ssh_config_path=config, via=JUMP)
+
+    message = str(excinfo.value)
+    assert "cannot see" not in message
+    assert "ssh-keyscan login.example.org" in message
+
+
+def test_jump_host_advice_carries_the_identity_file(ssh_dir):
+    _, config = ssh_dir
+
+    with pytest.raises(ValueError) as excinfo:
+        assert_host_known(
+            "cn093", ssh_config_path=config, via=JUMP, identity="/keys/id_rsa"
+        )
+
+    assert f"ssh -i /keys/id_rsa {JUMP} ssh-keyscan cn093" in str(excinfo.value)
+
+
+def test_paths_with_spaces_are_quoted(tmp_path):
+    """
+    Advice is pasted into a shell, and a home directory with a space in it is
+    the norm on Windows.
+    """
+    spaced = tmp_path / "First Last" / "known_hosts"
+    assert 'ssh-keyscan host >> "' in record_command("host", spaced)
+    quoted = record_command("cn093", spaced, via=JUMP, identity="/a b/id_rsa")
+    assert '-i "/a b/id_rsa"' in quoted
+    assert f'>> "{spaced}"' in quoted
+
+
+def test_direct_host_advice_offers_keyscan_and_an_ssh_config_fallback(ssh_dir):
+    known_hosts, config = ssh_dir
+
+    with pytest.raises(ValueError) as excinfo:
+        assert_host_known("direct.example.org", ssh_config_path=config)
+
+    message = str(excinfo.value)
+    assert f"ssh-keyscan direct.example.org >> {known_hosts}" in message
+    # the fallback must show the fingerprint rather than silently trusting
+    assert "ssh -o StrictHostKeyChecking=ask direct.example.org true" in message
+
+
+def test_policy_unknown_host_message_uses_the_jump_route(ssh_dir):
+    known_hosts, config = ssh_dir
+    key = new_key()
+
+    policy = KnownHostsPolicy("cn093", ssh_config_path=config, via=JUMP)
+    with pytest.raises(HostKeyError) as excinfo:
+        policy.missing_host_key(None, "cn093", key)
+
+    message = str(excinfo.value)
+    assert f"ssh {JUMP} ssh-keyscan -t ecdsa cn093 >> {known_hosts}" in message
+    assert key.fingerprint in message
+
+
+def test_policy_mismatch_message_gives_the_command_without_the_ssh_fallback(ssh_dir):
+    """
+    With a conflicting key on file ssh refuses to connect, so `ssh <host> true`
+    would be advice that cannot do what the sentence promises.
+    """
+    known_hosts, config = ssh_dir
+    write_entries(known_hosts, [("cn093", new_key())])
+
+    policy = KnownHostsPolicy("cn093", ssh_config_path=config, via=JUMP)
+    with pytest.raises(HostKeyError) as excinfo:
+        policy.missing_host_key(None, "cn093", new_key())
+
+    message = str(excinfo.value)
+    assert "ssh-keygen -R cn093" in message
+    assert f"ssh {JUMP} ssh-keyscan -t ecdsa cn093 >> {known_hosts}" in message
+    assert "StrictHostKeyChecking" not in message
+
+
+def test_dev_null_wins_over_the_jump_route(ssh_dir):
+    config = ssh_dir[1].parent / "devnull_config"
+    config.write_text(
+        "Host *\n  UserKnownHostsFile /dev/null\n  GlobalKnownHostsFile /dev/null\n"
+    )
+
+    with pytest.raises(ValueError, match="/dev/null"):
+        assert_host_known("cn093", ssh_config_path=config, via=JUMP)
+
+
+def test_dev_null_mismatch_message_promises_no_command(tmp_path):
+    """
+    The mismatch text offers a way to keep both keys; with nowhere to write one
+    it must say so instead of naming a command.
+    """
+    real = tmp_path / "known_hosts"
+    cfg_real = tmp_path / "config_real"
+    cfg_real.write_text(
+        f"Host *\n  UserKnownHostsFile {real}\n  GlobalKnownHostsFile /dev/null\n"
+    )
+    write_entries(real, [("cn093", new_key())])
+    policy = KnownHostsPolicy("cn093", ssh_config_path=cfg_real, via=JUMP)
+
+    # now the file the advice would name is gone
+    cfg_null = tmp_path / "config_null"
+    cfg_null.write_text(
+        "Host *\n  UserKnownHostsFile /dev/null\n  GlobalKnownHostsFile /dev/null\n"
+    )
+    policy._ssh_config_path = cfg_null
+
+    with pytest.raises(HostKeyError) as excinfo:
+        policy.missing_host_key(None, "cn093", new_key())
+
+    message = str(excinfo.value)
+    assert "/dev/null" in message
+    assert "ssh-keyscan" not in message

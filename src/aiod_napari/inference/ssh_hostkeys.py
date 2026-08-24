@@ -201,29 +201,132 @@ def lookup(host: str, ssh_config_path: Path = SSH_CONFIG_PATH) -> list[KnownHost
     return matching_keys(host, load_entries(known_hosts_paths(host, ssh_config_path)))
 
 
-def assert_host_known(host: str, ssh_config_path: Path = SSH_CONFIG_PATH) -> None:
+def _dev_null_hint() -> str:
+    return (
+        "Your ssh_config sets 'UserKnownHostsFile /dev/null' for this host, "
+        "so host keys are discarded and cannot be verified. Point that at a "
+        "real file to connect from the plugin."
+    )
+
+
+def shell_quote(value) -> str:
+    """
+    Quote a value for a command line the user is going to paste into a shell.
+
+    Double quotes rather than the POSIX single quotes `shlex.quote` would use:
+    these commands are read by people on macOS, Linux and Windows, and double
+    quotes are the only form `sh`, PowerShell and `cmd` all understand.
+    """
+    text = str(value)
+    if text and all(c.isalnum() or c in "._/@:+-\\" for c in text):
+        return text
+    return '"' + text.replace('"', '\\"') + '"'
+
+
+def ssh_target(user: str | None, host: str) -> str:
+    """
+    A host as it would be typed at a shell, username included when known.
+
+    The remote username need not match the local one, so any advice of the form
+    `ssh <host> ...` has to carry it or it will not run as the right user.
+    """
+    return f"{user}@{host}" if user else host
+
+
+def _goes_through(host: str, via: str | None) -> bool:
+    """
+    Whether `host` is reached through `via`, which is not a jump host to itself.
+
+    `via` may carry a 'user@' prefix, which is not part of the host name.
+    """
+    return bool(via) and via.rpartition("@")[2] != host
+
+
+def route_note(host: str, via: str | None) -> str:
+    """
+    Why the obvious command will not work for a host behind a jump host.
+
+    Empty when there is no jump host to explain.
+    """
+    if not _goes_through(host, via):
+        return ""
+    return (
+        f"ssh-keyscan cannot see '{host}' directly: it does its own lookup and "
+        f"does not read ssh_config, so it cannot go through '{via}'. The key has "
+        "to be fetched over the jump host instead."
+    )
+
+
+def record_command(
+    host: str,
+    target: Path,
+    key_type: str | None = None,
+    via: str | None = None,
+    identity: str | None = None,
+) -> str:
+    """
+    The one command that appends `host`'s key to `target`, and nothing else.
+
+    Routed over `via` when the host is only addressable through it - which is
+    what the target node of an HPC run is - so the key arrives over a
+    connection whose own host key is already verified.
+    """
+    flag = f"-t {key_type} " if key_type else ""
+    redirect = f">> {shell_quote(target)}"
+    if _goes_through(host, via):
+        key_opt = f"-i {shell_quote(identity)} " if identity else ""
+        return f"ssh {key_opt}{via} ssh-keyscan {flag}{host} {redirect}"
+    return f"ssh-keyscan {flag}{host} {redirect}"
+
+
+def record_hint(
+    host: str,
+    target: Path | None,
+    key_type: str | None = None,
+    via: str | None = None,
+    identity: str | None = None,
+) -> str:
+    """
+    Full advice for trusting a host that is not on record yet.
+
+    Ends with an ssh_config-aware fallback, which only makes sense while there
+    is no conflicting key on file - see `record_command` for the bare command
+    to use when there is.
+    """
+    if target is None:
+        return _dev_null_hint()
+    note = route_note(host, via)
+    command = record_command(host, target, key_type, via, identity)
+    return (
+        (f"{note}\n" if note else "")
+        + f"If you trust it, record its host key with:\n    {command}\n"
+        + "Or let ssh do it, which reads your ssh_config and shows you the "
+        + "fingerprint to confirm:\n    "
+        + f"ssh -o StrictHostKeyChecking=ask {host} true"
+    )
+
+
+def assert_host_known(
+    host: str,
+    ssh_config_path: Path = SSH_CONFIG_PATH,
+    via: str | None = None,
+    identity: str | None = None,
+) -> None:
     """
     Raise `ValueError` if `host` has no host key on record.
 
     A cheap offline pre-flight, so an unknown host is reported before a pipeline
-    starts rather than when the connection is attempted.
+    starts rather than when the connection is attempted. `via` is the jump host
+    `host` is reached through and `identity` the key file used to get there, so
+    that the advice given can actually be run.
     """
     if lookup(host, ssh_config_path):
         return
     target = user_known_hosts_path(host, ssh_config_path)
-    hint = (
-        f"If you trust it, record its host key with:\n    "
-        f"ssh-keyscan {host} >> {target}"
-        if target is not None
-        else (
-            "Your ssh_config sets 'UserKnownHostsFile /dev/null' for this host, "
-            "so host keys are discarded and cannot be verified. Point that at a "
-            "real file to connect from the plugin."
-        )
-    )
     raise ValueError(
         f"The host '{host}' is not in your known_hosts files, so its identity "
-        f"cannot be verified.\n{hint}"
+        "cannot be verified.\n"
+        f"{record_hint(host, target, via=via, identity=identity)}"
     )
 
 
@@ -240,8 +343,16 @@ class KnownHostsPolicy(paramiko.MissingHostKeyPolicy):
     policy for hosts it does not know itself.
     """
 
-    def __init__(self, host: str, ssh_config_path: Path = SSH_CONFIG_PATH):
+    def __init__(
+        self,
+        host: str,
+        ssh_config_path: Path = SSH_CONFIG_PATH,
+        via: str | None = None,
+        identity: str | None = None,
+    ):
         self.host = host
+        self.via = via
+        self.identity = identity
         self.searched = known_hosts_paths(host, ssh_config_path)
         self.entries = load_entries(self.searched)
         self.matches = matching_keys(host, self.entries)
@@ -312,22 +423,35 @@ class KnownHostsPolicy(paramiko.MissingHostKeyPolicy):
             f"identity cannot be verified. It offered {self._offered(key)}.\n"
             f"Files searched: {searched}."
         )
-        if target is None:
-            return (
-                f"{message}\nYour ssh_config sets 'UserKnownHostsFile /dev/null' "
-                "for this host, so host keys are discarded and cannot be "
-                "verified. Point that at a real file to connect from the plugin."
-            )
-        return (
-            f"{message}\nVerify that fingerprint, then record it with:\n    "
-            f"ssh-keyscan -t {keyscan_type(key.get_name())} {hostname} >> {target}"
+        hint = record_hint(
+            hostname,
+            target,
+            keyscan_type(key.get_name()),
+            self.via,
+            self.identity,
         )
+        return f"{message}\nVerify that fingerprint first.\n{hint}"
 
     def _mismatch_message(
         self, hostname: str, key: PKey, matches: list[KnownHost]
     ) -> str:
         recorded = "\n".join(f"    {entry.describe()}" for entry in matches)
         target = user_known_hosts_path(hostname, self._ssh_config_path)
+        # Only the bare command here: with a conflicting key already on file,
+        # ssh itself refuses to connect, so record_hint's ssh fallback would
+        # be advice that cannot work
+        if target is None:
+            keep_both = f"    {_dev_null_hint()}"
+        else:
+            note = route_note(hostname, self.via)
+            command = record_command(
+                hostname,
+                target,
+                keyscan_type(key.get_name()),
+                self.via,
+                self.identity,
+            )
+            keep_both = (f"{note}\n" if note else "") + f"    {command}"
         return (
             f"Host key verification failed for '{hostname}'. It offered "
             f"{self._offered(key)}, which matches none of the "
@@ -337,7 +461,6 @@ class KnownHostsPolicy(paramiko.MissingHostKeyPolicy):
             "different host keys. Verify the fingerprint above by another "
             "route, then either drop the stale entries with\n"
             f"    ssh-keygen -R {hostname}\n"
-            "or, if the other machines are still valid, add this key alongside "
-            "them with\n"
-            f"    ssh-keyscan -t {keyscan_type(key.get_name())} {hostname} >> {target}"
+            "or, if the other machines are still valid, add this key "
+            f"alongside them:\n{keep_both}"
         )

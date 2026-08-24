@@ -46,6 +46,7 @@ from aiod_napari.inference.ssh_hostkeys import (
     HostKeyError,
     KnownHostsPolicy,
     assert_host_known,
+    ssh_target,
 )
 from aiod_napari.utils import (
     InfoWindow,
@@ -857,7 +858,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         # mid-run, where the failure would only reach the terminal
         assert_host_known(self.hostname.text())
         if self.target_node.text():
-            assert_host_known(self.target_node.text())
+            # Reached through the jump host, so ssh-keyscan cannot see it
+            assert_host_known(
+                self.target_node.text(),
+                via=self._jump_host(),
+                identity=self.ssh_key_path or None,
+            )
         check_prefixes(self.mounted_path_prefix.text(), self.remote_path_prefix.text())
 
         mounted_prefix = Path(self.mounted_path_prefix.text())
@@ -872,6 +878,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             "INFO: Remote Nextflow base directory: "
             f"{self._to_remote(self.nxf_base_dir)}"
         )
+
+    def _jump_host(self) -> str:
+        """
+        The jump host as it would be typed at a shell, username included.
+        """
+        return ssh_target(self.username.text(), self.hostname.text())
 
     def _to_remote(self, path) -> str:
         """
@@ -1575,9 +1587,13 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 "macOS: Command + Shift + .\n"
                 "Linux: Ctrl + H (may differ by distro)\n"
                 "Windows: Enable 'Hidden items' in the View menu.\n\n"
-                "The host must also be in your known_hosts file, otherwise its identity "
-                "cannot be verified. Add it with:\n"
-                "    ssh-keyscan <hostname> >> ~/.ssh/known_hosts\n\n"
+                "Both the hostname and the target node must also be in your "
+                "known_hosts file, otherwise their identity cannot be verified. "
+                "The plugin tells you the exact command to run when one is "
+                "missing, including which file it should go in.\n\n"
+                "Note that a target node reached through the hostname cannot be "
+                "read by ssh-keyscan directly - its key has to be fetched over "
+                "the jump host.\n\n"
                 "A load-balanced hostname may serve a different host key per node; all "
                 "of their keys can be recorded against the one name."
             ),
@@ -1631,7 +1647,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
                 # Connect to the target node using the channel as a proxy
                 target = paramiko.SSHClient()
-                target_policy = KnownHostsPolicy(target_node)
+                target_policy = KnownHostsPolicy(
+                    target_node,
+                    via=ssh_target(username, hostname),
+                    identity=ssh_key_path or None,
+                )
                 target.set_missing_host_key_policy(target_policy)
                 target.connect(
                     target_node,
