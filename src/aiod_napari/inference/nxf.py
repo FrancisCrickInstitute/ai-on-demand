@@ -37,6 +37,17 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
+from aiod_napari.inference.remote_paths import (
+    RemotePathError,
+    check_prefixes,
+    to_remote_path,
+)
+from aiod_napari.inference.ssh_hostkeys import (
+    HostKeyError,
+    KnownHostsPolicy,
+    assert_host_known,
+    ssh_target,
+)
 from aiod_napari.utils import (
     InfoWindow,
     format_tooltip,
@@ -44,6 +55,21 @@ from aiod_napari.utils import (
     sanitise_name,
 )
 from aiod_napari.widget_classes import SubWidget
+
+
+def path_available(path: Path) -> bool:
+    """
+    Whether `path` can be reached at all.
+
+    `Path.exists()` only answers False for paths that aren't there; a network
+    drive that has gone away leaves a mount point behind that raises OSError
+    (EIO on macOS) on every access instead, which would otherwise propagate
+    out of widget construction and stop the plugin opening.
+    """
+    try:
+        return path.exists()
+    except OSError:
+        return False
 
 
 class NxfWidget(SubWidget):
@@ -56,6 +82,9 @@ class NxfWidget(SubWidget):
     _SSH_CANCEL_TIMEOUT_S = 150
     _SSH_CANCEL_INTERVAL_S = 5
     _SSH_CONNECT_TIMEOUT_S = 15
+
+    # Used whenever the configured base directory cannot be reached
+    DEFAULT_BASE_DIR = Path.home() / ".nextflow" / "aiod"
 
     def __init__(
         self,
@@ -134,14 +163,14 @@ The profile determines where the pipeline is run.
             # Set the base directory
             if "base_dir" in settings:
                 base_dir = Path(settings["base_dir"])
-                if base_dir.exists():
+                if path_available(base_dir):
                     nxf_base_dir = base_dir
                 # in the case where user has unmounted a drive (e.g. remote server drive for ssh pipeline)
                 else:
                     print(
                         f"Warning: Could not access {settings['base_dir']}, falling back to default cache directory."
                     )
-                    nxf_base_dir = Path.home() / ".nextflow" / "aiod"
+                    nxf_base_dir = self.DEFAULT_BASE_DIR
                     nxf_base_dir.mkdir(parents=True, exist_ok=True)
                 self.nxf_dir_text.setText(str(nxf_base_dir))
                 # Update the base directory and Nextflow command
@@ -243,10 +272,31 @@ The profile determines where the pipeline is run.
 
     def setup_nxf_dir_cmd(self, base_dir: Path | None = None):
         # Set the basepath to store masks/checkpoints etc. in
-        if base_dir is not None:
-            self.nxf_base_dir = base_dir
-        else:
-            self.nxf_base_dir = Path.home() / ".nextflow" / "aiod"
+        if base_dir is None:
+            base_dir = self.DEFAULT_BASE_DIR
+        try:
+            self._set_nxf_dirs(base_dir)
+        except OSError as e:
+            # An unmounted or disconnected drive must not stop the plugin being
+            # used for everything else, so fall back to the local cache
+            msg = (
+                f"Could not use '{base_dir}' ({e.strerror}), falling back to "
+                f"{self.DEFAULT_BASE_DIR}"
+            )
+            print(f"Warning: {msg}")
+            show_info(msg)
+            self._set_nxf_dirs(self.DEFAULT_BASE_DIR)
+            # The label doesn't exist yet when called during construction
+            if hasattr(self, "nxf_dir_text"):
+                self.nxf_dir_text.setText(str(self.nxf_base_dir))
+
+    def _set_nxf_dirs(self, base_dir: Path):
+        """
+        Point the widget at `base_dir`, creating the directories it needs.
+
+        Raises OSError if they cannot be created.
+        """
+        self.nxf_base_dir = base_dir
         self.nxf_base_dir.mkdir(parents=True, exist_ok=True)
         self.nxf_store_dir = self.nxf_base_dir / "aiod_cache"
         self.nxf_store_dir.mkdir(parents=True, exist_ok=True)
@@ -293,7 +343,19 @@ The profile determines where the pipeline is run.
         self.passphrase_input = QLineEdit(placeholderText="Enter passphrase here...")
         self.passphrase_input.setEchoMode(QLineEdit.Password)
         self.remote_path_prefix = QLineEdit(placeholderText="e.g. /nemo/stp/")
+        self.remote_path_prefix.setToolTip(
+            format_tooltip(
+                "The full, absolute path the remote machine uses to reach your "
+                "data. '~' and environment variables are not expanded."
+            )
+        )
         self.mounted_path_prefix = QLineEdit(placeholderText="e.g. /Volumes/")
+        self.mounted_path_prefix.setToolTip(
+            format_tooltip(
+                "The full, absolute path where that same remote drive is mounted "
+                "on this machine. '~' and environment variables are not expanded."
+            )
+        )
         self.command_prepend = QLineEdit(
             placeholderText="Enter command prepend here..."
         )
@@ -792,6 +854,18 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         if missing:
             raise ValueError(f"missing: {', '.join(missing)}. for SSH pipeine run")
 
+        # Catch unverifiable hosts and unusable prefixes here rather than
+        # mid-run, where the failure would only reach the terminal
+        assert_host_known(self.hostname.text())
+        if self.target_node.text():
+            # Reached through the jump host, so ssh-keyscan cannot see it
+            assert_host_known(
+                self.target_node.text(),
+                via=self._jump_host(),
+                identity=self.ssh_key_path or None,
+            )
+        check_prefixes(self.mounted_path_prefix.text(), self.remote_path_prefix.text())
+
         mounted_prefix = Path(self.mounted_path_prefix.text())
         if not Path(self.nxf_base_dir).is_relative_to(mounted_prefix):
             raise ValueError(
@@ -800,6 +874,24 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 "the remote drive is not currently mounted, or the mounted path prefix "
                 "is set incorrectly."
             )
+        print(
+            "INFO: Remote Nextflow base directory: "
+            f"{self._to_remote(self.nxf_base_dir)}"
+        )
+
+    def _jump_host(self) -> str:
+        """
+        The jump host as it would be typed at a shell, username included.
+        """
+        return ssh_target(self.username.text(), self.hostname.text())
+
+    def _to_remote(self, path) -> str:
+        """
+        Where a locally-mounted path lives on the remote machine.
+        """
+        return to_remote_path(
+            path, self.mounted_path_prefix.text(), self.remote_path_prefix.text()
+        )
 
     def setup_inference(self, nxf_params: dict | None = None):
         """
@@ -1013,25 +1105,10 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             }
         )
         def _run_pipeline_ssh(nxf_cmd: str, img_paths: list[Path]):
-            self.remote_base_dir = str(self.nxf_base_dir).replace(
-                self.mounted_path_prefix.text(),
-                self.remote_path_prefix.text(),
-                1,
-            )
+            self.remote_base_dir = self._to_remote(self.nxf_base_dir)
             self.mounted_remote_base_dir = str(self.nxf_base_dir)
 
-            remote_img_paths = [
-                (
-                    Path(
-                        str(p).replace(
-                            self.mounted_path_prefix.text(),
-                            self.remote_path_prefix.text(),
-                            1,
-                        )
-                    )
-                )
-                for p in img_paths
-            ]
+            remote_img_paths = [Path(self._to_remote(p)) for p in img_paths]
 
             self.store_img_paths(img_paths=remote_img_paths)
 
@@ -1137,7 +1214,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.pipeline_finished.emit()
 
     def _pipeline_fail(self, exc):
-        show_info("Pipeline failed! See terminal for details")
+        if isinstance(exc, HostKeyError | RemotePathError):
+            # Both name what went wrong and what to run about it - worth
+            # showing rather than hiding behind "see terminal"
+            show_info(f"Pipeline failed! {exc}")
+        else:
+            show_info("Pipeline failed! See terminal for details")
         print(exc)
         self._reset_btns()
         # Deactivate file watcher
@@ -1504,7 +1586,16 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                 "If you can't see hidden folders you may need to toggle visibility:\n"
                 "macOS: Command + Shift + .\n"
                 "Linux: Ctrl + H (may differ by distro)\n"
-                "Windows: Enable 'Hidden items' in the View menu."
+                "Windows: Enable 'Hidden items' in the View menu.\n\n"
+                "Both the hostname and the target node must also be in your "
+                "known_hosts file, otherwise their identity cannot be verified. "
+                "The plugin tells you the exact command to run when one is "
+                "missing, including which file it should go in.\n\n"
+                "Note that a target node reached through the hostname cannot be "
+                "read by ssh-keyscan directly - its key has to be fetched over "
+                "the jump host.\n\n"
+                "A load-balanced hostname may serve a different host key per node; all "
+                "of their keys can be recorded against the one name."
             ),
         )
 
@@ -1530,16 +1621,20 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         jump = None
         target = None
         try:
-            # Connect to the jump host
+            # Connect to the jump host.
+            # No host keys are loaded into the client, so KnownHostsPolicy does
+            # all the verifying - see ssh_hostkeys for why paramiko's own check
+            # is not used.
             jump = paramiko.SSHClient()
-            jump.load_system_host_keys()
-            jump.set_missing_host_key_policy(paramiko.RejectPolicy())
+            jump_policy = KnownHostsPolicy(hostname)
+            jump.set_missing_host_key_policy(jump_policy)
             jump.connect(
                 hostname=hostname,
                 username=username,
                 key_filename=ssh_key_path,
                 passphrase=passphrase,
                 timeout=self._SSH_CONNECT_TIMEOUT_S,
+                transport_factory=jump_policy.transport_factory,
             )
             if target_node:
                 # Get a direct-tcpip channel to the target node through the jump host
@@ -1552,8 +1647,12 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
                 # Connect to the target node using the channel as a proxy
                 target = paramiko.SSHClient()
-                target.load_system_host_keys()
-                target.set_missing_host_key_policy(paramiko.RejectPolicy())
+                target_policy = KnownHostsPolicy(
+                    target_node,
+                    via=ssh_target(username, hostname),
+                    identity=ssh_key_path or None,
+                )
+                target.set_missing_host_key_policy(target_policy)
                 target.connect(
                     target_node,
                     username=username,
@@ -1561,6 +1660,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                     sock=channel,
                     passphrase=passphrase,
                     timeout=self._SSH_CONNECT_TIMEOUT_S,
+                    transport_factory=target_policy.transport_factory,
                 )
             else:
                 target = jump
@@ -1585,6 +1685,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                     f"Command exited with status {exit_status} on {node}"
                 )
 
+        except HostKeyError:
+            # Already explains itself, and says how to fix it - don't bury it.
+            raise
         except Exception as e:
             raise Exception(f"Error executing command via ssh: {str(e)}")
         finally:
