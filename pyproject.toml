@@ -59,6 +59,12 @@ testing = [
     "pyqt5",
 ]
 
+# Enable editable installs from other AIoD repos in expected structure
+# `uv sync --no-sources` resolves those pins from PyPI instead
+[tool.uv.sources]
+aiod_utils = { path = "../aiod_utils", editable = true }
+aiod_registry = { path = "../aiod_registry", editable = true }
+
 # PEP 735 dependency group for uv use
 [dependency-groups]
 dev = [
