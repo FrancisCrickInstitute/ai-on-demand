@@ -7,7 +7,7 @@ from aiod_utils.preprocess import (
     get_all_preprocess_methods,
     get_downsample_factor,
     get_params_str,
-    hash_params_str,
+    get_prep_hash,
     run_preprocess,
 )
 from napari.utils.notifications import show_error, show_info, show_warning
@@ -43,7 +43,7 @@ def format_preprocess_legend(preprocess_sets: list[list[dict]] | None) -> str:
             lines.append(f"Set {i + 1} (no hash):")
             lines.append("  No preprocessing")
         else:
-            prep_hash = hash_params_str(get_params_str(pp_set, to_save=True))
+            prep_hash = get_prep_hash(pp_set)
             lines.append(f"Set {i + 1} [{prep_hash}]:")
             for pp in pp_set:
                 lines.append(f"  {pp['name']}:")

@@ -11,7 +11,7 @@ import qtpy.QtCore
 import tqdm
 import yaml
 from aiod_registry import TASK_NAMES
-from aiod_utils.io import image_paths_to_csv
+from aiod_utils.io import get_mask_name, image_paths_to_csv, validate_image_ids
 from aiod_utils.stacks import Stack, calc_num_stacks, generate_stack_indices
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
@@ -37,7 +37,10 @@ from aiod_napari.utils import (
     InfoWindow,
     format_tooltip,
     get_img_dims,
+    image_key,
+    require_image_layer,
     sanitise_name,
+    short_hash,
 )
 from aiod_napari.widget_classes import SubWidget
 
@@ -577,19 +580,19 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         )
         # Extract info from each image
         for img_path in img_paths:
-            # Get the mask layer name
-            layer = self.parent.viewer.layers[img_path.stem]
+            # Get the image layer by path - layer names are not unique
+            layer = require_image_layer(self.parent.viewer, img_path)
             # Get the number of slices, channels, height, and width
             H, W, num_slices, channels = get_img_dims(layer, img_path)
             dims.append({"Z": num_slices, "Y": H, "X": W, "C": channels})
             dtypes.append(str(layer.metadata.get("dtype") or layer.data.dtype))
             # Initialise the progress dict
-            self.progress_dict[img_path.stem] = 0
+            self.progress_dict[image_key(img_path)] = 0
             # Need to take account for multiple runs due to preprocessing
+            # Match on the path itself - stems collide across extensions, and
+            # a.ome.tiff's stem is "a.ome" anyway
             relevant_runs = [
-                i
-                for i in self.parent.img_mask_info
-                if i["img_path"].stem == img_path.stem
+                i for i in self.parent.img_mask_info if i["img_path"] == img_path
             ]
             for d in relevant_runs:
                 # Get the shape after preprocessing (if any)
@@ -645,6 +648,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             raise ValueError("No model selected!")
         if len(self.parent.subwidgets["data"].image_path_dict) == 0:
             raise ValueError("No data selected!")
+        # Fail here rather than mid-run in Segment-Flow's computeImageIds, which
+        # applies the same check to the CSV we hand it
+        validate_image_ids(
+            list(self.parent.subwidgets["data"].image_path_dict.values())
+        )
 
     def setup_inference(self, nxf_params: dict | None = None):
         """
@@ -732,13 +740,13 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             # Delete expected masks to avoid reload
             # TODO: Switch fully to Nextflow for this, allowing resume to handle reload
             for img_dict in parent.img_mask_info:
-                # Real files on disk use the opaque mask_stem, not the
+                # Real files on disk are named from the image_id, not from the
                 # display-only layer_name - glob against that or this never
                 # matches anything.
-                mask_root = parent._get_mask_stem(
-                    img_path=img_dict["img_path"],
-                    truncate=False,
-                    preprocess_str=img_dict["preprocess_str"],
+                mask_root = get_mask_name(
+                    run_hash=parent.run_hash,
+                    image_id=img_dict["image_id"],
+                    prep_hash=img_dict["prep_hash"],
                 )
                 for mask_fpath in self.mask_dir_path.glob(f"{mask_root}*.rle"):
                     mask_fpath.unlink()
@@ -757,7 +765,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         if not proceed:
             msg = f"Masks already exist for all files for segmenting {TASK_NAMES[parent.executed_task]} with {parent.executed_model} ({parent.executed_variant})!"
             if self.parent.run_hash is not None:
-                msg += f" (Hash: {self.parent.run_hash[:8]})"
+                msg += f" (Hash: {short_hash(self.parent.run_hash)})"
                 self.display_params_button.setEnabled(True)
             show_info(msg)
             # Otherwise, until importing is fully sorted, the user just gets a notification and that's it
@@ -1177,7 +1185,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             params = yaml.safe_load(f)
 
         if not params:
-            info = f"Hash details for {full_hash[:8]} not found"
+            info = f"Hash details for {short_hash(full_hash)} not found"
         else:
             # Replace "model_config" value with the contents of the YAML file
             model_config_path = params.get("model_config")
@@ -1192,9 +1200,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
                     if not pp_set:
                         recipes["no preprocessing"] = None
                         continue
-                    prep_hash = aiod_utils.preprocess.hash_params_str(
-                        aiod_utils.preprocess.get_params_str(pp_set, to_save=True)
-                    )
+                    prep_hash = aiod_utils.preprocess.get_prep_hash(pp_set)
                     recipes[prep_hash] = aiod_utils.preprocess.get_params_str(
                         pp_set, to_save=False
                     )
@@ -1204,7 +1210,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         params_popup = InfoWindow(
             self,
             title="Pipeline parameters"
-            + (f" ({params['param_hash'][:8]})" if params else ""),
+            + (f" ({short_hash(params['param_hash'])})" if params else ""),
             content=info,
         )
         params_popup.show()

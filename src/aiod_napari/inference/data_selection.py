@@ -8,6 +8,7 @@ import qtpy.QtCore
 from bioio_base.dimensions import Dimensions
 from napari.layers import Image, Layer
 from napari.qt.threading import thread_worker
+from napari.utils.notifications import show_info
 from qtpy.QtWidgets import (
     QFileDialog,
     QGridLayout,
@@ -19,7 +20,12 @@ from qtpy.QtWidgets import (
 )
 
 from aiod_napari.io import prepare_bioio_as_napari_layer
-from aiod_napari.utils import format_tooltip, get_image_layer_path
+from aiod_napari.utils import (
+    find_image_layer,
+    format_tooltip,
+    get_image_layer_path,
+    image_key,
+)
 from aiod_napari.widget_classes import SubWidget
 
 
@@ -66,12 +72,12 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             for img_layer in self.viewer.layers:
                 if isinstance(img_layer, Image):
                     img_path = get_image_layer_path(img_layer)
-                    try:
-                        self.image_path_dict[img_path.stem] = img_path
-                        counter += 1
-                    # Will fail if no path found
-                    except AttributeError:
+                    # None for layers with no file behind them, e.g. arrays
+                    # added to the viewer directly
+                    if img_path is None:
                         continue
+                    if self._register_path(img_path):
+                        counter += 1
 
         # If all pre-existing image layers have been added, set loaded flag
         # Set to False if no images, to avoid overriding the all_loaded flag
@@ -159,16 +165,39 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         """
         if isinstance(event.value, Image):
             # Extract the underlying filepath of the image
-            img_path = get_image_layer_path(event.value, self.image_path_dict)
+            img_path = get_image_layer_path(event.value, warn=True)
             # Insert into the overall dict of images and their paths (if path is present)
             # This will be None when we are viewing arrays loaded separately from napari
             if img_path is not None:
-                self.image_path_dict[img_path.stem] = img_path
+                self._register_path(img_path)
             # Then update the counts of files (and their types) with the extra image
             self.update_file_count()
             # Switch flag to signify the image has been loaded
             # Adding via drag+drop blocks the UI, so it's fine to do here and not when adding begins
             self.parent.subwidgets["nxf"].all_loaded = True
+
+    def _register_path(self, img_path: Path) -> bool:
+        """
+        Add an image to the selection, keyed by its image_id.
+
+        Refuses a path whose image_id is already taken by a different file -
+        nothing downstream can tell the two apart (same filename and extension
+        in different directories), so warn here rather than silently dropping
+        one of the user's images.
+
+        Returns whether the path was added.
+        """
+        key = image_key(img_path)
+        existing = self.image_path_dict.get(key)
+        if existing is not None and existing != img_path:
+            show_info(
+                f"Cannot add {img_path}: it shares a filename and extension "
+                f"with {existing}, so their masks would overwrite each other. "
+                "Rename or move one of them to use both."
+            )
+            return False
+        self.image_path_dict[key] = img_path
+        return True
 
     def on_layer_removed(self, event):
         """
@@ -178,14 +207,12 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         """
         if isinstance(event.value, Image):
             # Extract the underlying filepath of the image
-            img_path = event.value.source.path
+            # Via get_image_layer_path, so sample data (path in metadata only)
+            # is keyed the same way going out as it was coming in
+            img_path = get_image_layer_path(event.value)
             # Remove from the list of images
             if img_path is not None:
-                if Path(img_path).stem in self.image_path_dict:
-                    del self.image_path_dict[Path(img_path).stem]
-            else:
-                if event.value.name in self.image_path_dict:
-                    del self.image_path_dict[event.value.name]
+                self.image_path_dict.pop(image_key(img_path), None)
             # Update file count with image removed
             self.update_file_count()
 
@@ -233,18 +260,19 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         if imgs_to_load is None:
             # Check if there are images to load that haven't been already;
             # include both confirmed-loaded and still-pending paths.
-            viewer_imgs = [
-                Path(i.name).stem for i in self.viewer.layers if isinstance(i, Image)
-            ]
             all_known = {**self.image_path_dict, **self._pending_paths}
-            imgs_to_load = [v for k, v in all_known.items() if k not in viewer_imgs]
+            imgs_to_load = [
+                v
+                for v in all_known.values()
+                if find_image_layer(self.viewer, v) is None
+            ]
         # If giving paths, double-check they aren't already loaded somehow
         elif imgs_to_load:
-            remove_fnames = []
-            for fname in imgs_to_load:
-                if Path(fname).stem in self.viewer.layers:
-                    remove_fnames.append(fname)
-            imgs_to_load = [i for i in imgs_to_load if i not in remove_fnames]
+            imgs_to_load = [
+                i
+                for i in imgs_to_load
+                if find_image_layer(self.viewer, Path(i)) is None
+            ]
         # Selecting no images will cause imgs_to_load=False, I think?
         else:
             return
@@ -283,8 +311,8 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         """
         bioio_img, fpath = res
         # Move from pending to confirmed-loaded
-        self._pending_paths.pop(fpath.stem, None)
-        self.image_path_dict[fpath.stem] = fpath
+        self._pending_paths.pop(image_key(fpath), None)
+        self._register_path(fpath)
         layer_data = prepare_bioio_as_napari_layer(bioio_img, fpath)
         for i in layer_data:
             self.viewer.add_layer(Layer.create(*i))
@@ -295,7 +323,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         Removes the path from ``_pending_paths`` so the file count stays
         accurate and shows an error notification to the user.
         """
-        self._pending_paths.pop(fpath.stem, None)
+        self._pending_paths.pop(image_key(fpath), None)
         self.update_file_count()
         from napari.utils.notifications import show_error
 
@@ -360,8 +388,6 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             patched += 1
 
         if patched == 0:
-            from napari.utils.notifications import show_info
-
             show_info(
                 f"No image layers with {len(axes)} dimensions found to apply '{axes}' to."
             )
@@ -380,8 +406,6 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         if "model" in self.parent.subwidgets:
             self.parent.subwidgets["model"]._refresh_all_channel_dropdowns()
 
-        from napari.utils.notifications import show_info
-
         show_info(f"Applied axes '{axes}' to {patched} image layer(s).")
 
     def update_file_count(self, paths: list[str | Path] | None = None):
@@ -396,7 +420,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         if paths is not None:
             for img_path in paths:
                 img_path = Path(img_path)
-                self._pending_paths[img_path.stem] = img_path
+                self._pending_paths[image_key(img_path)] = img_path
         # Count both confirmed-loaded and still-loading paths so the label is
         # always accurate regardless of load success/failure.
         all_paths = {**self.image_path_dict, **self._pending_paths}

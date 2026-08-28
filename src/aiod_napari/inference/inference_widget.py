@@ -1,5 +1,6 @@
 import copy
 import time
+from collections import Counter
 from pathlib import Path
 
 import aiod_utils.preprocess
@@ -7,7 +8,16 @@ import aiod_utils.rle as aiod_rle
 import napari
 import numpy as np
 import tifffile
-from aiod_utils.io import extract_idxs_from_fname, get_image_id, get_mask_name
+from aiod_utils.io import (
+    MASK_SEPARATOR,
+    extract_idxs_from_fname,
+    get_combined_mask_name,
+    get_image_id,
+    get_mask_name,
+    get_mask_prefix,
+    get_mask_prefix_from_name,
+    is_combined_mask,
+)
 from aiod_utils.stacks import stack_to_shape
 from napari.qt.threading import thread_worker
 
@@ -18,7 +28,13 @@ from aiod_napari.inference.model_selection import ModelWidget
 from aiod_napari.inference.nxf import NxfWidget
 from aiod_napari.inference.preprocess import PreprocessWidget
 from aiod_napari.inference.tasks import TaskWidget
-from aiod_napari.utils import calc_param_hash
+from aiod_napari.utils import (
+    calc_param_hash,
+    find_image_layer,
+    get_image_layer_path,
+    require_image_layer,
+    short_hash,
+)
 from aiod_napari.widget_classes import MainWidget
 
 
@@ -129,23 +145,17 @@ Run segmentation/inference on selected images using one of the available pre-tra
         self.get_img_mask_preps()
         # Loop over each image-mask-preprocess combo and check if the mask exists
         for img_dict in self.img_mask_info:
-            preprocess_str = img_dict["preprocess_str"]
-            mask_layer_name = self._get_mask_layer_name(
-                img_dict["img_path"],
-                executed=True,
-                preprocess_str=preprocess_str,
-            )
+            mask_layer_name = img_dict["layer_name"]
             # Check if this mask has been imported already
             if mask_layer_name in self.viewer.layers:
                 masks_exist.append(True)
             # Check if the mask exists from a previous run to load in
             elif (
                 self.subwidgets["nxf"].mask_dir_path
-                / self._get_mask_name(
-                    img_dict["img_path"],
+                / self._get_final_mask_name(
+                    img_dict["image_id"],
+                    img_dict["prep_hash"],
                     extension=self._get_output_format(),
-                    truncate=False,
-                    preprocess_str=preprocess_str,
                 )
             ).exists():
                 masks_exist.append(True)
@@ -176,14 +186,15 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 img_dict["preprocess_str"],
             )
             # Check if the mask file already exists
-            mask_fpath = self.subwidgets["nxf"].mask_dir_path / self._get_mask_name(
-                img_dict["img_path"],
+            mask_fpath = self.subwidgets[
+                "nxf"
+            ].mask_dir_path / self._get_final_mask_name(
+                img_dict["image_id"],
+                img_dict["prep_hash"],
                 extension=self._get_output_format(),
-                truncate=False,
-                preprocess_str=preprocess_str,
             )
             # Grab corresponding image layer to get info as needed
-            img_layer = self.viewer.layers[f"{fpath.stem}"]
+            img_layer = require_image_layer(self.viewer, fpath)
             img_metadata = (
                 copy.deepcopy(img_layer.metadata)
                 if img_layer.metadata is not None
@@ -269,22 +280,20 @@ Run segmentation/inference on selected images using one of the available pre-tra
                     if ("dimensions" in img_metadata) and (
                         img_metadata["dimensions"].Z > 1
                     ):
-                        img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape
+                        img_shape = img_layer.data.shape
                     # Otherwise not loaded with bioio, so handle as Napari interprets
                     else:
                         # If RGB, then 2D RGB image
                         # NOTE: This does not handle multi-channel 2D images
                         if img_layer.rgb:
-                            img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape[
-                                1:
-                            ]
+                            img_shape = img_layer.data.shape[1:]
                         # Otherwise it's 3D single-channel image
                         else:
-                            img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape
+                            img_shape = img_layer.data.shape
                 # Otherwise take the 2D image shape
                 # NOTE: [:ndim] is to handle RGB images as Napari interprets
                 else:
-                    img_shape = self.viewer.layers[f"{fpath.stem}"].data.shape[:ndim]
+                    img_shape = img_layer.data.shape[:ndim]
                 if prep_options is not None:
                     # Check if downsampling
                     downsample_factor = aiod_utils.preprocess.get_downsample_factor(
@@ -328,76 +337,61 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # Now move the new layer to be just above the image layer, ensuring they group together
             self.viewer.layers.move(
                 self.viewer.layers.index(layer_name),
-                self.viewer.layers.index(fpath.stem) + 1,
+                self.viewer.layers.index(img_layer) + 1,
             )
+
+    def _get_ambiguous_stems(self) -> frozenset[str]:
+        """
+        Stems shared by more than one selected image, so the layer name for
+        those images has to carry the full image_id to stay unique.
+        """
+        stems = Counter(
+            get_image_id(p).stem
+            for p in set(self.subwidgets["data"].image_path_dict.values())
+        )
+        return frozenset(stem for stem, count in stems.items() if count > 1)
 
     def get_img_mask_preps(self, img_paths: list | None = None):
         if img_paths is None:
             img_paths = list(self.subwidgets["data"].image_path_dict.values())
+        # Derived from the whole selection rather than the img_paths subset
+        # to try and create cleaner names if possible
+        ambiguous_stems = self._get_ambiguous_stems()
         # Get the preprocessing options, if any
-        options = self.subwidgets["preprocess"].get_all_options()
+        # No preprocessing is just a single no-op set, so it needs no branch of
+        # its own - the `not prep_set` check below gives it the unsuffixed names
+        options = self.subwidgets["preprocess"].get_all_options() or [None]
         # Store the info for later use in the watcher/final mask insertion
         self.img_mask_info = []
-        # If no preprocessing, create None's to zip with img_paths
-        # And just use the normal layer names
-        if options is None:
-            prep_options = [None] * len(img_paths)
-            preprocess_strs = [None] * len(img_paths)
-            all_img_paths = img_paths
-            all_layer_names = [
-                self._get_mask_layer_name(i, executed=True) for i in img_paths
-            ]
-            all_mask_stems = [self._get_mask_stem(i) for i in img_paths]
-        else:
-            # Containers for all the paths, layer names, and preprocessing options
-            prep_options = []
-            preprocess_strs = []
-            all_img_paths = []
-            all_layer_names = []
-            all_mask_stems = []
-            # Now modify the layer names to include the preprocessing options
-            for i, img_path in enumerate(img_paths):
-                for prep_set in options:
-                    all_img_paths.append(img_path)
-                    # For no-op sets, use no suffix so the layer name matches the mask
-                    # Nextflow creates from the original image filename
-                    if not prep_set:
-                        suffix = None
-                    else:
-                        suffix = aiod_utils.preprocess.get_params_str(
-                            prep_set, to_save=True
-                        )
-                    layer_name = self._get_mask_layer_name(
-                        img_paths[i],
-                        executed=True,
-                        preprocess_str=suffix,
-                    )
-                    all_layer_names.append(layer_name)
-                    all_mask_stems.append(
-                        self._get_mask_stem(img_paths[i], preprocess_str=suffix)
-                    )
-                    prep_options.append(prep_set if prep_set else None)
-                    preprocess_strs.append(suffix)
-        # Get mask prefixes from our mask filename stems to use in watcher to filter files
-        self.mask_prefixes = {i.split("_masks_")[0] for i in all_mask_stems}
-        # Insert all info into structure for later use
-        for fpath, layer_name, mask_stem, prep_set, preprocess_str in zip(
-            all_img_paths,
-            all_layer_names,
-            all_mask_stems,
-            prep_options,
-            preprocess_strs,
-            strict=True,
-        ):
-            self.img_mask_info.append(
-                {
-                    "img_path": fpath,
-                    "layer_name": layer_name,
-                    "mask_stem": mask_stem,
-                    "prep_set": prep_set,
-                    "preprocess_str": preprocess_str,
-                }
-            )
+        for img_path in img_paths:
+            image_id = get_image_id(img_path)
+            for prep_set in options:
+                # Both are None for a no-op set, so the names match the mask
+                # Nextflow creates from the original image filename
+                suffix = aiod_utils.preprocess.get_params_str(prep_set, to_save=True)
+                prep_hash = aiod_utils.preprocess.get_prep_hash(prep_set)
+                self.img_mask_info.append(
+                    {
+                        "img_path": img_path,
+                        # The identity every name below derives from, and what
+                        # Segment-Flow's image_id column will hold
+                        "image_id": image_id,
+                        "prep_hash": prep_hash,
+                        "layer_name": self._get_mask_layer_name(
+                            image_id,
+                            prep_hash,
+                            executed=True,
+                            ambiguous_stems=ambiguous_stems,
+                        ),
+                        "mask_prefix": get_mask_prefix(image_id, prep_hash),
+                        "prep_set": prep_set if prep_set else None,
+                        "preprocess_str": suffix,
+                    }
+                )
+        # Indexed by the (image, preprocessing) identity, so a mask appearing on
+        # disk is matched back to its record with one lookup - used by the
+        # watcher to filter files and by update_masks to find the target layer
+        self.mask_info_by_prefix = {i["mask_prefix"]: i for i in self.img_mask_info}
 
     def remove_mask_layers(self, img_paths=None):
         # Collate all image-mask-preprocess combos (handles preprocessing variants)
@@ -440,15 +434,13 @@ Run segmentation/inference on selected images using one of the available pre-tra
             while self.watcher_enabled:
                 # Get all files
                 current_files = list(self.subwidgets["nxf"].mask_dir_path.glob("*.rle"))
-                # Filter out any _all files, can occur when process is too fast (i.e. single image)
-                current_files = [
-                    i for i in current_files if Path(i).stem[-4:] != "_all"
-                ]
+                # Filter out any combined files, can occur when process is too fast (i.e. single image)
+                current_files = [i for i in current_files if not is_combined_mask(i)]
                 # Filter out files we are not running on
                 current_files = [
                     i
                     for i in current_files
-                    if Path(i).stem.split("_masks_")[0] in self.mask_prefixes
+                    if get_mask_prefix_from_name(i) in self.mask_info_by_prefix
                 ]
                 if set(self.mask_fpaths) != set(current_files):
                     # Get the new files only
@@ -472,51 +464,27 @@ Run segmentation/inference on selected images using one of the available pre-tra
 
     def _get_mask_layer_name(
         self,
-        img_path,
-        extension: str | None = None,
+        image_id,
+        prep_hash: str | None = None,
         executed: bool = False,
-        truncate: bool = True,
-        preprocess_str: str | None = None,
-    ):
-        # Human-readable display name for the napari layer
+        ambiguous_stems: frozenset[str] = frozenset(),
+    ) -> str:
+        # Human-readable display name for the napari layer, never a filename -
+        # the run hash is shortened and the model variant takes the place the
+        # real filenames give to the full hash
         # The preprocessing params are still hashed rather than raw
         # Could change that in the future if less helpful than before
-        image_id = get_image_id(img_path)
-        prep_hash = (
-            aiod_utils.preprocess.hash_params_str(preprocess_str)
-            if preprocess_str
-            else None
-        )
-        prep_suffix = f"_{prep_hash}" if prep_hash else ""
+        # Choose simpler names if we can (i.e. removing the extension if not needed for uniqueness)
+        name_id = image_id.value if image_id.stem in ambiguous_stems else image_id.stem
         task_model_variant_name = self.subwidgets["model"].get_task_model_variant_name(
             executed
         )
-        fname = f"{image_id}{prep_suffix}_masks_{task_model_variant_name}"
-        run_hash = self.run_hash[:8] if truncate else self.run_hash
-        fname += f"-{run_hash}"
-        if extension is not None:
-            fname += f".{extension}"
-        return fname
-
-    def _get_mask_stem(
-        self,
-        img_path,
-        extension: str | None = None,
-        truncate: bool = True,
-        preprocess_str: str | None = None,
-    ):
-        # Mask filename matching what Segment-Flow writes also via aiod_utils.io.get_mask_name
-        image_id = get_image_id(img_path)
-        prep_hash = (
-            aiod_utils.preprocess.hash_params_str(preprocess_str)
-            if preprocess_str
-            else None
+        # Same leading half as the real filenames, so the two stay recognisably
+        # related if the prep suffix format ever changes
+        return (
+            f"{get_mask_prefix(name_id, prep_hash)}"
+            f"{MASK_SEPARATOR}{task_model_variant_name}-{short_hash(self.run_hash)}"
         )
-        run_hash = self.run_hash[:8] if truncate else self.run_hash
-        fname = get_mask_name(run_hash=run_hash, image_id=image_id, prep_hash=prep_hash)
-        if extension is not None:
-            fname += f".{extension}"
-        return fname
 
     def _get_output_format(self) -> str:
         """Return the output format used for the executed run.
@@ -550,22 +518,20 @@ Run segmentation/inference on selected images using one of the available pre-tra
             arr, metadata = aiod_rle.decode(encoding)
             return arr, metadata
 
-    def _get_mask_name(
+    def _get_final_mask_name(
         self,
-        img_path,
+        image_id,
+        prep_hash: str | None = None,
         extension: str = "rle",
-        truncate=False,
-        preprocess_str: str | None = None,
-    ):
-        mask_root = self._get_mask_stem(
-            img_path=img_path,
-            truncate=truncate,
-            preprocess_str=preprocess_str,
+    ) -> str:
+        # The single combined mask, as opposed to the per-substack files the
+        # watcher picks up
+        return get_combined_mask_name(
+            get_mask_name(
+                run_hash=self.run_hash, image_id=image_id, prep_hash=prep_hash
+            ),
+            extension,
         )
-        # Add the _all marker to signify all slices/completeness
-        mask_root += "_all"
-        # Add the extension
-        return f"{mask_root}.{extension}"
 
     def _expand_mask_to_img_dims(
         self,
@@ -636,26 +602,20 @@ Run segmentation/inference on selected images using one of the available pre-tra
             start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
                 fname=f
             )
-            # Need to get the prefix and then compare against the opaque
-            # mask_stem (matching the real file), not the display-only
-            # layer_name, which no longer shares the same prefix format.
-            prefix, _ = f.stem.split("_masks_")
-            # Extract the relevant Labels layer
-            for d in self.img_mask_info:
-                if prefix == d["mask_stem"].split("_masks_")[0]:
-                    mask_layer_name = d["layer_name"]
-                    img_name = d["img_path"].stem
-                    break
-            else:
+            # Match the file back to its record by the (image, preprocessing)
+            # identity
+            d = self.mask_info_by_prefix.get(get_mask_prefix_from_name(f))
+            if d is None:
                 print(f"No matching layer found for mask file {f}, skipping...")
                 continue
+            mask_layer_name = d["layer_name"]
+            img_path = d["img_path"]
+            image_id = d["image_id"]
             label_layer = self.viewer.layers[mask_layer_name]
             # Expand the spatial-only mask slice to match the image's full ndim
             # (e.g. (nz,ny,nx) → (nz,1,ny,nx) for a ZCYX image) so the
             # assignment index and the array shape are consistent.
-            _img_layer_ref = (
-                self.viewer.layers[img_name] if img_name in self.viewer.layers else None  # noqa: SIM401
-            )
+            _img_layer_ref = find_image_layer(self.viewer, img_path)
             _img_layer_meta = (
                 (_img_layer_ref.metadata or {}) if _img_layer_ref is not None else {}
             )
@@ -716,9 +676,8 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # Try to rearrange the layers to get them on top
             idxs = []
             # Have to check due to possible delay in loading
-            if img_name in self.viewer.layers:
-                img_idx = self.viewer.layers.index(self.viewer.layers[img_name])
-                idxs.append(img_idx)
+            if _img_layer_ref is not None:
+                idxs.append(self.viewer.layers.index(_img_layer_ref))
             # We create the mask layer, so it will always exist
             label_idx = self.viewer.layers.index(label_layer)
             idxs.append(label_idx)
@@ -735,7 +694,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 else:
                     self.viewer.dims.set_point(0, end_z - 1)
             # Insert the slice number into tracker for the progress bar
-            self.subwidgets["nxf"].progress_dict[img_name] += 1
+            self.subwidgets["nxf"].progress_dict[image_id.value] += 1
         # Now update the total progress bar
         self.subwidgets["nxf"].update_progress_bar()
 
@@ -748,33 +707,21 @@ Run segmentation/inference on selected images using one of the available pre-tra
         """
         # Loop over each image and insert the final mask
         for img_dict in self.img_mask_info:
-            preprocess_str = img_dict["preprocess_str"]
-            # Get the mask layer name, considering any preprocessing
-            mask_layer_name = self._get_mask_layer_name(
-                img_dict["img_path"],
-                executed=True,
-                preprocess_str=preprocess_str,
-            )
+            mask_layer_name = img_dict["layer_name"]
             # Clear the current mask layer of data (to free up memory??)
             self.viewer.layers[mask_layer_name].data = np.zeros_like(
                 self.viewer.layers[mask_layer_name].data
             )
             # Load the mask
-            fpath = self.subwidgets["nxf"].mask_dir_path / self._get_mask_name(
-                img_dict["img_path"],
+            fpath = self.subwidgets["nxf"].mask_dir_path / self._get_final_mask_name(
+                img_dict["image_id"],
+                img_dict["prep_hash"],
                 extension=self._get_output_format(),
-                truncate=False,
-                preprocess_str=preprocess_str,
             )
             mask_arr, _ = self._load_mask_file(fpath)
             # Expand to image ndim (e.g. ZYX → Z1YX for ZCYX) so napari aligns
             # the mask's Z axis with the image's Z axis rather than its C axis.
-            _img_stem = img_dict["img_path"].stem
-            _img_layer_ref = (
-                self.viewer.layers[_img_stem]  # noqa: SIM401
-                if _img_stem in self.viewer.layers
-                else None
-            )
+            _img_layer_ref = find_image_layer(self.viewer, img_dict["img_path"])
             _img_layer_meta = (
                 (_img_layer_ref.metadata or {}) if _img_layer_ref is not None else {}
             )
@@ -819,10 +766,11 @@ Run segmentation/inference on selected images using one of the available pre-tra
             # First, move the current image layer to next position
             self.viewer.layers.move(self.viewer.layers.index(img_layer), idx)
             # Grab all relevant mask layers
+            layer_path = get_image_layer_path(img_layer)
             mask_layer_names = [
                 i["layer_name"]
                 for i in self.img_mask_info
-                if i["img_path"].stem == img_layer.name
+                if i["img_path"] == layer_path
             ]
             # Sort the mask layers
             mask_layers = sorted(
