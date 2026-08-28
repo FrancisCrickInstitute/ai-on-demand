@@ -89,7 +89,7 @@ def filter_empty_dict(d: dict) -> dict:
 def calc_param_hash(d: dict) -> str:
     # Sort the dictionary so that the hash is consistent on contents rather than order
     sorted_d = dict(sorted(d.items()))
-    return hashlib.md5(json.dumps(sorted_d).encode("utf-8")).hexdigest()
+    return hashlib.md5(json.dumps(sorted_d, sort_keys=True).encode("utf-8")).hexdigest()
 
 
 def load_config_file(config_path: str | Path) -> dict:

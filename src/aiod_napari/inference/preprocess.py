@@ -190,15 +190,11 @@ Any preprocessing applied here is for visualization purposes only, only the orig
         self.prep_run_btn.clicked.connect(
             partial(self.on_click_run, run_on_slice=False)
         )
-        self.prep_run_btn.setToolTip(
-            format_tooltip(
-                """
+        self.prep_run_btn.setToolTip(format_tooltip("""
 Apply the selected preprocessing options to the entire stack of the currently selected image (or first image layer if none selected).
 NOTE: This will run the computation locally and return an array in-memory, so be careful with larger images and/or expensive preprocessing.
 NOTE: The result is just for visualization! Only the original image will be used in the Nextflow pipeline.
-                """
-            )
-        )
+                """))
         self.btn_layout.addWidget(self.prep_run_btn, 0, 1, 1, 1)
         # Add some draft buttons for preprocessing sets
         self.save_set_btn = QPushButton("Save preprocessing set")
@@ -326,6 +322,7 @@ NOTE: The result is just for visualization! Only the original image will be used
                 "preprocess": True,
                 "downsample_blocksize": blocksize,
             },
+            scale=layer.scale[-image.ndim:]
         )
         # Switch focus back to the original layer
         self.viewer.layers.selection.active = layer
@@ -494,6 +491,35 @@ NOTE: The result is just for visualization! Only the original image will be used
             self.preprocess_sets = []
         self._update_viewsets_btn()
         self._reset_preprocess()
+        if config and len(config) == 1:
+            # Single non-empty set: reflect it in the UI so the user can see
+            self._load_options_into_ui(config[0])
+            self.preprocess_sets = []
+            self._update_viewsets_btn()
+
+    def _load_options_into_ui(self, options: list[dict]):
+        """Populate the UI checkboxes and parameter widgets from a single preprocessing set."""
+        self.order_list = []
+        for step in options:
+            name = step["name"]
+            params = step["params"]
+            self.preprocess_boxes[name]["box"].setChecked(True)
+            for param_name, value in params.items():
+                widget = self.preprocess_boxes[name]["params"][param_name]
+                if isinstance(widget, QCheckBox):
+                    widget.setChecked(bool(value))
+                elif isinstance(widget, QComboBox):
+                    idx = widget.findText(str(value))
+                    if idx != -1:
+                        widget.setCurrentIndex(idx)
+                elif isinstance(widget, QLineEdit):
+                    if isinstance(value, (list, tuple)):
+                        widget.setText(", ".join(map(str, value)))
+                    else:
+                        widget.setText(str(value))
+            self.order_list.append(name)
+        if self.order_list:
+            self.preprocess_order.setText("->".join(self.order_list))
 
 
 class PreprocessSetWindow(QDialog):

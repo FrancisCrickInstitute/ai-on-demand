@@ -310,12 +310,16 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         Adds an image to the viewer when loaded, using its filepath as the name.
         """
         bioio_img, fpath = res
-        # Move from pending to confirmed-loaded
-        self._pending_paths.pop(image_key(fpath), None)
-        self._register_path(fpath)
-        layer_data = prepare_bioio_as_napari_layer(bioio_img, fpath)
-        for i in layer_data:
-            self.viewer.add_layer(Layer.create(*i))
+        try:
+            layer_data = prepare_bioio_as_napari_layer(bioio_img, fpath)
+            for i in layer_data:
+                self.viewer.add_layer(Layer.create(*i))
+            # Move from pending to confirmed-loaded, only once the layer is
+            # actually in the viewer
+            self._pending_paths.pop(image_key(fpath), None)
+            self._register_path(fpath)
+        except Exception as e:
+            self._on_load_error(e, fpath)
 
     def _on_load_error(self, exc: Exception, fpath: Path):
         """Called when a thread worker fails to load an image.

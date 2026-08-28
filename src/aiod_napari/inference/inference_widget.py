@@ -234,7 +234,10 @@ Run segmentation/inference on selected images using one of the available pre-tra
                         visible=True,
                         opacity=0.5,
                         metadata=metadata,
-                        scale=img_layer.scale * metadata.get("downsample_factor", 1.0),
+                        scale=(
+                            img_layer.scale
+                            * (downsample_factor or [1.0])[-img_layer.scale.ndim :]
+                        ),
                     )
             else:
                 # If the associated image is present, use its shape

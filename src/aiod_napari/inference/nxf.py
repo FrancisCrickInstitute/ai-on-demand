@@ -2,6 +2,7 @@ import re
 import shlex
 import shutil
 import subprocess
+from importlib.resources import files
 from os import environ
 from pathlib import Path
 
@@ -61,13 +62,12 @@ class NxfWidget(SubWidget):
         **kwargs,
     ):
         # Define attributes that may be useful outside of this class or throughout it
-        _bundled = Path(__file__).parent.parent / "Segment-Flow"
         if "AIOD_NXF_REPO" in environ:
             self.nxf_repo = Path(environ["AIOD_NXF_REPO"])
             self.nxf_profiles_dir = self.nxf_repo / "profiles"
         else:
             self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
-            self.nxf_profiles_dir = _bundled / "profiles"
+            self.nxf_profiles_dir = Path(files("aiod_napari").joinpath("nxf_profiles"))
         # Set the base Nextflow command
         self.setup_nxf_dir_cmd()
         super().__init__(
