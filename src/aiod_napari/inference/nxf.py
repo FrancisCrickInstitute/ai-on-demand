@@ -30,7 +30,6 @@ from qtpy.QtWidgets import (
     QProgressBar,
     QPushButton,
     QSpinBox,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -40,7 +39,7 @@ from aiod_napari.utils import (
     get_img_dims,
     sanitise_name,
 )
-from aiod_napari.widget_classes import SubWidget
+from aiod_napari.widget_classes import CollapsibleOptions, SubWidget
 
 
 class NxfWidget(SubWidget):
@@ -298,36 +297,20 @@ Exactly what is overwritten will depend on the pipeline selected. By default, an
         self.pipeline_layout.addWidget(self.overwrite_btn, 1, 0, 1, 1)
 
         # Add widget for advanced options
-        self.options_widget = QWidget()
-        self.options_layout = QVBoxLayout()
-        self.advanced_box = QPushButton(" ▶ Advanced Options")
-        self.advanced_box.setCheckable(True)
-        self.advanced_box.setStyleSheet(
-            f"QPushButton {{ text-align: left; }} QPushButton:checked {{background-color: {self.parent.subwidgets['model'].colour_selected}}}"
-        )
-        self.advanced_box.toggled.connect(self.on_toggle_advanced)
-        self.advanced_box.setToolTip(
-            format_tooltip(
-                """
+        self.advanced_options = CollapsibleOptions(
+            title="Advanced Options",
+            tooltip="""
 Show/hide advanced options for the Nextflow pipeline. These options define how to split an image into separate jobs in Nextflow. The underlying models will likely do their own splitting internally into patches, but this controls the trade-off between the number and size of each job.
-"""
-            )
+""",
+            highlight_colour=self.parent.subwidgets["model"].colour_selected,
         )
-        self.advanced_widget = QWidget()
-        self.advanced_layout = QGridLayout()
+        self.advanced_layout = self.advanced_options.content_layout
 
         # Add the advanced options
         # Moved out due to length
         self._add_advanced_options()
 
-        self.advanced_widget.setLayout(self.advanced_layout)
-        self.advanced_widget.setVisible(False)
-        self.options_layout.addWidget(self.advanced_box)
-        self.options_layout.addWidget(self.advanced_widget)
-        self.options_layout.setContentsMargins(0, 0, 0, 0)
-        self.advanced_layout.setContentsMargins(4, 0, 4, 0)
-        self.options_widget.setLayout(self.options_layout)
-        self.pipeline_layout.addWidget(self.options_widget, 3, 0, 1, 2)
+        self.pipeline_layout.addWidget(self.advanced_options, 3, 0, 1, 2)
 
         self.inner_layout.addWidget(self.pipeline_box, 1, 0, 1, 2)
 
@@ -525,14 +508,6 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
 
         # Run the function to update the tile size label to get initial value
         self.update_tile_size(val=None, clear_label=False)
-
-    def on_toggle_advanced(self):
-        if self.advanced_box.isChecked():
-            self.advanced_widget.setVisible(True)
-            self.advanced_box.setText(" ▼ Advanced Options")
-        else:
-            self.advanced_widget.setVisible(False)
-            self.advanced_box.setText(" ▶ Advanced Options")
 
     def store_img_paths(self, img_paths: list[Path]):
         """
