@@ -28,10 +28,10 @@ def run_smoke_tests() -> None:
             f"get_bioio_reader raised an unexpected exception: {e}"
         ) from e
 
-    # Check that our submodule has brought in some files
+    # Check that the mirrored Nextflow profiles were packaged
     from importlib.resources import files
 
-    profiles_dir = files("aiod_napari").joinpath("Segment-Flow", "profiles")
+    profiles_dir = files("aiod_napari").joinpath("nxf_profiles")
     conf_files = [p for p in profiles_dir.iterdir() if p.name.endswith(".conf")]
     assert len(conf_files) > 0, (
         f"No .conf profiles found in {profiles_dir} — Segment-Flow submodule was not bundled correctly"

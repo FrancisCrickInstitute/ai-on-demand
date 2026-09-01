@@ -85,20 +85,15 @@ source = "vcs"
 allow-direct-references = true
 
 [tool.hatch.build]
-# Must be here in artifacts to overrride the exclude below
 artifacts = [
-  "src/aiod_napari/Segment-Flow/profiles/*.conf",
+  "src/aiod_napari/nxf_profiles/*.conf",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/aiod_napari"]
-exclude = [
-  "src/aiod_napari/Segment-Flow",
-]
 
 [tool.hatch.build.targets.sdist]
 exclude = [
-  "src/aiod_napari/Segment-Flow",
   ".github",
   ".pre-commit-config.yaml",
   "user_guide.md",
@@ -158,5 +153,4 @@ exclude = [
     "venv",
     "*vendored*",
     "*_vendor*",
-    "src/aiod_napari/Segment-Flow",
 ]

@@ -1,0 +1,99 @@
+# .github/workflows/sync_profiles.yml
+#
+# Receives a repository_dispatch event from Segment-Flow when profiles/ dir changes
+# Copies the updated profiles/*.conf files into this repo's checked-in profiles dir
+# Opens a PR for human review using the gh CLI
+
+name: Sync Nextflow profiles from Segment-Flow
+
+on:
+  repository_dispatch:
+    types: [profiles-updated]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  PROFILES_DEST: src/aiod_napari/nxf_profiles
+
+jobs:
+  sync-profiles:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout aiod_napari
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Checkout Segment-Flow profiles/ at source ref
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          repository: ${{ github.event.client_payload.source_repo }}
+          ref: ${{ github.event.client_payload.source_ref }}
+          sparse-checkout: |
+            profiles
+          sparse-checkout-cone-mode: false
+          path: _segment_flow
+
+      - name: Sync profile files
+        id: sync
+        run: |
+          mkdir -p "$PROFILES_DEST"
+          rsync -a --delete _segment_flow/profiles/ "$PROFILES_DEST/"
+          rm -rf _segment_flow
+
+          # Stage before diffing to handle additions/deletions
+          git add -A -- "$PROFILES_DEST"
+
+          if git diff --cached --quiet -- "$PROFILES_DEST"; then
+            echo "No changes detected (already in sync?)."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Files changed:"
+            git diff --cached --name-only -- "$PROFILES_DEST"
+          fi
+
+      - name: Commit and push branch
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          SOURCE_REF: ${{ github.event.client_payload.source_ref }}
+        run: |
+          BRANCH="auto/sync-profiles-${SOURCE_REF::8}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git commit -m "chore(profiles): sync from Segment-Flow@${SOURCE_REF::8}"
+          git push origin "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+        id: push
+
+      - name: Open PR
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_REPO: ${{ github.event.client_payload.source_repo }}
+          SOURCE_REF: ${{ github.event.client_payload.source_ref }}
+          BRANCH: ${{ steps.push.outputs.branch }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(profiles): sync Nextflow profiles from Segment-Flow" \
+            --body "$(cat <<EOF
+          Automated sync triggered by a profiles/ change in [\`${SOURCE_REPO}\`](https://github.com/${SOURCE_REPO}/commit/${SOURCE_REF}).
+
+          **Source commit:** \`${SOURCE_REF}\`
+
+          ### What changed
+          \`${PROFILES_DEST}/\` has been updated to mirror \`${SOURCE_REPO}\`'s \`profiles/\` directory at the above commit.
+
+          ### Checklist before merging
+          - [ ] New/removed profile names look correct in the dropdown
+          - [ ] No unintended files were modified
+          - [ ] CI passes on this branch
+          EOF
+          )" \
+            --label "dependencies" \
+            --label "automated"

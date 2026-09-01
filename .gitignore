@@ -93,3 +93,6 @@ venv/
 
 # Ew
 **/*.pkl
+
+# Former submodule checkout; profiles now live in src/aiod_napari/nxf_profiles
+src/aiod_napari/Segment-Flow/
