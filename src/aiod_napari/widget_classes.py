@@ -28,9 +28,79 @@ from aiod_napari.utils import (
     AboutWindow,
     format_tooltip,
     get_plugin_cache,
+    html_link,
 )
 
 DOCS_URL = "https://franciscrickinstitute.github.io/aiod_docs/"
+# Highlight colour used for selected/active buttons across the plugin
+COLOUR_SELECTED = "#F7AD6F"
+
+
+class CollapsibleOptions(QWidget):
+    """
+    A toggle button that shows/hides a block of secondary options.
+
+    Keeps the interface minimal for basic users, with less commonly needed
+    controls one click away rather than absent. Populate it by adding widgets
+    to ``content_layout``.
+
+    Parameters
+    ----------
+    title : str
+        Text of the toggle button (an arrow indicating state is prepended).
+    tooltip : str, optional
+        Tooltip for the toggle button, passed through ``format_tooltip``.
+    layout : QLayout, optional
+        Layout class to use for the hidden content.
+    highlight_colour : str, optional
+        Background colour of the toggle button while expanded.
+    margins : tuple[int, int, int, int], optional
+        Content margins for the hidden content, to indent it under the button.
+    """
+
+    def __init__(
+        self,
+        title: str = "Advanced Options",
+        tooltip: str | None = None,
+        layout: QLayout = QGridLayout,
+        highlight_colour: str = COLOUR_SELECTED,
+        margins: tuple[int, int, int, int] = (4, 0, 4, 0),
+        parent: QWidget | None = None,
+    ):
+        super().__init__(parent)
+        self.title = title
+
+        self.toggle_btn = QPushButton(f" ▶ {title}")
+        self.toggle_btn.setCheckable(True)
+        self.toggle_btn.setStyleSheet(
+            "QPushButton { text-align: left; } "
+            f"QPushButton:checked {{background-color: {highlight_colour}}}"
+        )
+        self.toggle_btn.toggled.connect(self._on_toggle)
+        if tooltip is not None:
+            self.toggle_btn.setToolTip(format_tooltip(tooltip))
+
+        self.content_widget = QWidget()
+        self.content_layout = layout()
+        self.content_layout.setContentsMargins(*margins)
+        self.content_widget.setLayout(self.content_layout)
+        self.content_widget.setVisible(False)
+
+        outer_layout = QVBoxLayout()
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.addWidget(self.toggle_btn)
+        outer_layout.addWidget(self.content_widget)
+        self.setLayout(outer_layout)
+
+    def _on_toggle(self, checked: bool):
+        self.content_widget.setVisible(checked)
+        self.toggle_btn.setText(f" {'▼' if checked else '▶'} {self.title}")
+
+    def set_expanded(self, expanded: bool = True):
+        self.toggle_btn.setChecked(expanded)
+
+    def is_expanded(self) -> bool:
+        return self.toggle_btn.isChecked()
 
 
 class MainWidget(QWidget):
