@@ -83,7 +83,7 @@ class MainWidget(QWidget):
         self.about_btn.setIconSize(QSize(about_btn_size - 6, about_btn_size - 6))
         self.about_btn.setFlat(True)
         self.about_btn.setCursor(qtpy.QtCore.Qt.PointingHandCursor)
-        self.about_btn.setToolTip("About AI OnDemand")
+        self.about_btn.setToolTip("About AI OnDemand & links to help/docs")
         self.about_btn.clicked.connect(self.on_about_click)
 
         # Widget title to display
@@ -132,13 +132,13 @@ class MainWidget(QWidget):
         Opens a pop-out with some background on the plugin and a link to the docs.
         """
         about_text = (
-            "<p><b>AI OnDemand</b> is developed by the Software Engineering & AI STP at "
-            "the <a href='https://www.crick.ac.uk/'>Francis Crick Institute</a>.</p>"
-            "<p>For guides and documentation, see the "
-            f"<a href='{DOCS_URL}'>AI OnDemand documentation</a>.</p>"
+            "<p><b>AI OnDemand (AIoD)</b> is developed by the Software Engineering & AI STP at "
+            f"the {html_link('https://www.crick.ac.uk/', 'Francis Crick Institute')}.</p>"
+            "<p>For guides, documentation, and details how to contact us, see the "
+            f"{html_link(DOCS_URL, 'AIoD documentation')}.</p>"
         )
         self.about_window = AboutWindow(
-            self, title="About AI OnDemand", content=about_text
+            self, title="About AI OnDemand (AIoD)", content=about_text
         )
         self.about_window.show()
 
