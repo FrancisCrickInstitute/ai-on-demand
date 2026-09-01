@@ -279,6 +279,9 @@ NOTE: The result is just for visualization! Only the original image will be used
         for layer in self.viewer.layers:
             if not isinstance(layer, napari.layers.Image):
                 continue
+            # Filter out preprocessed layers
+            if layer.metadata.get("preprocess", None):
+                continue
             layer_stem = Path(layer.name).stem
             # Match exactly, or handle bioio multi-channel names like "image.tif [C:0]"
             if layer_stem in registered_stems or any(
