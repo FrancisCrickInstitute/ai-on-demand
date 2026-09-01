@@ -32,6 +32,25 @@ from qtpy.QtWidgets import (
 from aiod_napari.utils import ConfirmDialog, format_tooltip
 from aiod_napari.widget_classes import SubWidget
 
+# Need some width to account for -+ step buttons
+_SPIN_BUTTON_WIDTH = 20
+
+
+def _style_spinbox(spinbox: QSpinBox | QDoubleSpinBox):
+    """Centre a spin box's value and keep it narrow, but wide enough to show any value."""
+    spinbox.setAlignment(qtpy.QtCore.Qt.AlignCenter)
+    # Grab the max text width from the box's min/max values
+    text_width = max(
+        spinbox.fontMetrics().horizontalAdvance(spinbox.textFromValue(value))
+        for value in (spinbox.minimum(), spinbox.maximum())
+    )
+    spinbox.setStyleSheet(
+        "QAbstractSpinBox {"
+        f" min-width: {text_width + 2 * _SPIN_BUTTON_WIDTH}px;"
+        " padding: 1px 2px;"
+        " }"
+    )
+
 
 class PreprocessWidget(SubWidget):
     _name = "preprocess"
@@ -87,7 +106,6 @@ Any preprocessing applied here is for visualization purposes only, only the orig
         self.dim_warning_label.setVisible(False)
         self.inner_layout.addWidget(self.dim_warning_label)
 
-        _min_spin_width = "35px"
         # Go through each method, creating a box and populating the UI elements for each parameter
         for name, d in self.preprocess_methods.items():
             group_box = QGroupBox(name)
@@ -139,7 +157,7 @@ Any preprocessing applied here is for visualization purposes only, only the orig
                         else QDoubleSpinBox()
                     )
                     widget.setValue(param_dict["default"])
-                    widget.setStyleSheet(f"min-width: {_min_spin_width}")
+                    _style_spinbox(widget)
                     param_row.addWidget(widget)
                 # Get cleaner representation of list/tuple (avoid () & [])
                 elif isinstance(defaults := param_dict["default"], (list, tuple)):
@@ -147,12 +165,10 @@ Any preprocessing applied here is for visualization purposes only, only the orig
                     for val in defaults:
                         if isinstance(val, (int, float)):
                             subwidget = (
-                                QSpinBox()
-                                if isinstance(val, int)
-                                else QDoubleSpinBox()
+                                QSpinBox() if isinstance(val, int) else QDoubleSpinBox()
                             )
                             subwidget.setValue(val)
-                            subwidget.setStyleSheet(f"min-width: {_min_spin_width}")
+                            _style_spinbox(subwidget)
                         elif isinstance(val, str):
                             subwidget = QLineEdit()
                             subwidget.setText(val)
@@ -206,11 +222,13 @@ Any preprocessing applied here is for visualization purposes only, only the orig
         self.prep_run_btn.clicked.connect(
             partial(self.on_click_run, run_on_slice=False)
         )
-        self.prep_run_btn.setToolTip(format_tooltip("""
+        self.prep_run_btn.setToolTip(
+            format_tooltip("""
 Apply the selected preprocessing options to the entire stack of the currently selected image (or first image layer if none selected).
 NOTE: This will run the computation locally and return an array in-memory, so be careful with larger images and/or expensive preprocessing.
 NOTE: The result is just for visualization! Only the original image will be used in the Nextflow pipeline.
-                """))
+                """)
+        )
         self.btn_layout.addWidget(self.prep_run_btn, 0, 1, 1, 1)
         # Add some draft buttons for preprocessing sets
         self.save_set_btn = QPushButton("Save preprocessing set")
@@ -425,7 +443,7 @@ NOTE: The result is just for visualization! Only the original image will be used
                 "preprocess": True,
                 "downsample_blocksize": blocksize,
             },
-            scale=layer.scale[-image.ndim:]
+            scale=layer.scale[-image.ndim :],
         )
         # Switch focus back to the original layer
         self.viewer.layers.selection.active = layer
@@ -449,11 +467,17 @@ NOTE: The result is just for visualization! Only the original image will be used
                 # Extract the value based on the widget type
                 if isinstance(widget, list):
                     # Multiple spinboxes/lineedits for a list/tuple param
-                    internal_dtype = type(method_dict["params"][param_name]["default"][0])
+                    internal_dtype = type(
+                        method_dict["params"][param_name]["default"][0]
+                    )
                     # NOTE: We always cast to list to avoid '!!python/tuple' pyyaml tag
                     # As this cannot be loaded by the yaml.safe_load function
                     option_dict["params"][param_name] = [
-                        internal_dtype(w.value() if isinstance(w, (QSpinBox, QDoubleSpinBox)) else w.text())
+                        internal_dtype(
+                            w.value()
+                            if isinstance(w, (QSpinBox, QDoubleSpinBox))
+                            else w.text()
+                        )
                         for w in widget
                     ]
                 elif isinstance(widget, QCheckBox):
