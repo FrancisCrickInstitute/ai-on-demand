@@ -3,7 +3,7 @@ Tests for keying per-image state by image_id rather than by filename stem.
 
 Two images can share a stem (cells.tif and cells.png), and napari renames
 duplicate layers ("cells", "cells [1]"), so neither the stem nor the layer name
-is a usable identity. These pin the two halves of the fix: image_key for the
+is a usable identity. These pin the two halves of the fix: ImageId keys for the
 dicts, and path-based layer resolution instead of name lookups.
 """
 
@@ -12,12 +12,12 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from aiod_utils.io import get_image_id
 from napari.layers import Image
 
 from aiod_napari.utils import (
     find_image_layer,
     get_image_layer_path,
-    image_key,
     require_image_layer,
 )
 
@@ -32,23 +32,28 @@ def make_layer(name, path=None, metadata_path=None):
     return layer
 
 
-class TestImageKey:
+class TestImageIdAsKey:
+    """
+    The dict key is the ImageId itself, so these pin the properties the widget
+    relies on it for (rather than re-testing aiod_utils' parsing).
+    """
+
     def test_same_stem_different_extension_are_distinct(self):
-        assert image_key(Path("/data/cells.tif")) != image_key(Path("/data/cells.png"))
+        assert get_image_id(Path("/data/cells.tif")) != get_image_id(
+            Path("/data/cells.png")
+        )
 
     def test_key_ignores_the_parent_directory(self):
         # Deliberate: these two genuinely cannot be told apart downstream, so
         # they must collide here where the widget can warn about it
-        assert image_key(Path("/a/cells.tif")) == image_key(Path("/b/cells.tif"))
+        assert get_image_id(Path("/a/cells.tif")) == get_image_id(Path("/b/cells.tif"))
 
-    def test_key_matches_the_segment_flow_image_id(self):
-        from aiod_utils.io import get_image_id
-
+    def test_key_is_hashable_and_stable_across_calls(self):
         path = Path("/data/cells.ome.tiff")
-        assert image_key(path) == get_image_id(path).value
+        assert {get_image_id(path): path}[get_image_id(path)] == path
 
-    def test_compound_extension_not_left_on_the_key(self):
-        assert image_key(Path("/data/cells.ome.tiff")) == "cells_ome_tiff"
+    def test_key_carries_the_segment_flow_image_id(self):
+        assert get_image_id(Path("/data/cells.ome.tiff")).value == "cells_ome_tiff"
 
 
 class TestFindImageLayer:
@@ -155,6 +160,14 @@ class TestDataWidgetRegistration:
         viewer.add_layer(make_layer("just an array"))
         widget = DataWidget(viewer)
         assert widget.image_path_dict == {}
+
+    def test_registration_keys_by_image_id(self, data_widget):
+        # update_file_count reads the extension straight off the key, and
+        # progress tracking matches records against it
+        path = Path("/data/cells.ome.tiff")
+        data_widget._register_path(path)
+        (key,) = data_widget.image_path_dict
+        assert (key.stem, key.ext) == ("cells", ".ome.tiff")
 
     def test_removal_of_sample_data_layer(self, data_widget):
         # Path in metadata only - previously handled by a layer-name fallback

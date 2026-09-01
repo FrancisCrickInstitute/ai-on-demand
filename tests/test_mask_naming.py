@@ -13,12 +13,14 @@ from pathlib import Path
 
 import pytest
 from aiod_utils.io import (
+    get_combined_mask_name,
     get_image_id,
     get_mask_name,
     get_mask_prefix,
     validate_image_ids,
 )
 
+from aiod_napari.inference import inference_widget as inference_widget_module
 from aiod_napari.inference.inference_widget import Inference
 
 RUN_HASH = "1a2b3c4d5e6f7a8b"
@@ -87,7 +89,9 @@ def record_mask_stem(widget, record):
 
 def select_and_build(widget, paths):
     """Select the given images and return the records built for them."""
-    widget.subwidgets["data"].image_path_dict = {str(p): Path(p) for p in paths}
+    widget.subwidgets["data"].image_path_dict = {
+        get_image_id(p): Path(p) for p in paths
+    }
     widget.get_img_mask_preps()
     return widget.img_mask_info
 
@@ -243,7 +247,7 @@ class TestAmbiguousStems:
         return types.SimpleNamespace(
             subwidgets={
                 "data": types.SimpleNamespace(
-                    image_path_dict={str(p): Path(p) for p in paths}
+                    image_path_dict={get_image_id(p): Path(p) for p in paths}
                 )
             }
         )
@@ -299,7 +303,9 @@ class TestGetImgMaskPrepsWiring:
         return widget
 
     def _select(self, widget, *paths):
-        widget.subwidgets["data"].image_path_dict = {str(p): Path(p) for p in paths}
+        widget.subwidgets["data"].image_path_dict = {
+            get_image_id(p): Path(p) for p in paths
+        }
 
     def test_colliding_stems_produce_unique_layer_names(self, widget):
         # Previously both got "cells_masks_...", so check_masks reported the
@@ -333,14 +339,12 @@ class TestGetImgMaskPrepsWiring:
         assert record["mask_prefix"] == record["image_id"].value
 
     def test_record_image_id_matches_the_progress_dict_key(self, widget):
-        # update_masks increments progress_dict[image_id.value]; nxf.py keys it
-        # with image_key(img_path). Same value, or progress silently KeyErrors
-        from aiod_napari.utils import image_key
-
+        # update_masks increments progress_dict[image_id]; nxf.py keys it from
+        # the path. Same key, or progress silently KeyErrors
         self._select(widget, "/data/cells.tiff", "/data/cells.png")
         widget.get_img_mask_preps()
         for record in widget.img_mask_info:
-            assert record["image_id"].value == image_key(record["img_path"])
+            assert record["image_id"] == get_image_id(record["img_path"])
 
     def test_no_preprocessing_yields_one_record_per_image(self, widget):
         # The collapsed loop must not multiply records when options is None
@@ -426,3 +430,81 @@ class TestGetImgMaskPrepsWiring:
         widget.get_img_mask_preps(img_paths=[Path("/data/cells.png")])
         subset = {i["img_path"]: i["layer_name"] for i in widget.img_mask_info}
         assert subset[Path("/data/cells.png")] == full[Path("/data/cells.png")]
+
+
+class TestWatcherFileScoping:
+    """
+    The mask directory is shared by every run of a model variant, and run_hash
+    does not include the image paths - so filtering on the (image, prep) prefix
+    alone matches substacks left behind by an earlier interrupted run.
+    """
+
+    @pytest.fixture
+    def widget(self, real_widget, tmp_path, monkeypatch):
+        real_widget.subwidgets["nxf"].mask_dir_path = tmp_path
+        select_and_build(real_widget, ["/data/cells.tiff"])
+        self._make_watcher_synchronous(real_widget, monkeypatch)
+        return real_widget
+
+    def _make_watcher_synchronous(self, widget, monkeypatch):
+        """
+        Run the watcher body in the calling thread for one pass.
+
+        The file filtering lives inside the thread_worker-wrapped loop, so
+        there is nothing else to call it through.
+        """
+        self.yielded = []
+
+        def collect(connect=None):
+            def decorator(func):
+                return lambda *args: self.yielded.extend(func(*args))
+
+            return decorator
+
+        monkeypatch.setattr(inference_widget_module, "thread_worker", collect)
+        monkeypatch.setattr(inference_widget_module.time, "sleep", lambda _: None)
+        monkeypatch.setattr(widget, "create_mask_layers", lambda: None)
+        # Stop the loop after the first pass
+        widget.subwidgets["nxf"].progress_dict = {}
+        widget.subwidgets["nxf"].total_substacks = 0
+
+    def _watched_files(self, widget):
+        widget.watch_mask_files()
+        return [fpath for batch in self.yielded for fpath in batch]
+
+    def _write(self, widget, name):
+        path = widget.subwidgets["nxf"].mask_dir_path / name
+        path.touch()
+        return path
+
+    def test_picks_up_this_run_substacks(self, widget):
+        (record,) = widget.img_mask_info
+        stem = record_mask_stem(widget, record)
+        wanted = self._write(widget, f"{stem}_x0-64_y0-64_z0-1.rle")
+        assert self._watched_files(widget) == [wanted]
+
+    def test_ignores_another_runs_substacks(self, widget):
+        # Same image and preprocessing, different params - so the same prefix
+        # but a different run hash
+        (record,) = widget.img_mask_info
+        other = get_mask_name(
+            run_hash="0" * 16,
+            image_id=record["image_id"],
+            prep_hash=record["prep_hash"],
+        )
+        self._write(widget, f"{other}_x0-64_y0-64_z0-1.rle")
+        assert self._watched_files(widget) == []
+
+    def test_ignores_the_combined_mask(self, widget):
+        (record,) = widget.img_mask_info
+        stem = record_mask_stem(widget, record)
+        self._write(widget, get_combined_mask_name(stem, "rle"))
+        assert self._watched_files(widget) == []
+
+    def test_ignores_images_not_in_this_run(self, widget):
+        # Same params (so same run hash), an image this run does not cover
+        other = get_mask_name(
+            run_hash=widget.run_hash, image_path="/data/elsewhere.tiff"
+        )
+        self._write(widget, f"{other}_x0-64_y0-64_z0-1.rle")
+        assert self._watched_files(widget) == []
