@@ -10,6 +10,23 @@ from bioio_base.exceptions import UnsupportedFileFormatError
 from bioio_base.reader import Reader
 
 
+def safe_image_id(path: str | Path) -> aiod_utils.io.ImageId:
+    """
+    ImageId for an image we can already read, tolerating extensions that
+    `get_image_id` cannot resolve.
+
+    bioio's bioformats fallback reads a long tail of formats that no installed
+    reader plugin advertises, so a file can load fine yet have an extension
+    `get_image_id` rejects. Naming a layer is not worth failing the load over,
+    hence falling back to pathlib's single-suffix split there.
+    """
+    try:
+        return aiod_utils.io.get_image_id(path)
+    except ValueError:
+        path = Path(path)
+        return aiod_utils.io.ImageId(stem=path.stem, ext=path.suffix)
+
+
 def get_bioio_reader(path: str | Path):
     # Check if bioio can read this
     try:
@@ -54,7 +71,7 @@ def prepare_bioio_as_napari_layer(bioio_img, path):
     # Keys are valid napari Layer constructor arguments
     # on scale values: https://github.com/napari/napari/issues/6968
     layer_attributes = {
-        "name": path.stem,
+        "name": safe_image_id(path).stem,
         "rgb": aiod_utils.io.guess_rgba(bioio_img),
         "scale": [getattr(bioio_img.scale, d) or 1 for d in dim_order if d != "S"],
         "metadata": {

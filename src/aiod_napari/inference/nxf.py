@@ -12,7 +12,13 @@ import qtpy.QtCore
 import tqdm
 import yaml
 from aiod_registry import TASK_NAMES
-from aiod_utils.io import get_mask_name, image_paths_to_csv, validate_image_ids
+from aiod_utils.io import (
+    ImageId,
+    get_image_id,
+    get_mask_name,
+    image_paths_to_csv,
+    validate_image_ids,
+)
 from aiod_utils.stacks import Stack, calc_num_stacks, generate_stack_indices
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
@@ -38,7 +44,6 @@ from aiod_napari.utils import (
     InfoWindow,
     format_tooltip,
     get_img_dims,
-    image_key,
     require_image_layer,
     sanitise_name,
     short_hash,
@@ -85,7 +90,7 @@ The profile determines where the pipeline is run.
         # Needed to properly extract metadata
         self.all_loaded = False
         # Dictionary to monitor progress of each image
-        self.progress_dict = {}
+        self.progress_dict: dict[ImageId, int] = {}
         # Total number of substacks; set properly by setup_inference()
         self.total_substacks = 0
 
@@ -587,7 +592,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             dims.append({"Z": num_slices, "Y": H, "X": W, "C": channels})
             dtypes.append(str(layer.metadata.get("dtype") or layer.data.dtype))
             # Initialise the progress dict
-            self.progress_dict[image_key(img_path)] = 0
+            self.progress_dict[get_image_id(img_path)] = 0
             # Need to take account for multiple runs due to preprocessing
             # Match on the path itself
             relevant_runs = [

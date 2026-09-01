@@ -148,18 +148,6 @@ def get_image_layer_path(img_layer: Image, warn: bool = False) -> Path | None:
     return Path(img_path)
 
 
-def image_key(img_path: Path) -> str:
-    """
-    Key for anything mapping a selected image to per-image state (its path, its
-    substack progress).
-
-    The image_id rather than the filename stem, so that cells.tif and cells.png
-    are two entries and not one, and so the key matches what Segment-Flow will
-    name the corresponding masks.
-    """
-    return aiod_utils.io.get_image_id(img_path).value
-
-
 def find_image_layer(viewer, img_path: Path) -> Image | None:
     """
     Find the Image layer displaying the given file (`img_path`).

@@ -349,8 +349,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         those images has to carry the full image_id to stay unique.
         """
         stems = Counter(
-            get_image_id(p).stem
-            for p in set(self.subwidgets["data"].image_path_dict.values())
+            image_id.stem for image_id in self.subwidgets["data"].image_path_dict
         )
         return frozenset(stem for stem, count in stems.items() if count > 1)
 
@@ -696,7 +695,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
                 else:
                     self.viewer.dims.set_point(0, end_z - 1)
             # Insert the slice number into tracker for the progress bar
-            self.subwidgets["nxf"].progress_dict[image_id.value] += 1
+            self.subwidgets["nxf"].progress_dict[image_id] += 1
         # Now update the total progress bar
         self.subwidgets["nxf"].update_progress_bar()
 

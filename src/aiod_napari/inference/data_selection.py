@@ -24,7 +24,6 @@ from aiod_napari.utils import (
     find_image_layer,
     format_tooltip,
     get_image_layer_path,
-    image_key,
 )
 from aiod_napari.widget_classes import SubWidget
 
@@ -62,10 +61,10 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         # Create empty counter to show image load progress
         self.load_img_counter = 0
         self._total_loading = 0
-        # Create container for image paths
-        self.image_path_dict = {}
+        # Container for image paths
+        self.image_path_dict: dict[aiod_io.ImageId, Path] = {}
         # Paths queued for loading but not yet successfully added to the viewer
-        self._pending_paths = {}
+        self._pending_paths: dict[aiod_io.ImageId, Path] = {}
         # Do a quick check to see if the user has added any images already
         counter = 0
         if self.viewer.layers:
@@ -186,7 +185,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
 
         Returns whether the path was added.
         """
-        key = image_key(img_path)
+        key = aiod_io.get_image_id(img_path)
         existing = self.image_path_dict.get(key)
         if existing is not None and existing != img_path:
             show_info(
@@ -212,7 +211,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             img_path = get_image_layer_path(event.value)
             # Remove from the list of images
             if img_path is not None:
-                self.image_path_dict.pop(image_key(img_path), None)
+                self.image_path_dict.pop(aiod_io.get_image_id(img_path), None)
             # Update file count with image removed
             self.update_file_count()
 
@@ -316,7 +315,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
                 self.viewer.add_layer(Layer.create(*i))
             # Move from pending to confirmed-loaded, only once the layer is
             # actually in the viewer
-            self._pending_paths.pop(image_key(fpath), None)
+            self._pending_paths.pop(aiod_io.get_image_id(fpath), None)
             self._register_path(fpath)
         except Exception as e:
             self._on_load_error(e, fpath)
@@ -327,7 +326,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         Removes the path from ``_pending_paths`` so the file count stays
         accurate and shows an error notification to the user.
         """
-        self._pending_paths.pop(image_key(fpath), None)
+        self._pending_paths.pop(aiod_io.get_image_id(fpath), None)
         self.update_file_count()
         from napari.utils.notifications import show_error
 
@@ -424,7 +423,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         if paths is not None:
             for img_path in paths:
                 img_path = Path(img_path)
-                self._pending_paths[image_key(img_path)] = img_path
+                self._pending_paths[aiod_io.get_image_id(img_path)] = img_path
         # Count both confirmed-loaded and still-loading paths so the label is
         # always accurate regardless of load success/failure.
         all_paths = {**self.image_path_dict, **self._pending_paths}
@@ -433,7 +432,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             self.img_counts.setText(self.init_file_msg)
             return
         # Get all the extensions in the path
-        extension_counts = Counter([i.suffix for i in all_paths.values()])
+        extension_counts = Counter([image_id.ext for image_id in all_paths])
         # Sort by highest and get the suffixes and their counts
         ext_counts = extension_counts.most_common()
         if len(ext_counts) > 1:
