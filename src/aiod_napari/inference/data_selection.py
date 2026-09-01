@@ -180,10 +180,9 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         """
         Add an image to the selection, keyed by its image_id.
 
-        Refuses a path whose image_id is already taken by a different file -
-        nothing downstream can tell the two apart (same filename and extension
-        in different directories), so warn here rather than silently dropping
-        one of the user's images.
+        Refuses a path whose image_id is already taken by a different file,
+        as downstream cannot deal with same fname+extension with different
+        parent directories.
 
         Returns whether the path was added.
         """
@@ -207,8 +206,9 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         """
         if isinstance(event.value, Image):
             # Extract the underlying filepath of the image
-            # Via get_image_layer_path, so sample data (path in metadata only)
+            # Use get_image_layer_path, so sample data (path in metadata only)
             # is keyed the same way going out as it was coming in
+            # (other data will have a source)
             img_path = get_image_layer_path(event.value)
             # Remove from the list of images
             if img_path is not None:
@@ -227,7 +227,7 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             "Select one or more images",
             str(Path.home()),
             "",
-        )
+        )  # type: ignore
         if fnames != []:
             self.update_file_count(paths=fnames)
             self.view_images(imgs_to_load=fnames)

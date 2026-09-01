@@ -123,6 +123,10 @@ def load_settings() -> dict:
 
 
 def get_image_layer_path(img_layer: Image, warn: bool = False) -> Path | None:
+    """Get the underlying path for the image in `img_layer`
+
+    If it cannot be found, optionally warns the user to re-add the data through AIoD
+    """
     # Skip this if the layer is a result of the Preprocess preview
     if img_layer.metadata.get("preprocess", None):
         return

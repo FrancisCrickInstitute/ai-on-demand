@@ -589,8 +589,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             # Initialise the progress dict
             self.progress_dict[image_key(img_path)] = 0
             # Need to take account for multiple runs due to preprocessing
-            # Match on the path itself - stems collide across extensions, and
-            # a.ome.tiff's stem is "a.ome" anyway
+            # Match on the path itself
             relevant_runs = [
                 i for i in self.parent.img_mask_info if i["img_path"] == img_path
             ]
@@ -740,9 +739,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             # Delete expected masks to avoid reload
             # TODO: Switch fully to Nextflow for this, allowing resume to handle reload
             for img_dict in parent.img_mask_info:
-                # Real files on disk are named from the image_id, not from the
-                # display-only layer_name - glob against that or this never
-                # matches anything.
+                # Real files on disk are named from the image_id (not layer_name)
                 mask_root = get_mask_name(
                     run_hash=parent.run_hash,
                     image_id=img_dict["image_id"],

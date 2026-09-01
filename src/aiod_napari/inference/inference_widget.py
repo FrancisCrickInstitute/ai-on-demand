@@ -435,15 +435,16 @@ Run segmentation/inference on selected images using one of the available pre-tra
             self.mask_fpaths = []
             # Loop and yield any changes infinitely while enabled
             while self.watcher_enabled:
-                # Get all files
-                current_files = list(self.subwidgets["nxf"].mask_dir_path.glob("*.rle"))
-                # Filter out any combined files, can occur when process is too fast (i.e. single image)
-                current_files = [i for i in current_files if not is_combined_mask(i)]
-                # Filter out files we are not running on
+                # NOTE: run_hash to get files with these params,
+                # and mask prefix to be specific to this run's paths
                 current_files = [
-                    i
-                    for i in current_files
-                    if get_mask_prefix_from_name(i) in self.mask_info_by_prefix
+                    fpath
+                    for fpath in self.subwidgets["nxf"].mask_dir_path.glob(
+                        f"*{MASK_SEPARATOR}{self.run_hash}*.rle"
+                    )
+                    # Combined files can appear when a run is fast (i.e. single image)
+                    if not is_combined_mask(fpath)
+                    and get_mask_prefix_from_name(fpath) in self.mask_info_by_prefix
                 ]
                 if set(self.mask_fpaths) != set(current_files):
                     # Get the new files only
@@ -472,12 +473,11 @@ Run segmentation/inference on selected images using one of the available pre-tra
         executed: bool = False,
         ambiguous_stems: frozenset[str] = frozenset(),
     ) -> str:
-        # Human-readable display name for the napari layer, never a filename -
-        # the run hash is shortened and the model variant takes the place the
-        # real filenames give to the full hash
-        # The preprocessing params are still hashed rather than raw
-        # Could change that in the future if less helpful than before
-        # Choose simpler names if we can (i.e. removing the extension if not needed for uniqueness)
+        # Readable display name for the napari layer
+        # Shortened run hash and str of task-model-version
+        # Preprocessing params are still hashed rather than raw
+        # ...could change that in the future if less helpful than before?
+        # Use ambiguous stems to choose simpler names if we can (i.e. removing the extension if not needed for uniqueness)
         name_id = image_id.value if image_id.stem in ambiguous_stems else image_id.stem
         task_model_variant_name = self.subwidgets["model"].get_task_model_variant_name(
             executed
@@ -527,8 +527,7 @@ Run segmentation/inference on selected images using one of the available pre-tra
         prep_hash: str | None = None,
         extension: str = "rle",
     ) -> str:
-        # The single combined mask, as opposed to the per-substack files the
-        # watcher picks up
+        # The single, final combined mask, not per-substack files
         return get_combined_mask_name(
             get_mask_name(
                 run_hash=self.run_hash, image_id=image_id, prep_hash=prep_hash
