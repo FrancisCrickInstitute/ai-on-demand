@@ -354,3 +354,95 @@ class TestInferenceWorkflow:
                 f"Inference pipeline timed out after {pipeline_timeout}s "
                 f"(task={task!r}, model={model!r}, variant={variant!r})"
             )
+
+
+class TestSequenceParams:
+    """List/tuple params are typed as comma-separated text, so they must be
+    split rather than cast wholesale.
+
+    Regression test: `tuple("2,2")` yields `('2', ',', '2')` (a per-character
+    split) and `yaml.dump` then writes a `!!python/tuple` tag that
+    `yaml.safe_load` cannot read. Affects StarDist's `n_tiles` and PanSeg's
+    `patch`, `patch_halo` and `ws_pixel_pitch`.
+    """
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("2,2", [2, 2]),
+            ("2, 2", [2, 2]),
+            (" 4,4,1 ", [4, 4, 1]),
+            ("2", [2]),
+            ("1.5,1.5", [1.5, 1.5]),
+            # Round-trips a value rendered by str(), as fill_ui_from_config does
+            ("[2, 2]", [2, 2]),
+            ("(2, 2)", [2, 2]),
+            # Empty/degenerate input means "unset", not an empty sequence
+            ("", None),
+            ("   ", None),
+            (",", None),
+            ("2,,2", [2, 2]),
+        ],
+    )
+    def test_parse_sequence_param(self, text, expected):
+        from aiod_napari.inference.model_selection import parse_sequence_param
+
+        assert parse_sequence_param(text) == expected
+
+    def test_never_casts_string_per_character(self):
+        """The exact failure from the review: tuple("2,2") -> ('2', ',', '2')."""
+        from aiod_napari.inference.model_selection import parse_sequence_param
+
+        assert tuple("2,2") == ("2", ",", "2")  # the old behaviour
+        assert parse_sequence_param("2,2") == [2, 2]
+
+    def test_yaml_round_trip_is_safe_loadable(self):
+        """Emitted sequences must survive yaml.safe_load with no python tags."""
+        import yaml
+
+        from aiod_napari.inference.model_selection import parse_sequence_param
+
+        dumped = yaml.dump({"n_tiles": parse_sequence_param("2,2")})
+        assert "!!python/tuple" not in dumped
+        assert yaml.safe_load(dumped) == {"n_tiles": [2, 2]}
+
+    def test_format_round_trips_through_parse(self):
+        from aiod_napari.inference.model_selection import (
+            format_sequence_param,
+            parse_sequence_param,
+        )
+
+        assert format_sequence_param([2, 2]) == "2, 2"
+        assert parse_sequence_param(format_sequence_param([4, 4, 1])) == [4, 4, 1]
+
+    def test_n_tiles_from_widget_is_yaml_safe(self, inference_widget):
+        """End-to-end: typing "2,2" into StarDist's n_tiles box must emit a
+        plain list, not the per-character tuple ('2', ',', '2')."""
+        import yaml
+        from aiod_registry import TASK_NAMES
+
+        model_widget = inference_widget.widget.subwidgets["model"]
+
+        task_index = model_widget.task_dropdown.findText(TASK_NAMES["nuclei"])
+        if task_index == -1:
+            pytest.skip("nuclei task unavailable")
+        model_widget.task_dropdown.setCurrentIndex(task_index)
+        model_widget.on_task_select()
+
+        model_index = model_widget.model_dropdown.findText("StarDist")
+        if model_index == -1:
+            pytest.skip("StarDist unavailable in this registry")
+        model_widget.model_dropdown.setCurrentIndex(model_index)
+        model_widget.on_model_select()
+        model_widget.on_model_version_select()
+
+        key = model_widget.get_task_model_variant(executed=False)
+        n_tiles_widget = model_widget.model_param_dict[key]["Number of Tiles"]["value"]
+        n_tiles_widget.setText("2,2")
+
+        config = model_widget.create_config_params(task_model_version=key)
+        assert config["n_tiles"] == [2, 2]
+
+        dumped = yaml.dump(config)
+        assert "!!python/tuple" not in dumped
+        assert yaml.safe_load(dumped)["n_tiles"] == [2, 2]

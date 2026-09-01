@@ -30,6 +30,45 @@ from aiod_napari.utils import (
 )
 from aiod_napari.widget_classes import SubWidget
 
+# Schema dtypes that represent a sequence of values entered as comma-separated text
+SEQUENCE_DTYPES = ("list", "tuple")
+
+
+def parse_sequence_param(text: str) -> list | None:
+    """Parse a comma-separated parameter box into a list of values.
+
+    Used for params whose schema `dtype` is "list"/"tuple" (e.g. StarDist's
+    `n_tiles`, PanSeg's `patch`). These render as a plain text box, so the raw
+    text must be split rather than passed to `tuple()`/`list()` directly --
+    `tuple("2,2")` yields `('2', ',', '2')`, splitting the string per character.
+
+    Always returns a `list`, never a `tuple`, so that `yaml.dump` does not emit a
+    `!!python/tuple` tag that `yaml.safe_load` cannot read.
+
+    Brackets are tolerated so a value round-tripped through `str(value)` (as
+    `fill_ui_from_config` does) parses back cleanly. Returns None if empty.
+    """
+    items = [item.strip() for item in text.strip().strip("()[]").split(",")]
+    parsed = []
+    for item in items:
+        if not item:
+            continue
+        # No element dtype in the schema, so infer the narrowest that fits
+        for cast in (int, float):
+            try:
+                parsed.append(cast(item))
+                break
+            except ValueError:
+                continue
+        else:
+            parsed.append(item)
+    return parsed or None
+
+
+def format_sequence_param(value) -> str:
+    """Render a sequence param back into the comma-separated text box form."""
+    return ", ".join(str(v) for v in value)
+
 
 class ModelWidget(SubWidget):
     _name = "model"
@@ -826,6 +865,10 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
                 # Could check NoneType compatible?
                 if param_value is None or param_value == "None":
                     model_dict[orig_param.arg_name] = None
+                # Sequences come from a text box, so split rather than cast the
+                # whole string: tuple("2,2") would give ('2', ',', '2')
+                elif orig_param.dtype in SEQUENCE_DTYPES:
+                    model_dict[orig_param.arg_name] = parse_sequence_param(param_value)
                 else:
                     model_dict[orig_param.arg_name] = getattr(
                         builtins, orig_param.dtype
@@ -878,7 +921,13 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
                     if idx != -1:
                         widget.setCurrentIndex(idx)
             elif isinstance(widget, QLineEdit):
-                widget.setText(str(value) if value is not None else "None")
+                if value is None:
+                    widget.setText("None")
+                elif isinstance(value, (list, tuple)):
+                    # Show "2, 2" rather than "[2, 2]" to match what is typed in
+                    widget.setText(format_sequence_param(value))
+                else:
+                    widget.setText(str(value))
             else:
                 raise NotImplementedError(
                     f"Unknown widget type for parameter '{param_name}'"
