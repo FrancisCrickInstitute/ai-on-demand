@@ -1,5 +1,4 @@
 from functools import partial
-from pathlib import Path
 
 import napari
 import numpy as np
@@ -29,7 +28,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
-from aiod_napari.utils import ConfirmDialog, format_tooltip
+from aiod_napari.utils import ConfirmDialog, find_image_layer, format_tooltip
 from aiod_napari.widget_classes import SubWidget
 
 # Need some width to account for -+ step buttons
@@ -274,19 +273,12 @@ NOTE: The result is just for visualization! Only the original image will be used
         if not data_widget.image_path_dict:
             self._apply_dim_state("any")
             return
-        registered_stems = set(data_widget.image_path_dict.keys())
+        # Match on the layer's source path, as layer names are user-editable.
+        # Preprocessing previews have no path, so are excluded by find_image_layer.
         ndims = set()
-        for layer in self.viewer.layers:
-            if not isinstance(layer, napari.layers.Image):
-                continue
-            # Filter out preprocessed layers
-            if layer.metadata.get("preprocess", None):
-                continue
-            layer_stem = Path(layer.name).stem
-            # Match exactly, or handle bioio multi-channel names like "image.tif [C:0]"
-            if layer_stem in registered_stems or any(
-                layer_stem.startswith(s) for s in registered_stems
-            ):
+        for img_path in data_widget.image_path_dict.values():
+            layer = find_image_layer(self.viewer, img_path)
+            if layer is not None:
                 ndims.add(layer.data.ndim)
         if not ndims:
             # Registered images aren't in the viewer yet — don't change state
