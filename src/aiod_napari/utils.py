@@ -24,6 +24,17 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 
+# Qt's default link blue is hard to read against napari's dark theme. The colour
+# must be inlined on each anchor: napari's app-wide stylesheet takes precedence
+# over the QPalette.Link role, so setting that on the widget has no effect.
+LINK_COLOUR = "#a8d8ff"
+
+
+def html_link(url: str, text: str) -> str:
+    """Format a hyperlink for display in a rich-text Qt widget."""
+    return f"<a href='{url}' style='color: {LINK_COLOUR};'>{text}</a>"
+
+
 # Hashes are shown to users truncated, matching the length aiod_utils'
 # hash_params_str already uses for preprocessing hashes
 SHORT_HASH_LEN = 8
@@ -225,11 +236,31 @@ class InfoWindow(QDialog):
         self.info_label = QTextEdit()
         # Make the text selectable, but not editable
         self.info_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.info_label.setText(content)
+        # Not setText, which switches to rich text on anything markup-shaped in
+        # the content, collapsing the newlines and indentation
+        self.info_label.setPlainText(content)
         self.info_label.setMinimumSize(500, 500)
 
         self.layout.addWidget(self.info_label)
         self.setLayout(self.layout)
+
+
+class AboutWindow(QDialog):
+    """Small pop-out with a blurb about the plugin and a clickable docs link."""
+
+    def __init__(self, parent=None, title: str = "", content: str = ""):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+
+        layout = QVBoxLayout()
+        info_label = QLabel(content)
+        info_label.setWordWrap(True)
+        info_label.setTextFormat(Qt.RichText)
+        info_label.setOpenExternalLinks(True)
+        info_label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        layout.addWidget(info_label)
+        self.setLayout(layout)
+        self.setMinimumWidth(350)
 
 
 class ConfirmDialog(QDialog):

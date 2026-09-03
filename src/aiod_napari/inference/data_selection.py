@@ -12,10 +12,12 @@ from napari.utils.notifications import show_info
 from qtpy.QtWidgets import (
     QFileDialog,
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QLayout,
     QLineEdit,
     QPushButton,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -25,7 +27,7 @@ from aiod_napari.utils import (
     format_tooltip,
     get_image_layer_path,
 )
-from aiod_napari.widget_classes import SubWidget
+from aiod_napari.widget_classes import CollapsibleOptions, SubWidget
 
 
 class DataWidget(SubWidget):
@@ -119,7 +121,14 @@ Images can also be opened, or dragged into napari as normal. The selection will 
         self.img_counts.setWordWrap(True)
         self.inner_layout.addWidget(self.img_counts, 1, 0, 1, 3)
 
-        # Axis override row
+        # Axes override is rarely needed, so keep it tucked away by default
+        self.advanced_options = CollapsibleOptions(
+            title="Advanced Options",
+            tooltip="Show/hide less commonly needed options for loading images.",
+            layout=QVBoxLayout,
+        )
+        self.inner_layout.addWidget(self.advanced_options, 2, 0, 1, 3)
+
         axes_label = QLabel("Axes override:")
         axes_label.setToolTip(
             format_tooltip(
@@ -144,13 +153,17 @@ Images can also be opened, or dragged into napari as normal. The selection will 
             )
         )
         self.axes_override_btn.clicked.connect(self.on_apply_axes_override)
-        self.inner_layout.addWidget(axes_label, 2, 0)
-        self.inner_layout.addWidget(self.axes_override_edit, 2, 1)
-        self.inner_layout.addWidget(self.axes_override_btn, 2, 2)
+        # Nested layout so the line edit's width doesn't stretch the button columns above
+        axes_layout = QHBoxLayout()
+        axes_layout.setContentsMargins(0, 0, 0, 0)
+        axes_layout.addWidget(axes_label)
+        axes_layout.addWidget(self.axes_override_edit, stretch=1)
+        axes_layout.addWidget(self.axes_override_btn)
+        self.advanced_options.content_layout.addLayout(axes_layout)
         # Feedback label showing detected dimensions after override
         self.axes_feedback_label = QLabel("")
         self.axes_feedback_label.setWordWrap(True)
-        self.inner_layout.addWidget(self.axes_feedback_label, 3, 0, 1, 3)
+        self.advanced_options.content_layout.addWidget(self.axes_feedback_label)
 
         # Run the file counter if there are images already loaded
         if len(self.image_path_dict) > 0:

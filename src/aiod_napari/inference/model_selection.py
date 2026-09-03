@@ -3,6 +3,7 @@ from pathlib import Path
 
 import napari
 import yaml
+from aiod_registry import TASK_NAMES
 from napari._qt.qt_resources import QColoredSVGIcon
 from napari.utils.notifications import show_error
 from qtpy.QtWidgets import (
@@ -44,13 +45,18 @@ class ModelWidget(SubWidget):
         # Needs to be done before super call
         self.colour_selected = "#F7AD6F"
 
+        # Easy access to the display name for each task
+        # Needs to be done before super call, as create_box (called within) needs it
+        self.task_to_display = dict(TASK_NAMES)
+        self.display_to_task = {label: name for name, label in TASK_NAMES.items()}
+
         super().__init__(
             viewer=viewer,
             title="Model Selection",
             parent=parent,
             layout=layout,
             tooltip="""
-Select the model and model variant to use for inference.
+Select the task (organelle), model family, and model version to use for inference. The models available will change depending on the task selected.
 
 Parameters can be modified if setup properly, otherwise a config file can be loaded in whatever format the model takes!
         """,
@@ -105,8 +111,24 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
     def create_box(self, variant: str | None = None):
         # TODO: This will have to become a variant for e.g. fine-tuning
         model_box_layout = QGridLayout()
+        # Add label + dropdown for the task (organelle) to segment
+        task_label = QLabel("Select task:")
+        task_label.setToolTip(
+            format_tooltip(
+                "Select the organelle you want to segment. The models available will change depending on the task selected."
+            )
+        )
+        self.task_dropdown = QComboBox()
+        self.task_name_init = "Select a task"
+        self.task_dropdown.addItem(self.task_name_init)
+        self.task_dropdown.addItems(
+            sorted([self.task_to_display[name] for name in TASK_NAMES])
+        )
+        self.task_dropdown.activated.connect(self.on_task_select)
+        model_box_layout.addWidget(task_label, 0, 0)
+        model_box_layout.addWidget(self.task_dropdown, 0, 1, 1, 2)
         # Create a label for the dropdown
-        model_label = QLabel("Select model:")
+        model_label = QLabel("Select model family:")
         # Dropdown of available models
         self.model_dropdown = QComboBox()
         # Store initial message to handle erroneous clicking
@@ -115,8 +137,8 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_dropdown.addItems([self.model_name_init])
         # Connect function when new model selected
         self.model_dropdown.activated.connect(self.on_model_select)
-        model_box_layout.addWidget(model_label, 0, 0)
-        model_box_layout.addWidget(self.model_dropdown, 0, 1, 1, 2)
+        model_box_layout.addWidget(model_label, 1, 0)
+        model_box_layout.addWidget(self.model_dropdown, 1, 1, 1, 2)
         # Add label + dropdown for model variants/versions
         model_version_label = QLabel("Select version:")
         model_version_label.setToolTip(
@@ -129,8 +151,8 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         self.model_version_dropdown = QComboBox()
         self.model_version_dropdown.addItems(["Select a model first!"])
         self.model_version_dropdown.activated.connect(self.on_model_version_select)
-        model_box_layout.addWidget(model_version_label, 1, 0)
-        model_box_layout.addWidget(self.model_version_dropdown, 1, 1, 1, 2)
+        model_box_layout.addWidget(model_version_label, 2, 0)
+        model_box_layout.addWidget(self.model_version_dropdown, 2, 1, 1, 2)
 
         # Add an icon for information about the selected model
         self.model_info_icon = QPushButton("")
@@ -144,7 +166,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             format_tooltip("Information about the selected model.")
         )
         self.model_info_icon.clicked.connect(self.on_model_info)
-        model_box_layout.addWidget(self.model_info_icon, 0, 3, 2, 1)
+        model_box_layout.addWidget(self.model_info_icon, 0, 3, 3, 1)
 
         self.inner_layout.addLayout(model_box_layout, 0, 0)
 
@@ -192,6 +214,23 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
     def config_dir(self) -> Path:
         return self.parent.subwidgets["nxf"].nxf_base_dir / "configs"
 
+    def on_task_select(self):
+        """
+        Callback for when a task is selected in the dropdown.
+
+        Updates the model box to show only the models available for the selected task.
+        """
+        task_label = self.task_dropdown.currentText()
+        if task_label == self.task_name_init:
+            return
+        self.parent.selected_task = self.display_to_task[task_label]
+        self.update_model_box(self.parent.selected_task)
+        # Once a real task is chosen, there's no going back to the placeholder,
+        # so drop it to avoid model/version boxes going stale if reselected.
+        init_idx = self.task_dropdown.findText(self.task_name_init)
+        if init_idx != -1:
+            self.task_dropdown.removeItem(init_idx)
+
     def on_model_select(self):
         """
         Callback for when a model button is clicked.
@@ -205,6 +244,9 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
             self.set_model_param_widget("init")
             return
         elif model_name == self.model_name_unavail:
+            # No model available for the current task, so clear previous
+            self.parent.selected_model = None
+            self.parent.selected_variant = None
             self.clear_model_param_widget()
             self.set_model_param_widget("init")
             self.model_version_dropdown.clear()
@@ -881,9 +923,19 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
         return f"{task}-{model}-{slug}"
 
     def load_config(self, config):
+        task_name = config["task"]
         model_name = config["name"]
         model_version = config["model_type"]
         model_config_path = config["model_config"]
+
+        task_display_name = self.task_to_display.get(task_name)
+        if task_display_name is None:
+            raise ValueError(f"Task {task_name} not recognised.")
+        task_index = self.task_dropdown.findText(task_display_name)
+        if task_index == -1:
+            raise ValueError(f"Task {task_name} not available.")
+        self.task_dropdown.setCurrentIndex(task_index)
+        self.on_task_select()
 
         model_display_name = self.base_to_display.get(model_name, None)
         if model_display_name is None:
@@ -915,6 +967,7 @@ Parameters can be modified if setup properly, otherwise a config file can be loa
 
     def get_config_params(self, params):
         widget_config = {
+            "task": params.get("task"),
             "name": params.get("model"),
             "model_type": params.get("model_type"),
             "model_config": params.get("model_config"),

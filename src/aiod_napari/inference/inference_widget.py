@@ -27,7 +27,6 @@ from aiod_napari.inference.mask_export import ExportWidget
 from aiod_napari.inference.model_selection import ModelWidget
 from aiod_napari.inference.nxf import NxfWidget
 from aiod_napari.inference.preprocess import PreprocessWidget
-from aiod_napari.inference.tasks import TaskWidget
 from aiod_napari.utils import (
     calc_param_hash,
     find_image_layer,
@@ -60,15 +59,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
         # Set selection colour
         self.colour_selected = "#F7AD6F"
 
-        # Create radio buttons for selecting task (i.e. organelle)
+        # Create the box for selecting the task (organelle) and the model to run
         self.register_widget(
-            TaskWidget(viewer=self.viewer, parent=self, expanded=False)
-        )
-
-        # Create radio buttons for selecting the model to run
-        # Functionality currently limited to Meta's Segment Anything Model
-        self.register_widget(
-            ModelWidget(viewer=self.viewer, parent=self, expanded=False)
+            ModelWidget(viewer=self.viewer, parent=self, expanded=True)
         )
 
         # Create the box for selecting the directory, showing img count etc.
@@ -213,7 +206,9 @@ Run segmentation/inference on selected images using one of the available pre-tra
                     else None
                 )
                 if downsample_factor is not None:
-                    metadata["downsample_factor"] = downsample_factor[-len(img_layer.scale):]
+                    metadata["downsample_factor"] = downsample_factor[
+                        -len(img_layer.scale) :
+                    ]
                 # Expand the mask to match the image's full ndim by inserting
                 # singleton dims at non-spatial positions (e.g. ZYX → ZCYX
                 # gives (Z,Y,X) → (Z,1,Y,X)) so napari aligns axes correctly.
