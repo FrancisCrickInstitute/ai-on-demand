@@ -19,6 +19,4 @@ dependencies:
     - tabulate
     - glasbey
     - dask-image
-    - git+https://github.com/FrancisCrickInstitute/aiod_napari.git
-    - git+https://github.com/FrancisCrickInstitute/aiod_registry.git
-    - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
+    - aiod_napari
