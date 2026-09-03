@@ -35,6 +35,16 @@ def html_link(url: str, text: str) -> str:
     return f"<a href='{url}' style='color: {LINK_COLOUR};'>{text}</a>"
 
 
+# Hashes are shown to users truncated, matching the length aiod_utils'
+# hash_params_str already uses for preprocessing hashes
+SHORT_HASH_LEN = 8
+
+
+def short_hash(value: str) -> str:
+    """The user-facing form of a hash - long enough to identify, short enough to read"""
+    return value[:SHORT_HASH_LEN]
+
+
 def sanitise_name(name: str) -> str:
     """
     Function to sanitise model/model variant names to use in filenames (in Nextflow).
@@ -123,9 +133,11 @@ def load_settings() -> dict:
     return settings
 
 
-def get_image_layer_path(
-    img_layer: Image, image_path_dict: dict | None = None
-) -> Path | None:
+def get_image_layer_path(img_layer: Image, warn: bool = False) -> Path | None:
+    """Get the underlying path for the image in `img_layer`
+
+    If it cannot be found, optionally warns the user to re-add the data through AIoD
+    """
     # Skip this if the layer is a result of the Preprocess preview
     if img_layer.metadata.get("preprocess", None):
         return
@@ -138,15 +150,44 @@ def get_image_layer_path(
             img_path = img_layer.metadata["path"]
         except KeyError:
             img_path = None
-    # If still None, check if already added
     if img_path is None:
-        if image_path_dict is not None and img_layer.name not in image_path_dict:
+        if warn:
             show_info(
                 f"Cannot extract path for image layer {img_layer}. Please add manually using the buttons."
             )
-            return
-    else:
-        return Path(img_path)
+        return
+    return Path(img_path)
+
+
+def find_image_layer(viewer, img_path: Path) -> Image | None:
+    """
+    Find the Image layer displaying the given file (`img_path`).
+
+    Matches on the layer's metadata path rather than its name,
+    as napari/users can modify layer names
+    """
+    img_path = Path(img_path)
+    for layer in viewer.layers:
+        if not isinstance(layer, Image):
+            continue
+        if get_image_layer_path(layer) == img_path:
+            return layer
+    return None
+
+
+def require_image_layer(viewer, img_path: Path) -> Image:
+    """
+    Uses find_image_layer but raises an error if nothing found
+    Used for when callers cannot proceed without the layer,
+    giving a more useful error.
+    """
+    layer = find_image_layer(viewer, img_path)
+    if layer is None:
+        raise ValueError(
+            f"No image layer found in the viewer for {img_path}. "
+            "It may have been renamed, removed, or not finished loading."
+        )
+    return layer
 
 
 def get_img_dims(

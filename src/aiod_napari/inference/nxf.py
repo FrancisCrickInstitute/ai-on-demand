@@ -12,7 +12,13 @@ import qtpy.QtCore
 import tqdm
 import yaml
 from aiod_registry import TASK_NAMES
-from aiod_utils.io import image_paths_to_csv
+from aiod_utils.io import (
+    ImageId,
+    get_image_id,
+    get_mask_name,
+    image_paths_to_csv,
+    validate_image_ids,
+)
 from aiod_utils.stacks import Stack, calc_num_stacks, generate_stack_indices
 from napari.qt.threading import thread_worker
 from napari.utils.notifications import show_info
@@ -37,7 +43,9 @@ from aiod_napari.utils import (
     InfoWindow,
     format_tooltip,
     get_img_dims,
+    require_image_layer,
     sanitise_name,
+    short_hash,
 )
 from aiod_napari.widget_classes import CollapsibleOptions, SubWidget
 
@@ -81,7 +89,7 @@ The profile determines where the pipeline is run.
         # Needed to properly extract metadata
         self.all_loaded = False
         # Dictionary to monitor progress of each image
-        self.progress_dict = {}
+        self.progress_dict: dict[ImageId, int] = {}
         # Total number of substacks; set properly by setup_inference()
         self.total_substacks = 0
 
@@ -552,19 +560,18 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         )
         # Extract info from each image
         for img_path in img_paths:
-            # Get the mask layer name
-            layer = self.parent.viewer.layers[img_path.stem]
+            # Get the image layer by path - layer names are not unique
+            layer = require_image_layer(self.parent.viewer, img_path)
             # Get the number of slices, channels, height, and width
             H, W, num_slices, channels = get_img_dims(layer, img_path)
             dims.append({"Z": num_slices, "Y": H, "X": W, "C": channels})
             dtypes.append(str(layer.metadata.get("dtype") or layer.data.dtype))
             # Initialise the progress dict
-            self.progress_dict[img_path.stem] = 0
+            self.progress_dict[get_image_id(img_path)] = 0
             # Need to take account for multiple runs due to preprocessing
+            # Match on the path itself
             relevant_runs = [
-                i
-                for i in self.parent.img_mask_info
-                if i["img_path"].stem == img_path.stem
+                i for i in self.parent.img_mask_info if i["img_path"] == img_path
             ]
             for d in relevant_runs:
                 # Get the shape after preprocessing (if any)
@@ -620,6 +627,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             raise ValueError("No model selected!")
         if len(self.parent.subwidgets["data"].image_path_dict) == 0:
             raise ValueError("No data selected!")
+        # Fail here rather than mid-run in Segment-Flow's computeImageIds, which
+        # applies the same check to the CSV we hand it
+        validate_image_ids(
+            list(self.parent.subwidgets["data"].image_path_dict.values())
+        )
 
     def setup_inference(self, nxf_params: dict | None = None):
         """
@@ -707,11 +719,11 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             # Delete expected masks to avoid reload
             # TODO: Switch fully to Nextflow for this, allowing resume to handle reload
             for img_dict in parent.img_mask_info:
-                mask_root = parent._get_mask_layer_name(
-                    stem=img_dict["img_path"].stem,
-                    executed=True,
-                    truncate=False,
-                    preprocess_str=img_dict["preprocess_str"],
+                # Real files on disk are named from the image_id (not layer_name)
+                mask_root = get_mask_name(
+                    run_hash=parent.run_hash,
+                    image_id=img_dict["image_id"],
+                    prep_hash=img_dict["prep_hash"],
                 )
                 for mask_fpath in self.mask_dir_path.glob(f"{mask_root}*.rle"):
                     mask_fpath.unlink()
@@ -730,7 +742,7 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         if not proceed:
             msg = f"Masks already exist for all files for segmenting {TASK_NAMES[parent.executed_task]} with {parent.executed_model} ({parent.executed_variant})!"
             if self.parent.run_hash is not None:
-                msg += f" (Hash: {self.parent.run_hash[:8]})"
+                msg += f" (Hash: {short_hash(self.parent.run_hash)})"
                 self.display_params_button.setEnabled(True)
             show_info(msg)
             # Otherwise, until importing is fully sorted, the user just gets a notification and that's it
@@ -1150,19 +1162,32 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
             params = yaml.safe_load(f)
 
         if not params:
-            info = f"Hash details for {full_hash[:8]} not found"
+            info = f"Hash details for {short_hash(full_hash)} not found"
         else:
             # Replace "model_config" value with the contents of the YAML file
             model_config_path = params.get("model_config")
             if model_config_path and Path(model_config_path).exists():
                 with open(model_config_path) as f:
                     params["model_config"] = yaml.safe_load(f)
-            info = yaml.dump(params)
+            preprocess_sets = params.get("preprocess")
+            # Insert the hash with the preprocess params for users
+            if preprocess_sets:
+                recipes = {}
+                for pp_set in preprocess_sets:
+                    if not pp_set:
+                        recipes["no preprocessing"] = None
+                        continue
+                    prep_hash = aiod_utils.preprocess.get_prep_hash(pp_set)
+                    recipes[prep_hash] = aiod_utils.preprocess.get_params_str(
+                        pp_set, to_save=False
+                    )
+                params["preprocess"] = recipes
+            info = yaml.dump(params, sort_keys=False)
 
         params_popup = InfoWindow(
             self,
             title="Pipeline parameters"
-            + (f" ({params['param_hash'][:8]})" if params else ""),
+            + (f" ({short_hash(params['param_hash'])})" if params else ""),
             content=info,
         )
         params_popup.show()

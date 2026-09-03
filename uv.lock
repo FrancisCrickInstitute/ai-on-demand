@@ -11,7 +11,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-07-01T14:28:10.755556Z"
+exclude-newer = "2026-08-21T08:41:10.230567Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -95,8 +95,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiod-registry", specifier = "==0.1" },
-    { name = "aiod-utils", specifier = "==0.1" },
+    { name = "aiod-registry", editable = "../aiod_registry" },
+    { name = "aiod-utils", editable = "../aiod_utils" },
     { name = "dask-image" },
     { name = "glasbey" },
     { name = "napari", specifier = ">=0.6" },
@@ -130,27 +130,37 @@ dev = [
 
 [[package]]
 name = "aiod-registry"
-version = "0.1"
-source = { registry = "https://pypi.org/simple" }
+source = { editable = "../aiod_registry" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f8/20/80516db7214941ce20d0788cfacfc79f703c093e4f53c5eae2f4afc34ecb/aiod_registry-0.1.tar.gz", hash = "sha256:c820081da7eadee53e210a6a0902385c1dbc9bd1b133ba49aeee9c75470ee3b6", size = 40665, upload-time = "2026-06-26T12:23:50.423Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/bd/57/5a2f61570bfffa649fa3e073c23eef18cd73291e656645eb916f75f32535/aiod_registry-0.1-py3-none-any.whl", hash = "sha256:2da9281329b04d0b740fc46fcd87f837a6cee119dc7627668c9a95b745e993b4", size = 29343, upload-time = "2026-06-26T12:23:49.398Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "pytest", marker = "extra == 'dev'" },
+    { name = "pytest-cov", marker = "extra == 'dev'" },
+    { name = "pyyaml" },
+]
+provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
 ]
 
 [[package]]
 name = "aiod-utils"
-version = "0.1"
-source = { registry = "https://pypi.org/simple" }
+source = { editable = "../aiod_utils" }
 dependencies = [
     { name = "bioio" },
     { name = "bioio-czi" },
     { name = "bioio-imageio" },
     { name = "bioio-lif" },
     { name = "bioio-nd2" },
+    { name = "bioio-ome-tiff" },
     { name = "bioio-ome-zarr" },
     { name = "bioio-tifffile" },
     { name = "numcodecs" },
@@ -159,12 +169,38 @@ dependencies = [
     { name = "pandas" },
     { name = "pyyaml" },
     { name = "scikit-image" },
+    { name = "scipy" },
     { name = "tifffile" },
     { name = "zarr" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4b/0a/7829b3eca7014fc6d51212d78a57e8593e53269cfad223e97b8eaf6b8844/aiod_utils-0.1.tar.gz", hash = "sha256:dc9cea809a2726b59c24c650830bf8044dec960d6230b2a1cc2fcafb0a24ea9d", size = 107096, upload-time = "2026-06-26T13:25:05.664Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e0/ac/bffdb5a49e169f81871dfaefdb1b5c2ce30bbdd6e925db7d8baa7f53e8e7/aiod_utils-0.1-py3-none-any.whl", hash = "sha256:8776c965b7aff3b9aa7786285ed96082e8c6fead346142a9929c1c4c3c6f54ff", size = 18890, upload-time = "2026-06-26T13:25:04.36Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "bioio", specifier = ">=3.2.0" },
+    { name = "bioio-bioformats", marker = "extra == 'bioformats'" },
+    { name = "bioio-czi" },
+    { name = "bioio-imageio", specifier = ">=1.1.0" },
+    { name = "bioio-lif" },
+    { name = "bioio-nd2" },
+    { name = "bioio-ome-tiff" },
+    { name = "bioio-ome-zarr", specifier = ">=2" },
+    { name = "bioio-tifffile", specifier = ">=1.2.0" },
+    { name = "numcodecs" },
+    { name = "numpy", specifier = ">=1.26,<2.0" },
+    { name = "opencv-python" },
+    { name = "pandas", specifier = "<2.3.0" },
+    { name = "pyyaml" },
+    { name = "scikit-image", specifier = ">0.20" },
+    { name = "scipy", specifier = ">=1.17.1" },
+    { name = "tifffile" },
+    { name = "zarr", specifier = ">=3.1.5" },
+]
+provides-extras = ["bioformats"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "line-profiler", specifier = ">=5.0.2" },
+    { name = "pytest" },
 ]
 
 [[package]]
@@ -428,6 +464,28 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/25/90/0938b9d0b0859edaac34d80e4e3d8cb50d39c6efa6a03bb64a66bd585ffe/bioio_nd2-1.8.0.tar.gz", hash = "sha256:600b809a70abdef3453391bdea54bca90437d051ed6b8d40985cdd502cde5843", size = 21212, upload-time = "2026-06-26T17:16:15.233Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/44/4a/e90d8e62d8a720170e955420b27df5676430ce87cc895574593dabeaed5d/bioio_nd2-1.8.0-py3-none-any.whl", hash = "sha256:24ed5df690a45c51887002408ac0c3386b332d19a7fc0f320e2de9e2dbe2ae01", size = 13629, upload-time = "2026-06-26T17:16:14.11Z" },
+]
+
+[[package]]
+name = "bioio-ome-tiff"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "bioio-base" },
+    { name = "dask", extra = ["array"] },
+    { name = "fsspec" },
+    { name = "imagecodecs" },
+    { name = "numpy" },
+    { name = "ome-types", extra = ["lxml"] },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "tifffile", extra = ["zarr"] },
+    { name = "xarray" },
+    { name = "xmlschema" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b3/95/fd5ccfb07c5159983a40746b1c0da1c7648918bcfdb940189bf52f7340d1/bioio_ome_tiff-1.4.0.tar.gz", hash = "sha256:0073ff612926ea17c72a32f378d62361e282dd7afbc561e8c0a53316fd8d2e29", size = 34520, upload-time = "2025-07-10T21:34:52.763Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ec/88/cdfc59ac1fb3db84d59d47b8afa3bcf539b8afabc86d8b5230909b6487f9/bioio_ome_tiff-1.4.0-py3-none-any.whl", hash = "sha256:98107a847244a7b515c7a8c39b5119e67f4047b63661238b49b3d0cc36a86cd9", size = 27034, upload-time = "2025-07-10T21:34:51.509Z" },
 ]
 
 [[package]]
@@ -891,6 +949,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/25/71/80cc718ff6d7abfbabacb1f57aaa42e9c1552bfdd01e64ddd704e4a03638/donfig-0.8.1.post1.tar.gz", hash = "sha256:3bef3413a4c1c601b585e8d297256d0c1470ea012afa6e8461dc28bfb7c23f52", size = 19506, upload-time = "2024-05-23T14:14:31.513Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0c/d5/c5db1ea3394c6e1732fb3286b3bd878b59507a8f77d32a2cebda7d7b7cd4/donfig-0.8.1.post1-py3-none-any.whl", hash = "sha256:2a3175ce74a06109ff9307d90a230f81215cbac9a751f4d1c6194644b8204f9d", size = 21592, upload-time = "2024-05-23T14:13:55.283Z" },
+]
+
+[[package]]
+name = "elementpath"
+version = "5.1.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/69/9d/766386c47959bb8b014242af8770c869350884a3c3f7054375576e11f30a/elementpath-5.1.4.tar.gz", hash = "sha256:3c912a9c41311ac5244c038867670d7c0b0fec0e444813608e5b846dbb3428ac", size = 381114, upload-time = "2026-08-08T20:29:22.963Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/42/b0/b709cc33ccb0288f41f2d92dfd754d2ccf925cb9277a66effbc132cd004c/elementpath-5.1.4-py3-none-any.whl", hash = "sha256:5ec8d7bb44b16c98414a6a95e20cb150f3cbfc3cac65edc14773288c7a937376", size = 261881, upload-time = "2026-08-08T20:29:20.649Z" },
 ]
 
 [[package]]
@@ -3292,6 +3359,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/4b/a6/6fe936a798a3a38a79c7422d1a31afd2e9a14690fcb0ccff96bc01f04bf2/xarray-2026.4.0.tar.gz", hash = "sha256:c4ac9a01a945d90d5b1628e2af045099a9d4943536d4f2ee3ae963c3b222d15b", size = 3132311, upload-time = "2026-04-13T19:45:36.688Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/dc/83/6d810a8a9ebc9c307989b418840c20e46907c74d707beb67ab566773e6fc/xarray-2026.4.0-py3-none-any.whl", hash = "sha256:d43751d9fb4a90f9249c30431684f00c41bc874f1edccd862631a40cbc0edf08", size = 1414326, upload-time = "2026-04-13T19:45:34.659Z" },
+]
+
+[[package]]
+name = "xmlschema"
+version = "4.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "elementpath" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/55/f0/2431c2c8f77326757f2e2b1d79226c17b2abfe44a78a41c7d7b944e90732/xmlschema-4.3.2.tar.gz", hash = "sha256:f3b33a21a2b2cdc404ddc3fb599d8bc1dee90b155d547370672e6e684746b8d6", size = 682724, upload-time = "2026-06-30T06:11:50.744Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5c/fb/8be39dc47b0ed9bbc80f384906eed87fa974c9b377a7a430118c3b405550/xmlschema-4.3.2-py3-none-any.whl", hash = "sha256:cf5c970a30f6ebcb3da35260e694704cc0b6794d8ace46125bb2a95e38ed9307", size = 504613, upload-time = "2026-06-30T06:11:47.462Z" },
 ]
 
 [[package]]
