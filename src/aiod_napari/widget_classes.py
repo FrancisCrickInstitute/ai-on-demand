@@ -5,15 +5,19 @@ from pathlib import Path
 import napari
 import qtpy.QtCore
 import yaml
+from napari._qt.qt_resources import QColoredSVGIcon
 from napari.utils.notifications import show_info
 from npe2 import PluginManager
+from qtpy.QtCore import QSize
 from qtpy.QtGui import QPixmap
 from qtpy.QtWidgets import (
     QFrame,
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLayout,
+    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -21,9 +25,82 @@ from qtpy.QtWidgets import (
 
 from aiod_napari.qcollapsible import QCollapsible
 from aiod_napari.utils import (
+    AboutWindow,
     format_tooltip,
     get_plugin_cache,
+    html_link,
 )
+
+DOCS_URL = "https://franciscrickinstitute.github.io/aiod_docs/"
+# Highlight colour used for selected/active buttons across the plugin
+COLOUR_SELECTED = "#F7AD6F"
+
+
+class CollapsibleOptions(QWidget):
+    """
+    A toggle button that shows/hides a block of secondary options.
+
+    Keeps the interface minimal for basic users, with less commonly needed
+    controls one click away rather than absent. Populate it by adding widgets
+    to ``content_layout``.
+
+    Parameters
+    ----------
+    title : str
+        Text of the toggle button (an arrow indicating state is prepended).
+    tooltip : str, optional
+        Tooltip for the toggle button, passed through ``format_tooltip``.
+    layout : QLayout, optional
+        Layout class to use for the hidden content.
+    highlight_colour : str, optional
+        Background colour of the toggle button while expanded.
+    margins : tuple[int, int, int, int], optional
+        Content margins for the hidden content, to indent it under the button.
+    """
+
+    def __init__(
+        self,
+        title: str = "Advanced Options",
+        tooltip: str | None = None,
+        layout: QLayout = QGridLayout,
+        highlight_colour: str = COLOUR_SELECTED,
+        margins: tuple[int, int, int, int] = (4, 0, 4, 0),
+        parent: QWidget | None = None,
+    ):
+        super().__init__(parent)
+        self.title = title
+
+        self.toggle_btn = QPushButton(f" ▶ {title}")
+        self.toggle_btn.setCheckable(True)
+        self.toggle_btn.setStyleSheet(
+            "QPushButton { text-align: left; } "
+            f"QPushButton:checked {{background-color: {highlight_colour}}}"
+        )
+        self.toggle_btn.toggled.connect(self._on_toggle)
+        if tooltip is not None:
+            self.toggle_btn.setToolTip(format_tooltip(tooltip))
+
+        self.content_widget = QWidget()
+        self.content_layout = layout()
+        self.content_layout.setContentsMargins(*margins)
+        self.content_widget.setLayout(self.content_layout)
+        self.content_widget.setVisible(False)
+
+        outer_layout = QVBoxLayout()
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.addWidget(self.toggle_btn)
+        outer_layout.addWidget(self.content_widget)
+        self.setLayout(outer_layout)
+
+    def _on_toggle(self, checked: bool):
+        self.content_widget.setVisible(checked)
+        self.toggle_btn.setText(f" {'▼' if checked else '▶'} {self.title}")
+
+    def set_expanded(self, expanded: bool = True):
+        self.toggle_btn.setChecked(expanded)
+
+    def is_expanded(self) -> bool:
+        return self.toggle_btn.isChecked()
 
 
 class MainWidget(QWidget):
@@ -63,7 +140,21 @@ class MainWidget(QWidget):
         ).scaledToHeight(100, mode=qtpy.QtCore.Qt.SmoothTransformation)
         self.logo_label.setPixmap(logo)
         self.logo_label.setAlignment(qtpy.QtCore.Qt.AlignCenter)
-        self.layout().addWidget(self.logo_label)
+        self.layout().addWidget(self.logo_label, alignment=qtpy.QtCore.Qt.AlignHCenter)
+
+        # Small info button, giving users a pop-out with plugin info and a
+        # link to the docs
+        self.about_btn = QPushButton()
+        about_btn_size = 23
+        self.about_btn.setFixedSize(about_btn_size, about_btn_size)
+        self.about_btn.setIcon(
+            QColoredSVGIcon.from_resources("info").colored(theme="dark")
+        )
+        self.about_btn.setIconSize(QSize(about_btn_size - 6, about_btn_size - 6))
+        self.about_btn.setFlat(True)
+        self.about_btn.setCursor(qtpy.QtCore.Qt.PointingHandCursor)
+        self.about_btn.setToolTip("About AI OnDemand & links to help/docs")
+        self.about_btn.clicked.connect(self.on_about_click)
 
         # Widget title to display
         self.title = QLabel(f"AI OnDemand: {title}")
@@ -75,7 +166,20 @@ class MainWidget(QWidget):
         if tooltip is not None:
             self.tooltip = tooltip
             self.title.setToolTip(format_tooltip(tooltip))
-        self.layout().addWidget(self.title)
+
+        # Three-column row: an empty left column, the title taking up most of
+        # the space (so it stays effectively centred), and the button in a
+        # narrow right column, vertically centred alongside the title
+        title_row = QWidget()
+        title_row_layout = QHBoxLayout()
+        title_row_layout.setContentsMargins(0, 0, 0, 0)
+        title_row_layout.addStretch(5)
+        title_row_layout.addWidget(self.title, 90, qtpy.QtCore.Qt.AlignCenter)
+        title_row_layout.addWidget(
+            self.about_btn, 5, qtpy.QtCore.Qt.AlignRight | qtpy.QtCore.Qt.AlignVCenter
+        )
+        title_row.setLayout(title_row_layout)
+        self.layout().addWidget(title_row)
 
         # Create the widget that will be used to add subwidgets to
         # This is then the widget for the scroll area, to the logo/title is excluded from scrolling
@@ -90,6 +194,23 @@ class MainWidget(QWidget):
         self.content_widget.layout().setAlignment(qtpy.QtCore.Qt.AlignTop)
         self.scroll.setWidget(self.content_widget)
         self.layout().addWidget(self.scroll)
+
+    def on_about_click(self):
+        """
+        Callback for the info button on the logo.
+
+        Opens a pop-out with some background on the plugin and a link to the docs.
+        """
+        about_text = (
+            "<p><b>AI OnDemand (AIoD)</b> is developed by the Software Engineering & AI STP at "
+            f"the {html_link('https://www.crick.ac.uk/', 'Francis Crick Institute')}.</p>"
+            "<p>For guides, documentation, and details how to contact us, see the "
+            f"{html_link(DOCS_URL, 'AIoD documentation')}.</p>"
+        )
+        self.about_window = AboutWindow(
+            self, title="About AI OnDemand (AIoD)", content=about_text
+        )
+        self.about_window.show()
 
     def register_widget(self, widget: "SubWidget"):
         self.subwidgets[widget._name] = widget
@@ -147,6 +268,12 @@ class MainWidget(QWidget):
         """
         Load a config file for the widget.
         """
+        # Backward compat: configs saved before the standalone TaskWidget was
+        # merged into ModelWidget store the task as a top-level "task" key.
+        # Fold it into the model config so ModelWidget.load_config can read it.
+        if "task" in config and isinstance(config.get("model"), dict):
+            config["model"].setdefault("task", config["task"])
+        # Loop through all subwidgets and load the config for each subwidget if it exists in config
         for subwidget in self.subwidgets.values():
             if subwidget._name in config:
                 subwidget.load_config(config=config[subwidget._name])
