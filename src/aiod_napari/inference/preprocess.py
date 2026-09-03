@@ -77,6 +77,25 @@ def _set_widget_value(widget, value):
         widget.setText(str(value))
 
 
+def _align_list_values(widgets: list, value, param_def: dict) -> list | None:
+    """Line a saved list value up with the widgets, or None if it cannot fit.
+
+    A short value omits the dimension-specific entries, not the trailing ones:
+    aiod_utils reads a 2-element block_size as (H, W).
+    """
+    if len(value) == len(widgets):
+        return list(value)
+    optional = param_def.get("3d_only_indices", [])
+    if len(value) + len(optional) != len(widgets):
+        return None
+    aligned = list(param_def["default"])
+    given = iter(value)
+    for i in range(len(widgets)):
+        if i not in optional:
+            aligned[i] = next(given)
+    return aligned
+
+
 class PreprocessWidget(SubWidget):
     _name = "preprocess"
 
@@ -582,7 +601,7 @@ NOTE: The result is just for visualization! Only the original image will be used
                 param_dict = self.preprocess_methods[name]["params"][param_name]
                 default = param_dict["default"]
                 if isinstance(widget, list):
-                    for w, val in zip(widget, default):
+                    for w, val in zip(widget, default, strict=True):
                         _set_widget_value(w, val)
                 elif isinstance(widget, QCheckBox):
                     widget.setChecked(False)
@@ -656,8 +675,16 @@ NOTE: The result is just for visualization! Only the original image will be used
             for param_name, value in params.items():
                 widget = self.preprocess_boxes[name]["params"][param_name]
                 if isinstance(widget, list):
-                    for w, val in zip(widget, value):
-                        _set_widget_value(w, val)
+                    param_def = self.preprocess_methods[name]["params"][param_name]
+                    aligned = _align_list_values(widget, value, param_def)
+                    if aligned is None:
+                        show_warning(
+                            f"{name}: {param_name} needs {len(widget)} values but "
+                            f"the config has {len(value)}, keeping the defaults."
+                        )
+                    else:
+                        for w, val in zip(widget, aligned, strict=True):
+                            _set_widget_value(w, val)
                 elif isinstance(widget, QCheckBox):
                     widget.setChecked(bool(value))
                 elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):

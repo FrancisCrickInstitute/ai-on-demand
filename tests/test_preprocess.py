@@ -8,7 +8,11 @@ themselves once the widget is touched, so they resist checking by hand.
 
 import numpy as np
 import pytest
-from aiod_utils.preprocess import get_all_preprocess_methods, run_preprocess
+from aiod_utils.preprocess import (
+    Downsample,
+    get_all_preprocess_methods,
+    run_preprocess,
+)
 
 from aiod_napari.inference.preprocess import PreprocessWidget
 
@@ -242,3 +246,35 @@ def test_options_round_trip_through_the_ui(preprocess_widget):
     w._load_options_into_ui(options)
 
     assert w.extract_options() == options
+
+
+def test_short_block_size_is_read_the_way_the_backend_reads_it(preprocess_widget):
+    """A 2-element block_size means (H, W), not (D, H).
+
+    aiod_utils supplies the depth factor, so the UI must omit the same entry.
+    """
+    w = preprocess_widget
+
+    w._load_options_into_ui(
+        [{"name": "Downsample", "params": {"block_size": [4, 4], "method": "mean"}}]
+    )
+
+    loaded = tuple(w.extract_options()[0]["params"]["block_size"])
+    backend = Downsample({"block_size": (4, 4), "method": "mean"}).kwarg_params[
+        "block_size"
+    ]
+    assert loaded == backend == (1, 4, 4)
+
+
+def test_unusable_list_length_warns_and_keeps_defaults(preprocess_widget, monkeypatch):
+    """A length that cannot be lined up is reported, not quietly half-applied."""
+    warned = []
+    monkeypatch.setattr("aiod_napari.inference.preprocess.show_warning", warned.append)
+    w = preprocess_widget
+
+    w._load_options_into_ui(
+        [{"name": "Downsample", "params": {"block_size": [9], "method": "mean"}}]
+    )
+
+    assert w.extract_options()[0]["params"]["block_size"] == [1, 2, 2]
+    assert any("block_size" in str(m) for m in warned)
