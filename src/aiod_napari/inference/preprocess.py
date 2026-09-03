@@ -69,6 +69,14 @@ def _configure_spinbox(
     _style_spinbox(spinbox)
 
 
+def _set_widget_value(widget, value):
+    """Write a value into whichever widget type a list-backed param uses."""
+    if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+        widget.setValue(value)
+    elif isinstance(widget, QLineEdit):
+        widget.setText(str(value))
+
+
 class PreprocessWidget(SubWidget):
     _name = "preprocess"
 
@@ -328,11 +336,14 @@ NOTE: The result is just for visualization! Only the original image will be used
 
                 # Disable specific list indices that are only meaningful for 3D
                 if "3d_only_indices" in param_def and isinstance(widget, list):
+                    applies = state in ("3d", "any")
                     for idx in param_def["3d_only_indices"]:
-                        if idx < len(widget):
-                            widget[idx].setEnabled(
-                                state in ("3d", "any") and boxes["box"].isChecked()
-                            )
+                        if idx >= len(widget):
+                            continue
+                        widget[idx].setEnabled(applies and boxes["box"].isChecked())
+                        # Key off dimensionality: unticked boxes are disabled too
+                        if not applies:
+                            _set_widget_value(widget[idx], param_def["default"][idx])
 
                 # Restrict combo values to those valid for the current dimensionality
                 if "values_by_dim" in param_def and isinstance(widget, QComboBox):
@@ -571,10 +582,7 @@ NOTE: The result is just for visualization! Only the original image will be used
                 default = param_dict["default"]
                 if isinstance(widget, list):
                     for w, val in zip(widget, default):
-                        if isinstance(w, (QSpinBox, QDoubleSpinBox)):
-                            w.setValue(val)
-                        elif isinstance(w, QLineEdit):
-                            w.setText(str(val))
+                        _set_widget_value(w, val)
                 elif isinstance(widget, QCheckBox):
                     widget.setChecked(False)
                 elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
@@ -644,10 +652,7 @@ NOTE: The result is just for visualization! Only the original image will be used
                 widget = self.preprocess_boxes[name]["params"][param_name]
                 if isinstance(widget, list):
                     for w, val in zip(widget, value):
-                        if isinstance(w, (QSpinBox, QDoubleSpinBox)):
-                            w.setValue(val)
-                        elif isinstance(w, QLineEdit):
-                            w.setText(str(val))
+                        _set_widget_value(w, val)
                 elif isinstance(widget, QCheckBox):
                     widget.setChecked(bool(value))
                 elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):

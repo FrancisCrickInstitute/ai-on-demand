@@ -66,3 +66,46 @@ def test_defaults_survive_being_bounded(preprocess_widget):
                 assert [w.value() for w in widget] == list(default)
             elif hasattr(widget, "value"):
                 assert widget.value() == pytest.approx(default)
+
+
+def _tick(widget, method):
+    """Tick a method's group box the way a user click would, callback included."""
+    widget.preprocess_boxes[method]["box"].setChecked(True)
+    widget.on_click_preprocess(method)()
+
+
+def test_depth_factor_is_neutralised_for_2d_images(preprocess_widget):
+    """A depth factor left over from a 3D image must not reach a 2D run.
+
+    A disabled spin box keeps its value, and extract_options still reads it.
+    """
+    w = preprocess_widget
+    w._apply_dim_state("3d")
+    _tick(w, "Downsample")
+    block = w.preprocess_boxes["Downsample"]["params"]["block_size"]
+    block[0].setValue(4)
+
+    w._apply_dim_state("2d")
+
+    assert not block[0].isEnabled()
+    extracted = w.extract_options()[0]["params"]["block_size"]
+    assert extracted[0] == 1
+    # The in-plane factors are dimension-agnostic and must survive untouched
+    assert extracted[1:] == [2, 2]
+
+
+def test_depth_factor_survives_unticking(preprocess_widget):
+    """Only dimensionality clears the depth factor, never unticking the box.
+
+    Both states disable the box, so keying off isEnabled would discard a value.
+    """
+    w = preprocess_widget
+    w._apply_dim_state("3d")
+    _tick(w, "Downsample")
+    block = w.preprocess_boxes["Downsample"]["params"]["block_size"]
+    block[0].setValue(4)
+
+    w.preprocess_boxes["Downsample"]["box"].setChecked(False)
+    w.on_click_preprocess("Downsample")()
+
+    assert block[0].value() == 4
