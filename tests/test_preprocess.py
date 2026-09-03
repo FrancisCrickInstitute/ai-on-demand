@@ -109,3 +109,52 @@ def test_depth_factor_survives_unticking(preprocess_widget):
     w.on_click_preprocess("Downsample")()
 
     assert block[0].value() == 4
+
+
+def test_mixed_dimensions_unticks_and_dequeues(preprocess_widget):
+    """A method disabled for mixed dimensions must not still be queued to run.
+
+    setEnabled(False) leaves a QGroupBox ticked; extract_options walks order_list.
+    """
+    w = preprocess_widget
+    w._apply_dim_state("3d")
+    _tick(w, "Filter")
+    assert w.order_list == ["Filter"]
+
+    w._apply_dim_state("mixed")
+
+    box = w.preprocess_boxes["Filter"]["box"]
+    assert not box.isEnabled()
+    assert not box.isChecked()
+    assert w.order_list is None
+    assert w.preprocess_order.text() == w.init_order
+    assert w.extract_options() is None
+
+
+def test_mixed_dimensions_leaves_dimension_agnostic_methods_alone(preprocess_widget):
+    """Only methods declaring requires_uniform_dims are withdrawn."""
+    w = preprocess_widget
+    _tick(w, "CLAHE")
+
+    w._apply_dim_state("mixed")
+
+    box = w.preprocess_boxes["CLAHE"]["box"]
+    assert box.isEnabled()
+    assert box.isChecked()
+    assert w.order_list == ["CLAHE"]
+
+
+def test_unticking_everything_restores_the_empty_sentinel(preprocess_widget):
+    """order_list must return to None, not an empty list.
+
+    get_all_options reads a non-None extract_options as unsaved work and warns.
+    """
+    w = preprocess_widget
+    _tick(w, "Filter")
+
+    w.preprocess_boxes["Filter"]["box"].setChecked(False)
+    w.on_click_preprocess("Filter")()
+
+    assert w.order_list is None
+    assert w.preprocess_order.text() == w.init_order
+    assert w.extract_options() is None

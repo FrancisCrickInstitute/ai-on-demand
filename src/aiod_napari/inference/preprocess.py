@@ -326,6 +326,10 @@ NOTE: The result is just for visualization! Only the original image will be used
             requires_uniform = getattr(cls, "requires_uniform_dims", False)
 
             if is_mixed and requires_uniform:
+                # Disabling leaves the box ticked, and order_list is what runs
+                if boxes["box"].isChecked():
+                    boxes["box"].setChecked(False)
+                    self._sync_order(name, False)
                 boxes["box"].setEnabled(False)
                 continue
 
@@ -359,29 +363,27 @@ NOTE: The result is just for visualization! Only the original image will be used
                             widget.addItem(v)
                     widget.setCurrentIndex(max(widget.findText(current), 0))
 
+    def _sync_order(self, name: str, checked: bool):
+        """Add or remove a method from the preprocessing order, and redraw the label.
+
+        None rather than an empty list means "nothing selected"; extract_options
+        and get_all_options both key off that.
+        """
+        order_list = self.order_list or []
+        if checked:
+            if name not in order_list:
+                order_list.append(name)
+        elif name in order_list:
+            order_list.remove(name)
+        self.order_list = order_list or None
+        self.preprocess_order.setText(
+            "->".join(order_list) if order_list else self.init_order
+        )
+
     def on_click_preprocess(self, name: str):
         # Callback for when a preprocess method is selected
         def cb():
-            # Get the box to check if it is checked
-            group_box = self.preprocess_boxes[name]["box"]
-            checked = group_box.isChecked()
-            order = self.preprocess_order.text()
-            if order == self.init_order:
-                order = name
-                self.order_list = [name]
-            else:
-                self.order_list = order.split("->")
-                # If checked, add to the start of the list
-                if checked:
-                    self.order_list.append(name)
-                else:
-                    self.order_list.remove(name)
-                # Handle when all are unchecked
-                if len(self.order_list) == 0:
-                    order = self.init_order
-                else:
-                    order = "->".join(self.order_list)
-            self.preprocess_order.setText(order)
+            self._sync_order(name, self.preprocess_boxes[name]["box"].isChecked())
             # QGroupBox.setChecked re-enables all children; re-apply dim restrictions
             self._apply_dim_state(self._current_dim_state)
 
