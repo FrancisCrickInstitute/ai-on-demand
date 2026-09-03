@@ -358,9 +358,8 @@ NOTE: The result is just for visualization! Only the original image will be used
                     )
                     current = widget.currentText()
                     widget.clear()
-                    for v in param_def["values"]:
-                        if v in valid:
-                            widget.addItem(v)
+                    # values_by_dim is preference-first; index 0 is the fallback
+                    widget.addItems([v for v in valid if v in param_def["values"]])
                     widget.setCurrentIndex(max(widget.findText(current), 0))
 
     def _sync_order(self, name: str, checked: bool):
@@ -592,7 +591,11 @@ NOTE: The result is just for visualization! Only the original image will be used
                 elif isinstance(widget, QLineEdit):
                     widget.setText(str(default))
                 elif isinstance(widget, QComboBox):
-                    widget.setCurrentIndex(param_dict["values"].index(default))
+                    # The combo may be dimension-filtered and not hold the default
+                    idx = widget.findText(str(default))
+                    widget.setCurrentIndex(idx if idx != -1 else 0)
+        # Unticking every box changes which 3D-only widgets apply
+        self._apply_dim_state(self._current_dim_state)
 
     def _update_viewsets_btn(self):
         count = len(self.preprocess_sets)
@@ -663,11 +666,18 @@ NOTE: The result is just for visualization! Only the original image will be used
                     idx = widget.findText(str(value))
                     if idx != -1:
                         widget.setCurrentIndex(idx)
+                    else:
+                        show_warning(
+                            f"{name}: '{value}' is not available for the loaded "
+                            f"image dimensions, using '{widget.currentText()}'."
+                        )
                 elif isinstance(widget, QLineEdit):
                     widget.setText(str(value))
             self.order_list.append(name)
         if self.order_list:
             self.preprocess_order.setText("->".join(self.order_list))
+        # setChecked is programmatic, so it emits no clicked to re-apply these
+        self._apply_dim_state(self._current_dim_state)
 
 
 class PreprocessSetWindow(QDialog):

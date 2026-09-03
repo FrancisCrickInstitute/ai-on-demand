@@ -6,8 +6,9 @@ produce plausible wrong *values* rather than errors, and several repair
 themselves once the widget is touched, so they resist checking by hand.
 """
 
+import numpy as np
 import pytest
-from aiod_utils.preprocess import get_all_preprocess_methods
+from aiod_utils.preprocess import get_all_preprocess_methods, run_preprocess
 
 from aiod_napari.inference.preprocess import PreprocessWidget
 
@@ -158,3 +159,86 @@ def test_unticking_everything_restores_the_empty_sentinel(preprocess_widget):
     assert w.order_list is None
     assert w.preprocess_order.text() == w.init_order
     assert w.extract_options() is None
+
+
+def _footprint(widget):
+    return widget.preprocess_boxes["Filter"]["params"]["footprint"]
+
+
+def test_reset_keeps_a_usable_footprint(preprocess_widget):
+    """Resetting must not leave the combo on Qt's out-of-range -1."""
+    w = preprocess_widget
+    w._apply_dim_state("2d")
+
+    w._reset_preprocess()
+
+    combo = _footprint(w)
+    assert combo.currentIndex() != -1
+    assert combo.currentText() != ""
+
+
+@pytest.mark.parametrize(("state", "expected"), [("2d", "disk"), ("3d", "ball")])
+def test_footprint_falls_back_to_the_preferred_shape(
+    preprocess_widget, state, expected
+):
+    """The fallback follows values_by_dim's ordering, not the unfiltered list's.
+
+    The unfiltered list lands on square in 2D and cube in 3D, neither of which
+    is the analogue of the disk default.
+    """
+    w = preprocess_widget
+    w._apply_dim_state(state)
+    w._reset_preprocess()
+
+    assert _footprint(w).currentText() == expected
+
+
+def test_config_with_an_unusable_footprint_warns_and_stays_runnable(
+    preprocess_widget, monkeypatch
+):
+    """A 3D footprint in a config loaded against a 2D image must not go quiet.
+
+    setChecked emits no clicked, so nothing re-runs the dimension logic to
+    repair a blanked combo before the footprint reaches execution.
+    """
+    warned = []
+    monkeypatch.setattr("aiod_napari.inference.preprocess.show_warning", warned.append)
+    w = preprocess_widget
+    w._apply_dim_state("2d")
+
+    w.load_config(
+        [
+            [
+                {
+                    "name": "Filter",
+                    "params": {"footprint": "ball", "size": 5, "method": "median"},
+                }
+            ]
+        ]
+    )
+
+    combo = _footprint(w)
+    assert combo.currentIndex() != -1
+    assert combo.currentText() in ("disk", "square")
+    assert any("ball" in str(m) for m in warned)
+    # The substituted options have to actually run on the image in play
+    run_preprocess(
+        np.zeros((32, 32), dtype=np.uint8), w.extract_options(), only_check=True
+    )
+
+
+def test_options_round_trip_through_the_ui(preprocess_widget):
+    """What _load_options_into_ui accepts, extract_options must give back."""
+    w = preprocess_widget
+    w._apply_dim_state("3d")
+    options = [
+        {"name": "Downsample", "params": {"block_size": [2, 4, 4], "method": "mean"}},
+        {
+            "name": "Filter",
+            "params": {"footprint": "ball", "size": 7, "method": "median"},
+        },
+    ]
+
+    w._load_options_into_ui(options)
+
+    assert w.extract_options() == options
