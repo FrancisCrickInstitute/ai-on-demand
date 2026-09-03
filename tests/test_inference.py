@@ -136,6 +136,122 @@ def inference_widget(make_napari_viewer_proxy, base_dir, monkeypatch):
     return InferenceFixture(viewer=viewer, widget=plugin_widget)
 
 
+class TestTaskModelWidget:
+    """TaskWidget was merged into ModelWidget; these guard the merged behaviour."""
+
+    def test_task_dropdown_updates_model_options(self, inference_widget):
+        model_widget = inference_widget.widget.subwidgets["model"]
+
+        from aiod_registry import TASK_NAMES
+
+        # Nothing selected yet: placeholders in both dropdowns.
+        assert model_widget.task_dropdown.itemText(0) == model_widget.task_name_init
+        assert model_widget.model_dropdown.itemText(0) == model_widget.model_name_init
+
+        task_name = next(iter(TASK_NAMES))
+        task_index = model_widget.task_dropdown.findText(TASK_NAMES[task_name])
+        assert task_index != -1
+
+        model_widget.task_dropdown.setCurrentIndex(task_index)
+        model_widget.on_task_select()
+
+        assert inference_widget.widget.selected_task == task_name
+        # Model dropdown should now list real models for this task, not the placeholder.
+        assert model_widget.model_dropdown.itemText(0) != model_widget.model_name_init
+
+    def test_task_placeholder_removed_after_selection(self, inference_widget):
+        """Once a real task is chosen, the placeholder must not be reselectable.
+
+        Regression test: previously the model family/version dropdowns retained
+        stale entries if a user could get back to the "Select a task" placeholder.
+        """
+        model_widget = inference_widget.widget.subwidgets["model"]
+
+        from aiod_registry import TASK_NAMES
+
+        task_name = next(iter(TASK_NAMES))
+        task_index = model_widget.task_dropdown.findText(TASK_NAMES[task_name])
+        model_widget.task_dropdown.setCurrentIndex(task_index)
+        model_widget.on_task_select()
+
+        assert model_widget.task_dropdown.findText(model_widget.task_name_init) == -1
+
+    def test_get_config_params_includes_task(self, inference_widget):
+        model_widget = inference_widget.widget.subwidgets["model"]
+        nxf_params = {
+            "task": "mito",
+            "model": "empanada_mito",
+            "model_type": "v1",
+            "model_config": "/fake/path.yaml",
+        }
+
+        assert model_widget.get_config_params(nxf_params) == {
+            "task": "mito",
+            "name": "empanada_mito",
+            "model_type": "v1",
+            "model_config": "/fake/path.yaml",
+        }
+
+    def test_load_config_file_migrates_legacy_top_level_task(
+        self, inference_widget, monkeypatch
+    ):
+        """Configs saved before the TaskWidget merge stored task as a top-level key.
+
+        load_config_file must fold it into the model config so ModelWidget (which
+        now owns task selection) can still pick it up.
+        """
+        plugin_widget = inference_widget.widget
+        model_widget = plugin_widget.subwidgets["model"]
+
+        received_configs = []
+        monkeypatch.setattr(
+            model_widget, "load_config", lambda config: received_configs.append(config)
+        )
+
+        legacy_config = {
+            "task": "mito",
+            "model": {
+                "name": "empanada_mito",
+                "model_type": "v1",
+                "model_config": "/fake/path.yaml",
+            },
+        }
+        plugin_widget.load_config_file(legacy_config)
+
+        assert received_configs == [
+            {
+                "name": "empanada_mito",
+                "model_type": "v1",
+                "model_config": "/fake/path.yaml",
+                "task": "mito",
+            }
+        ]
+
+    def test_load_config_file_new_format_task_untouched(
+        self, inference_widget, monkeypatch
+    ):
+        """New-format configs already nest task under model; migration must be a no-op."""
+        plugin_widget = inference_widget.widget
+        model_widget = plugin_widget.subwidgets["model"]
+
+        received_configs = []
+        monkeypatch.setattr(
+            model_widget, "load_config", lambda config: received_configs.append(config)
+        )
+
+        new_config = {
+            "model": {
+                "task": "nucleus",
+                "name": "empanada_mito",
+                "model_type": "v1",
+                "model_config": "/fake/path.yaml",
+            },
+        }
+        plugin_widget.load_config_file(new_config)
+
+        assert received_configs == [new_config["model"]]
+
+
 @pytest.mark.slow
 class TestInferenceWorkflow:
     def test_full_inference_pass(
@@ -155,7 +271,18 @@ class TestInferenceWorkflow:
 
         plugin_widget.subwidgets["data"].update_file_count(paths=dummy_images)
         plugin_widget.subwidgets["data"].view_images()
-        plugin_widget.subwidgets["task"].task_buttons[task].click()
+
+        # Select task
+        from aiod_registry import TASK_NAMES
+
+        task_dropdown = plugin_widget.subwidgets["model"].task_dropdown
+        task_index = task_dropdown.findText(TASK_NAMES[task])
+        assert task_index != -1, (
+            f"Task '{task}' not found in dropdown options: "
+            f"{[task_dropdown.itemText(i) for i in range(task_dropdown.count())]}"
+        )
+        task_dropdown.setCurrentIndex(task_index)
+        plugin_widget.subwidgets["model"].on_task_select()
 
         # Select model
         model_dropdown = plugin_widget.subwidgets["model"].model_dropdown
@@ -227,3 +354,95 @@ class TestInferenceWorkflow:
                 f"Inference pipeline timed out after {pipeline_timeout}s "
                 f"(task={task!r}, model={model!r}, variant={variant!r})"
             )
+
+
+class TestSequenceParams:
+    """List/tuple params are typed as comma-separated text, so they must be
+    split rather than cast wholesale.
+
+    Regression test: `tuple("2,2")` yields `('2', ',', '2')` (a per-character
+    split) and `yaml.dump` then writes a `!!python/tuple` tag that
+    `yaml.safe_load` cannot read. Affects StarDist's `n_tiles` and PanSeg's
+    `patch`, `patch_halo` and `ws_pixel_pitch`.
+    """
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("2,2", [2, 2]),
+            ("2, 2", [2, 2]),
+            (" 4,4,1 ", [4, 4, 1]),
+            ("2", [2]),
+            ("1.5,1.5", [1.5, 1.5]),
+            # Round-trips a value rendered by str(), as fill_ui_from_config does
+            ("[2, 2]", [2, 2]),
+            ("(2, 2)", [2, 2]),
+            # Empty/degenerate input means "unset", not an empty sequence
+            ("", None),
+            ("   ", None),
+            (",", None),
+            ("2,,2", [2, 2]),
+        ],
+    )
+    def test_parse_sequence_param(self, text, expected):
+        from aiod_napari.inference.model_selection import parse_sequence_param
+
+        assert parse_sequence_param(text) == expected
+
+    def test_never_casts_string_per_character(self):
+        """The exact failure from the review: tuple("2,2") -> ('2', ',', '2')."""
+        from aiod_napari.inference.model_selection import parse_sequence_param
+
+        assert tuple("2,2") == ("2", ",", "2")  # the old behaviour
+        assert parse_sequence_param("2,2") == [2, 2]
+
+    def test_yaml_round_trip_is_safe_loadable(self):
+        """Emitted sequences must survive yaml.safe_load with no python tags."""
+        import yaml
+
+        from aiod_napari.inference.model_selection import parse_sequence_param
+
+        dumped = yaml.dump({"n_tiles": parse_sequence_param("2,2")})
+        assert "!!python/tuple" not in dumped
+        assert yaml.safe_load(dumped) == {"n_tiles": [2, 2]}
+
+    def test_format_round_trips_through_parse(self):
+        from aiod_napari.inference.model_selection import (
+            format_sequence_param,
+            parse_sequence_param,
+        )
+
+        assert format_sequence_param([2, 2]) == "2, 2"
+        assert parse_sequence_param(format_sequence_param([4, 4, 1])) == [4, 4, 1]
+
+    def test_n_tiles_from_widget_is_yaml_safe(self, inference_widget):
+        """End-to-end: typing "2,2" into StarDist's n_tiles box must emit a
+        plain list, not the per-character tuple ('2', ',', '2')."""
+        import yaml
+        from aiod_registry import TASK_NAMES
+
+        model_widget = inference_widget.widget.subwidgets["model"]
+
+        task_index = model_widget.task_dropdown.findText(TASK_NAMES["nuclei"])
+        if task_index == -1:
+            pytest.skip("nuclei task unavailable")
+        model_widget.task_dropdown.setCurrentIndex(task_index)
+        model_widget.on_task_select()
+
+        model_index = model_widget.model_dropdown.findText("StarDist")
+        if model_index == -1:
+            pytest.skip("StarDist unavailable in this registry")
+        model_widget.model_dropdown.setCurrentIndex(model_index)
+        model_widget.on_model_select()
+        model_widget.on_model_version_select()
+
+        key = model_widget.get_task_model_variant(executed=False)
+        n_tiles_widget = model_widget.model_param_dict[key]["Number of Tiles"]["value"]
+        n_tiles_widget.setText("2,2")
+
+        config = model_widget.create_config_params(task_model_version=key)
+        assert config["n_tiles"] == [2, 2]
+
+        dumped = yaml.dump(config)
+        assert "!!python/tuple" not in dumped
+        assert yaml.safe_load(dumped)["n_tiles"] == [2, 2]

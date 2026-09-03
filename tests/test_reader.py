@@ -1,4 +1,5 @@
 import importlib.util
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -6,6 +7,7 @@ import pytest
 from aiod_napari.io import (
     bioio_reader,
     get_bioio_reader,
+    safe_image_id,
 )
 
 
@@ -220,3 +222,35 @@ def test_bioio_reader_file_deleted_after_getting_reader(tmp_path):
     # Attempting to read should raise an exception
     with pytest.raises((FileNotFoundError, OSError, Exception)):
         reader(str(test_file))
+
+
+def test_bioio_reader_ome_tiff_layer_name(tmp_path):
+    """Multi-part extensions are stripped whole, not left dangling as '.ome'."""
+    if not importlib.util.find_spec("tifffile"):
+        pytest.skip("tifffile not available")
+    import tifffile
+
+    test_data = np.random.randint(0, 255, size=(10, 10), dtype=np.uint8)
+    test_file = tmp_path / "test_multi_ext.ome.tiff"
+    tifffile.imwrite(str(test_file), test_data, ome=True)
+
+    reader = get_bioio_reader(test_file)
+    assert reader is not None, "Should get a reader for an OME-TIFF"
+    _, metadata, _ = assert_valid_napari_layer_data(reader(test_file))
+
+    assert metadata["name"] == "test_multi_ext"
+
+
+@pytest.mark.parametrize(
+    "filename,expected_stem,expected_ext",
+    [
+        ("cells.ome.tiff", "cells", ".ome.tiff"),
+        ("cells.tif", "cells", ".tif"),
+        # No installed reader plugin advertises this, so it falls back
+        ("cells.madeupformat", "cells", ".madeupformat"),
+        ("cells_no_extension", "cells_no_extension", ""),
+    ],
+)
+def test_safe_image_id(filename, expected_stem, expected_ext):
+    image_id = safe_image_id(Path("/some/dir") / filename)
+    assert (image_id.stem, image_id.ext) == (expected_stem, expected_ext)
