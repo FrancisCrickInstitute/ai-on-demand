@@ -1,13 +1,15 @@
 """Tests for the preprocessing subwidget.
 
-The widget is driven in isolation (``parent=None``) with ``_apply_dim_state``
-called directly, rather than through loaded images. The bugs these cover
+The widget is driven in isolation (``parent=None``). The bugs these cover
 produce plausible wrong *values* rather than errors, and several repair
 themselves once the widget is touched, so they resist checking by hand.
 """
 
 import pytest
-from aiod_utils.preprocess import get_all_preprocess_methods
+from aiod_utils.preprocess import (
+    Downsample,
+    get_all_preprocess_methods,
+)
 
 from aiod_napari.inference.preprocess import PreprocessWidget
 
@@ -66,3 +68,35 @@ def test_defaults_survive_being_bounded(preprocess_widget):
                 assert [w.value() for w in widget] == list(default)
             elif hasattr(widget, "value"):
                 assert widget.value() == pytest.approx(default)
+
+
+def test_short_block_size_is_read_the_way_the_backend_reads_it(preprocess_widget):
+    """A 2-element block_size means (H, W), not (D, H).
+
+    aiod_utils supplies the depth factor, so the UI must omit the same entry.
+    """
+    w = preprocess_widget
+
+    w._load_options_into_ui(
+        [{"name": "Downsample", "params": {"block_size": [4, 4], "method": "mean"}}]
+    )
+
+    loaded = tuple(w.extract_options()[0]["params"]["block_size"])
+    backend = Downsample({"block_size": (4, 4), "method": "mean"}).kwarg_params[
+        "block_size"
+    ]
+    assert loaded == backend == (1, 4, 4)
+
+
+def test_unusable_list_length_warns_and_keeps_defaults(preprocess_widget, monkeypatch):
+    """A length that cannot be lined up is reported, not quietly half-applied."""
+    warned = []
+    monkeypatch.setattr("aiod_napari.inference.preprocess.show_warning", warned.append)
+    w = preprocess_widget
+
+    w._load_options_into_ui(
+        [{"name": "Downsample", "params": {"block_size": [9], "method": "mean"}}]
+    )
+
+    assert w.extract_options()[0]["params"]["block_size"] == [1, 2, 2]
+    assert any("block_size" in str(m) for m in warned)
