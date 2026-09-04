@@ -49,6 +49,12 @@ from aiod_napari.utils import (
 )
 from aiod_napari.widget_classes import CollapsibleOptions, SubWidget
 
+# Segment-Flow revision to run when AIOD_NXF_REPO is not set
+# (i.e. running the GitHub pipeline rather than local one)
+# This should be the tag or commit that this current codebase is developed/tested against
+# NOTE: nf-core convention follows SemVer 2.0.0, i.e. no v prefix, so we follow that
+DEFAULT_NXF_REV = "0.1"
+
 
 class NxfWidget(SubWidget):
     _name = "nxf"
@@ -65,13 +71,26 @@ class NxfWidget(SubWidget):
         layout: QLayout = QGridLayout,
         **kwargs,
     ):
-        # Define attributes that may be useful outside of this class or throughout it
-        if "AIOD_NXF_REPO" in environ:
-            self.nxf_repo = Path(environ["AIOD_NXF_REPO"])
+        # Handle which version of Segment-Flow should be used
+        # Check that the env var is set and truthy
+        if nxf_repo := environ.get("AIOD_NXF_REPO"):
+            self.nxf_repo = Path(nxf_repo)
+            if not self.nxf_repo.is_dir():
+                raise FileNotFoundError(
+                    f"AIOD_NXF_REPO was set to {self.nxf_repo} which does not exist!"
+                )
             self.nxf_profiles_dir = self.nxf_repo / "profiles"
+            # Revision selection only applies to the GitHub repo form; a local
+            # checkout is already at whatever revision it's checked out to
+            self.nxf_rev = None
         else:
             self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
             self.nxf_profiles_dir = Path(files("aiod_napari").joinpath("nxf_profiles"))
+            # Allow devs to control which revision is run, otherwise use default
+            self.nxf_rev = environ.get("AIOD_NXF_REV") or DEFAULT_NXF_REV
+        # Check the profiles dir exists
+        if not self.nxf_profiles_dir.is_dir():
+            raise FileNotFoundError(f"{self.nxf_profiles_dir} does not exist!")
         # Set the base Nextflow command
         self.setup_nxf_dir_cmd()
         super().__init__(
@@ -284,7 +303,7 @@ Note that 'opening' won't do anything, this is just to see what files are presen
         avail_confs.sort()
         if len(avail_confs) == 0:
             raise FileNotFoundError(
-                f"No Nextflow profiles found in {self.nxf_profiles_dir}!"
+                f"No Nextflow (.conf) profiles found in {self.nxf_profiles_dir}!"
             )
         self.nxf_profile_box.addItems(avail_confs)
         self.nxf_profile_box.setFocusPolicy(qtpy.QtCore.Qt.FocusPolicy.StrongFocus)
@@ -644,7 +663,9 @@ Threshold for the Intersection over Union (IoU) metric used in the SAM post-proc
         self.parent.executed_model = self.parent.selected_model
         self.parent.executed_variant = self.parent.selected_variant
         # Set the starting Nextflow command
-        nxf_cmd = self.nxf_base_cmd + f"run {self.nxf_repo} -latest"
+        nxf_cmd = self.nxf_base_cmd + f"run {self.nxf_repo}"
+        if self.nxf_rev is not None:
+            nxf_cmd += f" -r {self.nxf_rev} -latest"
         # nxf_params can only be given when used standalone, which is rare
         if nxf_params is not None:
             return nxf_cmd, nxf_params  # FIXME: Returns diff number variables
