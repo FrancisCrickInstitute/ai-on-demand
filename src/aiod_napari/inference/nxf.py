@@ -72,8 +72,9 @@ class NxfWidget(SubWidget):
         **kwargs,
     ):
         # Handle which version of Segment-Flow should be used
-        if "AIOD_NXF_REPO" in environ:
-            self.nxf_repo = Path(environ["AIOD_NXF_REPO"])
+        # Check that the env var is set and truthy
+        if nxf_repo := environ.get("AIOD_NXF_REPO"):
+            self.nxf_repo = Path(nxf_repo)
             if not self.nxf_repo.is_dir():
                 raise FileNotFoundError(
                     f"AIOD_NXF_REPO was set to {self.nxf_repo} which does not exist!"
@@ -86,7 +87,7 @@ class NxfWidget(SubWidget):
             self.nxf_repo = "FrancisCrickInstitute/Segment-Flow"
             self.nxf_profiles_dir = Path(files("aiod_napari").joinpath("nxf_profiles"))
             # Allow devs to control which revision is run, otherwise use default
-            self.nxf_rev = environ.get("AIOD_NXF_REV", DEFAULT_NXF_REV)
+            self.nxf_rev = environ.get("AIOD_NXF_REV") or DEFAULT_NXF_REV
         # Check the profiles dir exists
         if not self.nxf_profiles_dir.is_dir():
             raise FileNotFoundError(f"{self.nxf_profiles_dir} does not exist!")
