@@ -386,19 +386,6 @@ NOTE: The result is just for visualization! Only the original image will be used
             # Get the current slice
             if run_on_slice:
                 image = data[self.viewer.dims.current_step[0]]
-                # As the preview is for 2D only, remap 3D-specific options to 2D if needed
-                for option in options:
-                    if option["name"] == "Filter":
-                        footprint = option["params"]["footprint"]
-                        if footprint == "cube":
-                            option["params"]["footprint"] = "square"
-                        elif footprint == "ball":
-                            option["params"]["footprint"] = "disk"
-                        # Show info if changed
-                        if footprint != option["params"]["footprint"]:
-                            show_info(
-                                f"Changed Filter footprint to {option['params']['footprint']} from {footprint} for 2D preview."
-                            )
             else:
                 image = data
         else:
